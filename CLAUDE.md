@@ -1,7 +1,7 @@
 # CinemaDatabase (CDB)
 
-A personal movie, anime, and TV show tracking app for a group of friends who watch together.
-Track what you've watched, who picked it, individual ratings, and view stats across users and media.
+A personal movie, anime, and TV show tracking app for a group of friends who watch together. Track
+what you've watched, who picked it, individual ratings, and view stats across users and media.
 
 ## Tech Stack
 
@@ -64,9 +64,12 @@ cdb/
 
 ### Core Tables
 
-- **users** — id, username, display_name, email, password_hash, role (admin/member), avatar_url, created_at, updated_at
-- **media** — id, title, type (movie/tv/anime), tmdb_id, mal_id, poster_url, backdrop_url, synopsis, genres, release_year, episode_count, runtime_minutes, created_at
-- **watch_sessions** — id, media_id, date_watched, time_watched_at, picked_by_user_id, notes, created_at
+- **users** — id, username, display_name, email, password_hash, role (admin/member), avatar_url,
+  created_at, updated_at
+- **media** — id, title, type (movie/tv/anime), tmdb_id, mal_id, poster_url, backdrop_url, synopsis,
+  genres, release_year, episode_count, runtime_minutes, created_at
+- **watch_sessions** — id, media_id, date_watched, time_watched_at, picked_by_user_id, notes,
+  created_at
 - **session_attendees** — id, session_id, user_id (who was present)
 - **ratings** — id, session_id, user_id, score (1-10), review (optional short text), created_at
 - **invite_codes** — id, code, created_by_user_id, used_by_user_id, expires_at, created_at

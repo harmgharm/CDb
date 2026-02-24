@@ -53,6 +53,7 @@ export default defineConfig([
             "eslint.config.mjs",
             "postcss.config.mjs",
             "prettier.config.mjs",
+            "lint-staged.config.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
