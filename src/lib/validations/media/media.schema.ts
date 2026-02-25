@@ -32,3 +32,31 @@ export const searchMediaSchema = z.object({
 });
 
 export type SearchMediaInput = z.infer<typeof searchMediaSchema>;
+
+export const importMediaSchema = z
+  .object({
+    tmdbId: z.number().int().positive().optional(),
+    malId: z.number().int().positive().optional(),
+    type: mediaTypeSchema,
+  })
+  .refine((data) => data.tmdbId !== undefined || data.malId !== undefined, {
+    message: "Either tmdbId or malId is required",
+  });
+
+export type ImportMediaInput = z.infer<typeof importMediaSchema>;
+
+export const mediaQuerySchema = z.object({
+  type: mediaTypeSchema.optional(),
+  genre: z.string().optional(),
+  yearFrom: z.coerce.number().int().min(1888).optional(),
+  yearTo: z.coerce.number().int().max(2100).optional(),
+  search: z.string().max(200).optional(),
+  sortBy: z
+    .enum(["title", "rating", "date_watched", "release_year", "created_at"])
+    .default("created_at"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type MediaQueryInput = z.infer<typeof mediaQuerySchema>;

@@ -1,6 +1,14 @@
-export type { CreateMediaInput, SearchMediaInput, UpdateMediaInput } from "./media.schema";
+export type {
+  CreateMediaInput,
+  ImportMediaInput,
+  MediaQueryInput,
+  SearchMediaInput,
+  UpdateMediaInput,
+} from "./media.schema";
 export {
   createMediaSchema,
+  importMediaSchema,
+  mediaQuerySchema,
   mediaTypeSchema,
   searchMediaSchema,
   updateMediaSchema,

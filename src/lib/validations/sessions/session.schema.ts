@@ -36,3 +36,21 @@ export const updateRatingSchema = z.object({
 });
 
 export type UpdateRatingInput = z.infer<typeof updateRatingSchema>;
+
+export const sessionQuerySchema = z.object({
+  mediaId: z.uuid().optional(),
+  userId: z.uuid().optional(),
+  pickedBy: z.uuid().optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type SessionQueryInput = z.infer<typeof sessionQuerySchema>;
+
+export const addAttendeesSchema = z.object({
+  userIds: z.array(z.uuid()).min(1, "At least one user ID is required"),
+});
+
+export type AddAttendeesInput = z.infer<typeof addAttendeesSchema>;

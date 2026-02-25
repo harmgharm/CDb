@@ -145,6 +145,21 @@ export type InviteCodeUpdate = Updateable<InviteCodesTable>;
 
 // ============================================
 
+export interface RefreshTokensTable {
+  id: Generated<string>;
+  user_id: string;
+  token_hash: string;
+  family: string;
+  expires_at: Date;
+  revoked_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type RefreshToken = Selectable<RefreshTokensTable>;
+export type NewRefreshToken = Insertable<RefreshTokensTable>;
+
+// ============================================
+
 export interface AuditLogTable {
   id: Generated<string>;
   user_id: string;
@@ -169,5 +184,6 @@ export interface Database {
   session_attendees: SessionAttendeesTable;
   ratings: RatingsTable;
   invite_codes: InviteCodesTable;
+  refresh_tokens: RefreshTokensTable;
   audit_log: AuditLogTable;
 }
