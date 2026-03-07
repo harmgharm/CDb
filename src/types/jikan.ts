@@ -31,6 +31,11 @@ export interface JikanAnime {
       large_image_url: string;
     };
   };
+  trailer: {
+    youtube_id: string | null;
+    url: string | null;
+    embed_url: string | null;
+  };
   synopsis: string | null;
   genres: JikanGenre[];
   themes: JikanGenre[];
@@ -39,6 +44,9 @@ export interface JikanAnime {
   episodes: number | null;
   status: string;
   score: number | null;
+  scored_by: number | null;
+  rating: string | null;
+  studios: JikanGenre[];
   year: number | null;
   aired: {
     from: string | null;
@@ -50,4 +58,23 @@ export interface JikanAnime {
 export interface JikanGenre {
   mal_id: number;
   name: string;
+}
+
+export interface JikanRecommendationEntry {
+  entry: {
+    mal_id: number;
+    title: string;
+    url: string;
+    images: {
+      jpg: {
+        image_url: string;
+        large_image_url: string;
+      };
+    };
+  };
+  votes: number;
+}
+
+export interface JikanRecommendationsResponse {
+  data: JikanRecommendationEntry[];
 }

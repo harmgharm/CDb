@@ -9,6 +9,7 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
+import { invalidateGroupRecommendations } from "@/lib/recommendations";
 import { createSessionSchema, sessionQuerySchema } from "@/lib/validations/sessions";
 
 export async function GET(req: NextRequest) {
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   let query = db
     .selectFrom("watch_sessions")
     .innerJoin("media", "media.id", "watch_sessions.media_id")
-    .innerJoin("users", "users.id", "watch_sessions.picked_by_user_id")
+    .leftJoin("users", "users.id", "watch_sessions.picked_by_user_id")
     .select([
       "watch_sessions.id",
       "watch_sessions.date_watched",
@@ -90,8 +91,12 @@ export async function POST(req: NextRequest) {
     return errorResponse("Media not found", 404);
   }
 
-  // Verify picker is in attendees
-  if (!attendeeIds.includes(pickedByUserId)) {
+  // Verify picker is in attendees (if a picker was selected)
+  if (
+    pickedByUserId !== null &&
+    pickedByUserId !== undefined &&
+    !attendeeIds.includes(pickedByUserId)
+  ) {
     return errorResponse("Picker must be an attendee", 400);
   }
 
@@ -102,7 +107,8 @@ export async function POST(req: NextRequest) {
         media_id: mediaId,
         date_watched: dateWatched,
         time_watched_at: timeWatchedAt ?? null,
-        picked_by_user_id: pickedByUserId,
+        picked_by_user_id: pickedByUserId ?? null,
+        created_by_user_id: user.id,
         notes: notes ?? null,
       })
       .returningAll()
@@ -119,6 +125,13 @@ export async function POST(req: NextRequest) {
       )
       .execute();
 
+    // Auto-remove from attendees' watchlists for this media
+    await trx
+      .deleteFrom("watchlist")
+      .where("media_id", "=", mediaId)
+      .where("user_id", "in", attendeeIds)
+      .execute();
+
     return newSession;
   });
 
@@ -128,6 +141,11 @@ export async function POST(req: NextRequest) {
     entityType: "session",
     entityId: session.id,
     metadata: { mediaId, attendeeCount: attendeeIds.length },
+  });
+
+  // Invalidate group recommendation cache
+  void invalidateGroupRecommendations().catch((error: unknown) => {
+    console.error("Failed to invalidate group recommendations:", error);
   });
 
   return successResponse(session, "Session created", 201);

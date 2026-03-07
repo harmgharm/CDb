@@ -5,6 +5,7 @@ import {
   CalendarIcon,
   ClapperboardIcon,
   CrownIcon,
+  ShieldCheckIcon,
   ShieldIcon,
   StarIcon,
 } from "lucide-react";
@@ -12,14 +13,16 @@ import * as motion from "motion/react-client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/components/providers/auth-provider";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RatingDistribution } from "@/components/users/rating-distribution";
 import { RecentPicks } from "@/components/users/recent-picks";
-import { TopGenres } from "@/components/users/top-genres";
+import { UserDetailedStats } from "@/components/users/user-detailed-stats";
+import { WatchlistSection } from "@/components/watchlist";
 import { useUserProfile, useUserStats } from "@/hooks/use-users";
 
 function getInitials(displayName: string | null, username: string): string {
@@ -89,8 +92,10 @@ function ProfileSkeleton() {
 
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
+  const { user: currentUser } = useAuth();
   const { data: profile, isLoading: profileLoading } = useUserProfile(params.id);
   const { data: stats, isLoading: statsLoading } = useUserStats(params.id);
+  const isOwnProfile = currentUser?.id === params.id;
 
   if (profileLoading) {
     return <ProfileSkeleton />;
@@ -145,22 +150,32 @@ export default function UserProfilePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" as const }}
-        className="flex items-center gap-6"
+        className="flex flex-col items-center gap-4 text-center sm:flex-row sm:gap-6 sm:text-left"
       >
         <Avatar className="size-24">
+          <AvatarImage
+            src={profile.avatar_url ?? undefined}
+            alt={profile.display_name ?? profile.username}
+          />
           <AvatarFallback className="text-2xl">
             {getInitials(profile.display_name, profile.username)}
           </AvatarFallback>
         </Avatar>
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start sm:gap-3">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
               {profile.display_name ?? profile.username}
             </h1>
             {profile.role === "admin" && (
               <Badge variant="secondary" className="gap-1">
                 <ShieldIcon className="size-3" />
                 Admin
+              </Badge>
+            )}
+            {profile.role === "moderator" && (
+              <Badge variant="secondary" className="gap-1">
+                <ShieldCheckIcon className="size-3" />
+                Mod
               </Badge>
             )}
           </div>
@@ -185,24 +200,29 @@ export default function UserProfilePage() {
         ))}
       </div>
 
-      {/* Detailed stats */}
+      {/* Rating distribution (full width) */}
       {statsLoading ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Skeleton className="h-64 rounded-lg" />
-          <Skeleton className="h-64 rounded-lg" />
-          <Skeleton className="col-span-full h-48 rounded-lg" />
-        </div>
+        <Skeleton className="h-64 rounded-lg" />
       ) : (
-        stats !== undefined && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RatingDistribution distribution={stats.ratingDistribution} />
-            <TopGenres genres={stats.topGenres} />
-            <div className="lg:col-span-2">
-              <RecentPicks picks={stats.recentPicks} />
-            </div>
-          </div>
+        stats !== undefined &&
+        stats.ratingDistribution.length > 0 && (
+          <RatingDistribution distribution={stats.ratingDistribution} />
         )
       )}
+
+      {/* Detailed stats (categorized sections) */}
+      <UserDetailedStats userId={params.id} />
+
+      {/* Recent picks */}
+      {statsLoading ? (
+        <Skeleton className="h-48 rounded-lg" />
+      ) : (
+        stats !== undefined &&
+        stats.recentPicks.length > 0 && <RecentPicks picks={stats.recentPicks} />
+      )}
+
+      {/* Watchlist */}
+      <WatchlistSection userId={params.id} isOwnProfile={isOwnProfile} />
     </div>
   );
 }

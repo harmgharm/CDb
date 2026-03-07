@@ -9,7 +9,8 @@ export const usernameSchema = z
   .min(3, "Username must be at least 3 characters")
   .max(20, "Username must be at most 20 characters")
   .regex(/^[a-zA-Z]/, "Username must start with a letter")
-  .regex(/^\w+$/, "Username can only contain letters, numbers, and underscores");
+  .regex(/^\w+$/, "Username can only contain letters, numbers, and underscores")
+  .transform((username) => username.toLowerCase());
 
 export const emailSchema = z
   .email("Invalid email address")

@@ -7,6 +7,7 @@ import { sql } from "kysely";
 import { successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fetchAvgRating, fetchHoursWatched } from "@/lib/stats/queries";
 
 export async function GET() {
   await requireAuth();
@@ -34,6 +35,7 @@ export async function GET() {
     .selectFrom("watch_sessions")
     .innerJoin("users", "users.id", "watch_sessions.picked_by_user_id")
     .select(["users.id", "users.username", "users.display_name", db.fn.countAll().as("pick_count")])
+    .where("watch_sessions.picked_by_user_id", "is not", null)
     .groupBy(["users.id", "users.username", "users.display_name"])
     .orderBy("pick_count", "desc")
     .limit(1)
@@ -98,7 +100,7 @@ export async function GET() {
       "media.id",
       "media.title",
       "media.type",
-      sql<number>`stddev_pop(ratings.score)`.as("score_stddev"),
+      sql<string>`stddev_pop(ratings.score)`.as("score_stddev"),
     ])
     .groupBy(["media.id", "media.title", "media.type"])
     .having(db.fn.countAll(), ">=", 3)
@@ -114,10 +116,15 @@ export async function GET() {
     .limit(1)
     .executeTakeFirst();
 
+  // Hours watched + average rating
+  const [hoursWatched, avgRating] = await Promise.all([fetchHoursWatched(), fetchAvgRating()]);
+
   return successResponse({
     mediaWatched: Object.fromEntries(mediaCounts.map((m) => [m.type, Number(m.count)])),
     totalSessions: Number(totalSessions.count),
     totalRatings: Number(totalRatings.count),
+    hoursWatched,
+    avgRating,
     topPicker: topPicker
       ? {
           id: topPicker.id,
@@ -156,7 +163,7 @@ export async function GET() {
           id: mostDivisive.id,
           title: mostDivisive.title,
           type: mostDivisive.type,
-          stddev: Math.round(mostDivisive.score_stddev * 100) / 100,
+          stddev: Math.round(Number(mostDivisive.score_stddev) * 100) / 100,
         }
       : null,
     lastSessionDate: lastSession?.date_watched ?? null,

@@ -89,11 +89,13 @@ export function useDeleteUser() {
 export function useGenerateInviteCode() {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const generate = useCallback(async (): Promise<boolean> => {
+  const generate = useCallback(async (expiresInDays = 30): Promise<boolean> => {
     setIsGenerating(true);
     try {
       const response = await fetch("/api/admin/invite-codes", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresInDays }),
       });
       const json = (await response.json()) as ApiResponse<unknown>;
       return json.error === null;
@@ -105,4 +107,51 @@ export function useGenerateInviteCode() {
   }, []);
 
   return { generate, isGenerating };
+}
+
+export function useDeleteInviteCode() {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const deleteCode = useCallback(async (codeId: string): Promise<boolean> => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/admin/invite-codes/${codeId}`, {
+        method: "DELETE",
+      });
+      const json = (await response.json()) as ApiResponse<unknown>;
+      return json.error === null;
+    } catch {
+      return false;
+    } finally {
+      setIsDeleting(false);
+    }
+  }, []);
+
+  return { deleteCode, isDeleting };
+}
+
+export function useUpdateInviteCode() {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const updateCode = useCallback(
+    async (codeId: string, expiresInDays: number): Promise<boolean> => {
+      setIsUpdating(true);
+      try {
+        const response = await fetch(`/api/admin/invite-codes/${codeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expiresInDays }),
+        });
+        const json = (await response.json()) as ApiResponse<unknown>;
+        return json.error === null;
+      } catch {
+        return false;
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [],
+  );
+
+  return { updateCode, isUpdating };
 }

@@ -8,7 +8,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db";
-import type { User } from "@/lib/db/types";
+import type { User, UserRole } from "@/lib/db/types";
 
 import { getAccessToken } from "./cookies";
 import { verifyAccessToken } from "./tokens";
@@ -51,11 +51,30 @@ export async function requireAuth(): Promise<User> {
 }
 
 /**
+ * Check if a role has moderator-level (or higher) permissions.
+ * Moderators have the same content-moderation powers as admins.
+ */
+export function isModeratorOrAdmin(role: UserRole): boolean {
+  return role === "admin" || role === "moderator";
+}
+
+/**
  * Require admin role. Redirects to /home if not admin.
  */
 export async function requireAdmin(): Promise<User> {
   const user = await requireAuth();
   if (user.role !== "admin") {
+    redirect("/home");
+  }
+  return user;
+}
+
+/**
+ * Require moderator or admin role. Redirects to /home if insufficient permissions.
+ */
+export async function requireModerator(): Promise<User> {
+  const user = await requireAuth();
+  if (!isModeratorOrAdmin(user.role)) {
     redirect("/home");
   }
   return user;

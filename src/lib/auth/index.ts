@@ -15,5 +15,11 @@ export {
   revokeRefreshToken,
   revokeTokenFamily,
 } from "./refresh-tokens";
-export { getCurrentUser, requireAdmin, requireAuth } from "./session";
+export {
+  getCurrentUser,
+  isModeratorOrAdmin,
+  requireAdmin,
+  requireAuth,
+  requireModerator,
+} from "./session";
 export { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from "./tokens";

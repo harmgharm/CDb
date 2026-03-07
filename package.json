@@ -13,10 +13,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migrate": "tsx src/lib/db/migrate.ts",
-    "db:migrate:down": "tsx src/lib/db/migrate.ts down",
-    "db:migrate:status": "tsx src/lib/db/migrate.ts status",
-    "db:seed:admin": "tsx src/lib/db/seed-admin.ts",
+    "db:migrate": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config src/lib/db/migrate.ts",
+    "db:migrate:down": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config src/lib/db/migrate.ts down",
+    "db:migrate:status": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config src/lib/db/migrate.ts status",
+    "db:seed:admin": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config src/lib/db/seed-admin.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -50,6 +50,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/eslint-plugin": "^1.6.9",
+    "dotenv": "^17.3.1",
     "eslint": "^9.39.3",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",

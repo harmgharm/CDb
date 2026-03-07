@@ -6,7 +6,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { isModeratorOrAdmin, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { addAttendeesSchema } from "@/lib/validations/sessions";
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Session not found", 404);
   }
 
-  if (user.role !== "admin" && user.id !== session.picked_by_user_id) {
+  if (!isModeratorOrAdmin(user.role) && user.id !== session.picked_by_user_id) {
     return errorResponse("Not authorized", 403);
   }
 
@@ -69,7 +69,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Session not found", 404);
   }
 
-  if (user.role !== "admin" && user.id !== session.picked_by_user_id) {
+  if (!isModeratorOrAdmin(user.role) && user.id !== session.picked_by_user_id) {
     return errorResponse("Not authorized", 403);
   }
 

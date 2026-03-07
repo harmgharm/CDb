@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   // Rating distribution (1-10 histogram)
   const ratingDistribution = await db
     .selectFrom("ratings")
-    .select([sql<number>`floor(score)`.as("bucket"), db.fn.countAll().as("count")])
+    .select([sql<string>`floor(score)`.as("bucket"), db.fn.countAll().as("count")])
     .where("user_id", "=", id)
     .groupBy(sql`floor(score)`)
     .orderBy("bucket", "asc")
@@ -74,7 +74,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
   return successResponse({
     ratingDistribution: ratingDistribution.map((r) => ({
-      score: r.bucket,
+      score: Number(r.bucket),
       count: Number(r.count),
     })),
     topGenres,

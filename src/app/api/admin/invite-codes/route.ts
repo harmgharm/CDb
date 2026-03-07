@@ -3,9 +3,12 @@
  * POST /api/admin/invite-codes — Generate a new invite code (admin only)
  */
 
-import { successResponse } from "@/lib/api/response";
+import type { NextRequest } from "next/server";
+
+import { errorResponse, successResponse } from "@/lib/api/response";
 import { generateInviteCode, logAudit, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { generateInviteCodeSchema } from "@/lib/validations/admin";
 
 export async function GET() {
   await requireAdmin();
@@ -29,22 +32,29 @@ export async function GET() {
   return successResponse(codes);
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
 
-  const code = await generateInviteCode(admin.id);
+  const body: unknown = await req.json().catch(() => ({}));
+  const parsed = generateInviteCodeSchema.safeParse(body);
+  if (!parsed.success) {
+    return errorResponse("Invalid request body", 400);
+  }
 
-  // Fetch the created invite to get the expiry
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30);
+  const { expiresInDays } = parsed.data;
+  const invite = await generateInviteCode(admin.id, expiresInDays);
 
   await logAudit({
     userId: admin.id,
     action: "invite.created",
     entityType: "invite_code",
-    entityId: code,
-    metadata: { expires_at: expiresAt.toISOString() },
+    entityId: invite.id,
+    metadata: { code: invite.code, expires_at: invite.expiresAt.toISOString() },
   });
 
-  return successResponse({ code, expiresAt }, "Invite code created", 201);
+  return successResponse(
+    { code: invite.code, expiresAt: invite.expiresAt },
+    "Invite code created",
+    201,
+  );
 }

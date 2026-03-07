@@ -1,10 +1,10 @@
 "use client";
 
-import { CalendarIcon, ShieldIcon } from "lucide-react";
+import { CalendarIcon, ShieldCheckIcon, ShieldIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,6 +39,10 @@ function UserCard({ user, index }: Readonly<{ user: UserListItem; index: number 
         <Card className="hover:border-primary/50 transition-colors">
           <CardContent className="flex items-center gap-4 p-4">
             <Avatar className="size-14">
+              <AvatarImage
+                src={user.avatar_url ?? undefined}
+                alt={user.display_name ?? user.username}
+              />
               <AvatarFallback className="text-lg">
                 {getInitials(user.display_name, user.username)}
               </AvatarFallback>
@@ -50,6 +54,12 @@ function UserCard({ user, index }: Readonly<{ user: UserListItem; index: number 
                   <Badge variant="secondary" className="gap-1 text-xs">
                     <ShieldIcon className="size-3" />
                     Admin
+                  </Badge>
+                )}
+                {user.role === "moderator" && (
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    <ShieldCheckIcon className="size-3" />
+                    Mod
                   </Badge>
                 )}
               </div>

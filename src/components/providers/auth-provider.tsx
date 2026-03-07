@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
 import useSWR from "swr";
 
 import type { SafeUser } from "@/types/auth";
@@ -17,7 +17,19 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter();
-  const { data: user, isLoading, mutate } = useSWR<SafeUser>("/api/auth/me");
+  const {
+    data: user,
+    isLoading,
+    error: authError,
+    mutate,
+  } = useSWR<SafeUser, Error>("/api/auth/me");
+
+  // Redirect to login when auth fails (token expired and refresh failed)
+  useEffect(() => {
+    if (authError !== undefined && !isLoading) {
+      router.push("/login");
+    }
+  }, [authError, isLoading, router]);
 
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });

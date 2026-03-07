@@ -5,6 +5,7 @@
  */
 
 export { checkDatabaseConnection, closeDatabase, db } from "./client";
+export { isUniqueViolation } from "./errors";
 export type { DatabaseTransaction } from "./transaction";
 export { withTransaction } from "./transaction";
 export type {
@@ -18,12 +19,21 @@ export type {
   NewInviteCode,
   NewMedia,
   NewRating,
+  NewRecommendationCache,
   NewSessionAttendee,
+  NewTmdbRecommendationCache,
   NewUser,
+  NewWatchlistEntry,
   NewWatchSession,
   Rating,
+  RecommendationCache,
+  RecommendationType,
   SessionAttendee,
+  TmdbRecommendationCacheEntry,
   User,
   UserRole,
+  WatchlistEntry,
+  WatchlistEntryUpdate,
+  WatchlistStatus,
   WatchSession,
 } from "./types";

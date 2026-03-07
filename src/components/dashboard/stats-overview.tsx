@@ -18,7 +18,7 @@ const CARD_VARIANTS = {
 
 interface StatCardProps {
   readonly title: string;
-  readonly value: number;
+  readonly value: string;
   readonly icon: React.ReactNode;
   readonly index: number;
 }
@@ -58,7 +58,7 @@ export function StatsOverview() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
         {Array.from({ length: 5 }, (_, index) => (
           <StatCardSkeleton key={index} />
         ))}
@@ -73,33 +73,33 @@ export function StatsOverview() {
   const cards = [
     {
       title: "Movies",
-      value: movies,
+      value: String(movies),
       icon: <FilmIcon className="text-muted-foreground size-4" />,
     },
     {
       title: "TV Shows",
-      value: tv,
+      value: String(tv),
       icon: <TvIcon className="text-muted-foreground size-4" />,
     },
     {
       title: "Anime",
-      value: anime,
+      value: String(anime),
       icon: <MonitorPlayIcon className="text-muted-foreground size-4" />,
     },
     {
       title: "Sessions",
-      value: stats?.totalSessions ?? 0,
+      value: String(stats?.totalSessions ?? 0),
       icon: <ClapperboardIcon className="text-muted-foreground size-4" />,
     },
     {
       title: "Ratings",
-      value: stats?.totalRatings ?? 0,
+      value: String(stats?.totalRatings ?? 0),
       icon: <StarIcon className="text-muted-foreground size-4" />,
     },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
       {cards.map((card, index) => (
         <StatCard
           key={card.title}

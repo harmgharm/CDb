@@ -35,8 +35,11 @@ export async function middleware(req: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 
-  // Landing page (/) — always accessible
+  // Landing page (/) — redirect authenticated users to home
   if (pathname === "/") {
+    if (session) {
+      return NextResponse.redirect(new URL("/home", req.url));
+    }
     return NextResponse.next();
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldAlertIcon, ShieldIcon, TrashIcon } from "lucide-react";
+import { ShieldAlertIcon, ShieldCheckIcon, ShieldIcon, TrashIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -174,6 +174,12 @@ export function UserManagement() {
                         <span className="flex items-center gap-1.5">
                           <ShieldAlertIcon className="size-3.5" />
                           Admin
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="moderator">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheckIcon className="size-3.5" />
+                          Moderator
                         </span>
                       </SelectItem>
                       <SelectItem value="member">

@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuditLog } from "@/hooks/use-admin";
 import type { AuditLogEntry, AuditLogResponse } from "@/types/admin-responses";
 
@@ -83,6 +84,12 @@ function ActionBadge({ action }: Readonly<{ action: string }>) {
   );
 }
 
+function formatMetadata(metadata: Record<string, unknown>): string {
+  return Object.entries(metadata)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join(", ");
+}
+
 function MetadataCell({ metadata }: Readonly<{ metadata: Record<string, unknown> | null }>) {
   if (metadata === null) {
     return <span className="text-muted-foreground">—</span>;
@@ -91,10 +98,16 @@ function MetadataCell({ metadata }: Readonly<{ metadata: Record<string, unknown>
   if (entries.length === 0) {
     return <span className="text-muted-foreground">—</span>;
   }
+  const text = formatMetadata(metadata);
   return (
-    <span className="text-muted-foreground text-xs">
-      {entries.map(([key, value]) => `${key}: ${String(value)}`).join(", ")}
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="text-muted-foreground cursor-default text-xs">{text}</span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-sm break-all">
+        <p className="text-xs">{text}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -114,7 +127,16 @@ function AuditLogRow({ entry, index }: Readonly<{ entry: AuditLogEntry; index: n
         <ActionBadge action={entry.action} />
       </TableCell>
       <TableCell className="capitalize">{entry.entity_type}</TableCell>
-      <TableCell className="font-mono text-xs">{entry.entity_id.slice(0, 8)}...</TableCell>
+      <TableCell className="font-mono text-xs">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-default">{entry.entity_id.slice(0, 8)}...</span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p className="font-mono text-xs">{entry.entity_id}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TableCell>
       <TableCell className="max-w-48 truncate">
         <MetadataCell metadata={entry.metadata} />
       </TableCell>
@@ -153,25 +175,27 @@ function AuditLogContent({ data, isLoading, onPageChange }: AuditLogContentProps
 
   return (
     <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Timestamp</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Entity</TableHead>
-              <TableHead>ID</TableHead>
-              <TableHead>Metadata</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.items.map((entry, index) => (
-              <AuditLogRow key={entry.id} entry={entry} index={index} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <TooltipProvider>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Timestamp</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Entity</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>Metadata</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.items.map((entry, index) => (
+                <AuditLogRow key={entry.id} entry={entry} index={index} />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </TooltipProvider>
       <MediaPagination page={data.page} totalPages={data.totalPages} onPageChange={onPageChange} />
     </>
   );

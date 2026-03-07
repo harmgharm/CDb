@@ -7,7 +7,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAdmin, requireAuth } from "@/lib/auth";
+import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateSessionSchema } from "@/lib/validations/sessions";
 
@@ -22,13 +22,14 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const session = await db
     .selectFrom("watch_sessions")
     .innerJoin("media", "media.id", "watch_sessions.media_id")
-    .innerJoin("users", "users.id", "watch_sessions.picked_by_user_id")
+    .leftJoin("users", "users.id", "watch_sessions.picked_by_user_id")
     .select([
       "watch_sessions.id",
       "watch_sessions.date_watched",
       "watch_sessions.time_watched_at",
       "watch_sessions.notes",
       "watch_sessions.created_at",
+      "watch_sessions.created_by_user_id",
       "media.id as media_id",
       "media.title as media_title",
       "media.type as media_type",
@@ -67,7 +68,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     .where("ratings.session_id", "=", id)
     .execute();
 
-  return successResponse({ ...session, attendees, ratings });
+  return successResponse({
+    ...session,
+    attendees,
+    ratings: ratings.map((r) => ({ ...r, score: Number(r.score) })),
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
@@ -76,7 +81,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const session = await db
     .selectFrom("watch_sessions")
-    .select(["id", "picked_by_user_id"])
+    .select(["id", "picked_by_user_id", "created_by_user_id"])
     .where("id", "=", id)
     .executeTakeFirst();
 
@@ -84,8 +89,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Session not found", 404);
   }
 
-  // Only admin or picker can update
-  if (user.role !== "admin" && user.id !== session.picked_by_user_id) {
+  // Only admin/mod, creator, or picker can update
+  if (
+    !isModeratorOrAdmin(user.role) &&
+    user.id !== session.created_by_user_id &&
+    user.id !== session.picked_by_user_id
+  ) {
     return errorResponse("Not authorized", 403);
   }
 
@@ -121,12 +130,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await requireAdmin();
+  const user = await requireAuth();
   const { id } = await params;
 
   const session = await db
     .selectFrom("watch_sessions")
-    .select("id")
+    .select(["id", "created_by_user_id"])
     .where("id", "=", id)
     .executeTakeFirst();
 
@@ -134,10 +143,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("Session not found", 404);
   }
 
+  // Only admin/mod or creator can delete
+  if (!isModeratorOrAdmin(user.role) && user.id !== session.created_by_user_id) {
+    return errorResponse("Not authorized", 403);
+  }
+
   await db.deleteFrom("watch_sessions").where("id", "=", id).execute();
 
   await logAudit({
-    userId: admin.id,
+    userId: user.id,
     action: "session.deleted",
     entityType: "session",
     entityId: id,

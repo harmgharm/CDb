@@ -14,6 +14,8 @@ export interface DashboardStats {
   mediaWatched: Partial<Record<MediaType, number>>;
   totalSessions: number;
   totalRatings: number;
+  hoursWatched: number;
+  avgRating: number | null;
   topPicker: (UserStat & { pickCount: number }) | null;
   topRater: (UserStat & { avgScore: number }) | null;
   topAttendee: (UserStat & { attendanceCount: number }) | null;

@@ -6,7 +6,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateRatingSchema } from "@/lib/validations/sessions";
 
@@ -28,8 +28,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Rating not found", 404);
   }
 
-  if (rating.user_id !== user.id) {
-    return errorResponse("You can only update your own ratings", 403);
+  if (!isModeratorOrAdmin(user.role) && rating.user_id !== user.id) {
+    return errorResponse("Not authorized", 403);
   }
 
   const body: unknown = await req.json();
@@ -58,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     metadata: data,
   });
 
-  return successResponse(updated);
+  return successResponse({ ...updated, score: Number(updated.score) });
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
@@ -75,7 +75,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("Rating not found", 404);
   }
 
-  if (user.role !== "admin" && rating.user_id !== user.id) {
+  if (!isModeratorOrAdmin(user.role) && rating.user_id !== user.id) {
     return errorResponse("Not authorized", 403);
   }
 

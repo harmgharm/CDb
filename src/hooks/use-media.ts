@@ -64,7 +64,15 @@ export function useMediaSearch() {
       const json = (await response.json()) as ApiResponse<MediaSearchResult[]>;
 
       if (json.error === null) {
-        setResults(json.data);
+        // Deduplicate by source + externalId (Jikan can return duplicates)
+        const seen = new Set<string>();
+        const unique = json.data.filter((item) => {
+          const key = `${item.source}-${String(item.externalId)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setResults(unique);
       } else {
         setSearchError(json.error);
         setResults([]);
@@ -85,12 +93,21 @@ export function useMediaSearch() {
   return { results, isSearching, searchError, search, clearResults };
 }
 
+interface ImportedMedia {
+  id: string;
+  title: string;
+}
+
 export function useMediaImport() {
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
   const importMedia = useCallback(
-    async (params: { type: string; tmdbId?: number; malId?: number }) => {
+    async (params: {
+      type: string;
+      tmdbId?: number;
+      malId?: number;
+    }): Promise<ImportedMedia | null> => {
       setIsImporting(true);
       setImportError(null);
 
@@ -101,17 +118,17 @@ export function useMediaImport() {
           body: JSON.stringify(params),
         });
 
-        const json = (await response.json()) as ApiResponse<unknown>;
+        const json = (await response.json()) as ApiResponse<ImportedMedia>;
 
         if (json.error !== null) {
           setImportError(json.error);
-          return false;
+          return null;
         }
 
-        return true;
+        return json.data;
       } catch {
         setImportError("Import failed. Please try again.");
-        return false;
+        return null;
       } finally {
         setIsImporting(false);
       }

@@ -18,6 +18,22 @@ export const createMediaSchema = z.object({
   releaseYear: z.number().int().min(1888).max(2100).optional(),
   episodeCount: z.number().int().positive().optional(),
   runtimeMinutes: z.number().int().positive().optional(),
+  directors: z.array(z.string()).optional(),
+  imdbId: z.string().max(20).optional(),
+  tmdbRating: z.number().min(0).max(10).optional(),
+  malScore: z.number().min(0).max(10).optional(),
+  status: z.string().max(50).optional(),
+  originalTitle: z.string().max(500).optional(),
+  tagline: z.string().max(1000).optional(),
+  voteCount: z.number().int().nonnegative().optional(),
+  seasonCount: z.number().int().positive().optional(),
+  trailerKey: z.string().max(20).optional(),
+  originCountry: z.array(z.string()).optional(),
+  certification: z.string().max(20).optional(),
+  networks: z.array(z.string()).optional(),
+  budget: z.number().int().nonnegative().optional(),
+  revenue: z.number().int().nonnegative().optional(),
+  studios: z.array(z.string()).optional(),
 });
 
 export type CreateMediaInput = z.infer<typeof createMediaSchema>;

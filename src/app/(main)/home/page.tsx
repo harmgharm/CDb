@@ -1,7 +1,7 @@
 "use client";
 
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
-import { FunStats } from "@/components/dashboard/fun-stats";
+import { GroupDetailedStats } from "@/components/dashboard/group-detailed-stats";
 import { GroupStats } from "@/components/dashboard/group-stats";
 import { StatsOverview } from "@/components/dashboard/stats-overview";
 
@@ -17,7 +17,7 @@ export default function HomePage() {
 
       <StatsOverview />
       <GroupStats />
-      <FunStats />
+      <GroupDetailedStats />
       <ActivityFeed />
     </div>
   );

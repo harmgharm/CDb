@@ -11,14 +11,24 @@ export const createSessionSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
     .optional(),
-  pickedByUserId: z.uuid("Invalid user ID"),
+  pickedByUserId: z.uuid("Invalid user ID").nullable().optional(),
   attendeeIds: z.array(z.uuid()).min(1, "At least one attendee is required"),
   notes: z.string().max(1000).optional(),
 });
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
-export const updateSessionSchema = createSessionSchema.partial().omit({ attendeeIds: true });
+export const updateSessionSchema = z.object({
+  mediaId: z.uuid("Invalid media ID").optional(),
+  dateWatched: z.coerce.date().optional(),
+  timeWatchedAt: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
+    .nullable()
+    .optional(),
+  pickedByUserId: z.uuid("Invalid user ID").nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
 
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 
@@ -26,6 +36,7 @@ export const ratingSchema = z.object({
   sessionId: z.uuid("Invalid session ID"),
   score: z.number().min(1, "Score must be at least 1").max(10, "Score must be at most 10"),
   review: z.string().max(1000).optional(),
+  userId: z.uuid("Invalid user ID").optional(),
 });
 
 export type RatingInput = z.infer<typeof ratingSchema>;

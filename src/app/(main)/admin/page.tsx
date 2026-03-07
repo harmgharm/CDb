@@ -2,13 +2,41 @@
 
 import { KeyIcon, ScrollTextIcon, UsersIcon } from "lucide-react";
 import * as motion from "motion/react-client";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { AuditLogTable } from "@/components/admin/audit-log-table";
 import { InviteCodes } from "@/components/admin/invite-codes";
 import { UserManagement } from "@/components/admin/user-management";
+import { useAuth } from "@/components/providers/auth-provider";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminPage() {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user?.role !== "admin") {
+      router.replace("/home");
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6">
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-5 w-72" />
+        <Skeleton className="h-10 w-80" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (user?.role !== "admin") {
+    return null;
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <motion.div

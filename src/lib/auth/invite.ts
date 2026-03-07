@@ -33,27 +33,34 @@ export async function markInviteCodeUsed(code: string, userId: string): Promise<
     .execute();
 }
 
+interface GeneratedInviteCode {
+  id: string;
+  code: string;
+  expiresAt: Date;
+}
+
 /**
  * Generate a new invite code.
- * Returns the code string (not the full DB record).
+ * Returns the id, code string, and expiry date.
  */
 export async function generateInviteCode(
   createdByUserId: string,
   expiresInDays = 30,
-): Promise<string> {
+): Promise<GeneratedInviteCode> {
   const code = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-  await db
+  const record = await db
     .insertInto("invite_codes")
     .values({
       code,
       created_by_user_id: createdByUserId,
       expires_at: expiresAt,
     })
-    .execute();
+    .returning(["id", "code", "expires_at"])
+    .executeTakeFirstOrThrow();
 
-  return code;
+  return { id: record.id, code: record.code, expiresAt: record.expires_at };
 }

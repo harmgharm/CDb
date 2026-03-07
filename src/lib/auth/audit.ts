@@ -9,7 +9,7 @@ interface AuditEntry {
   userId: string;
   action: AuditAction;
   entityType: string;
-  entityId: string;
+  entityId: string | null;
   metadata?: Record<string, unknown>;
 }
 

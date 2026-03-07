@@ -7,68 +7,41 @@
 
 import type { NextRequest } from "next/server";
 
-import { getAnimeDetails } from "@/lib/api/jikan";
+import type { MediaMetadata } from "@/lib/api/metadata";
+import {
+  fetchAnimeMetadata,
+  fetchMovieMetadata,
+  fetchTvMetadata,
+  metadataToDbFields,
+} from "@/lib/api/metadata";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getMovieDetails, getTvDetails, tmdbImageUrl } from "@/lib/api/tmdb";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import type { NewMedia } from "@/lib/db/types";
 import { importMediaSchema } from "@/lib/validations/media";
 
-interface MediaMetadata {
-  title: string;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  synopsis: string | null;
-  genres: string[];
-  releaseYear: number | null;
-  runtimeMinutes: number | null;
-  episodeCount: number | null;
+async function checkDuplicate(
+  column: "tmdb_id" | "mal_id",
+  value: number,
+  label: string,
+): Promise<Response | null> {
+  const existing = await db
+    .selectFrom("media")
+    .select("id")
+    .where(column, "=", value)
+    .executeTakeFirst();
+  return existing ? errorResponse(`Media with this ${label} already exists`, 409) : null;
 }
 
-function parseYear(dateString: string): number | null {
-  return dateString.length > 0 ? Number(dateString.slice(0, 4)) : null;
-}
-
-async function fetchMovieMetadata(tmdbId: number): Promise<MediaMetadata> {
-  const movie = await getMovieDetails(tmdbId);
-  return {
-    title: movie.title,
-    posterUrl: tmdbImageUrl(movie.poster_path),
-    backdropUrl: tmdbImageUrl(movie.backdrop_path, "w780"),
-    synopsis: movie.overview.length > 0 ? movie.overview : null,
-    genres: movie.genres.map((g) => g.name),
-    releaseYear: parseYear(movie.release_date),
-    runtimeMinutes: movie.runtime,
-    episodeCount: null,
-  };
-}
-
-async function fetchTvMetadata(tmdbId: number): Promise<MediaMetadata> {
-  const show = await getTvDetails(tmdbId);
-  return {
-    title: show.name,
-    posterUrl: tmdbImageUrl(show.poster_path),
-    backdropUrl: tmdbImageUrl(show.backdrop_path, "w780"),
-    synopsis: show.overview.length > 0 ? show.overview : null,
-    genres: show.genres.map((g) => g.name),
-    releaseYear: parseYear(show.first_air_date),
-    runtimeMinutes: show.episode_run_time[0] ?? null,
-    episodeCount: show.number_of_episodes,
-  };
-}
-
-async function fetchAnimeMetadata(malId: number): Promise<MediaMetadata> {
-  const { data: anime } = await getAnimeDetails(malId);
-  return {
-    title: anime.title_english ?? anime.title,
-    posterUrl: anime.images.jpg.large_image_url,
-    backdropUrl: null,
-    synopsis: anime.synopsis,
-    genres: [...anime.genres, ...anime.themes].map((g) => g.name),
-    releaseYear: anime.year,
-    runtimeMinutes: null,
-    episodeCount: anime.episodes,
-  };
+async function fetchMetadata(
+  type: string,
+  tmdbId: number | undefined,
+  malId: number | undefined,
+): Promise<MediaMetadata | null> {
+  if (type === "movie" && tmdbId !== undefined) return fetchMovieMetadata(tmdbId);
+  if (type === "tv" && tmdbId !== undefined) return fetchTvMetadata(tmdbId);
+  if (type === "anime" && malId !== undefined) return fetchAnimeMetadata(malId);
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -84,53 +57,28 @@ export async function POST(req: NextRequest) {
 
   // Check for duplicate
   if (tmdbId !== undefined) {
-    const existing = await db
-      .selectFrom("media")
-      .select("id")
-      .where("tmdb_id", "=", tmdbId)
-      .executeTakeFirst();
-    if (existing) {
-      return errorResponse("Media with this TMDB ID already exists", 409);
-    }
+    const duplicate = await checkDuplicate("tmdb_id", tmdbId, "TMDB ID");
+    if (duplicate !== null) return duplicate;
   }
   if (malId !== undefined) {
-    const existing = await db
-      .selectFrom("media")
-      .select("id")
-      .where("mal_id", "=", malId)
-      .executeTakeFirst();
-    if (existing) {
-      return errorResponse("Media with this MAL ID already exists", 409);
-    }
+    const duplicate = await checkDuplicate("mal_id", malId, "MAL ID");
+    if (duplicate !== null) return duplicate;
   }
 
   // Fetch metadata from external API
-  let metadata: MediaMetadata;
-  if (type === "movie" && tmdbId !== undefined) {
-    metadata = await fetchMovieMetadata(tmdbId);
-  } else if (type === "tv" && tmdbId !== undefined) {
-    metadata = await fetchTvMetadata(tmdbId);
-  } else if (type === "anime" && malId !== undefined) {
-    metadata = await fetchAnimeMetadata(malId);
-  } else {
+  const metadata = await fetchMetadata(type, tmdbId, malId);
+  if (metadata === null) {
     return errorResponse("Invalid type/ID combination", 400);
   }
 
   const media = await db
     .insertInto("media")
     .values({
-      title: metadata.title,
       type,
       tmdb_id: tmdbId ?? null,
       mal_id: malId ?? null,
-      poster_url: metadata.posterUrl,
-      backdrop_url: metadata.backdropUrl,
-      synopsis: metadata.synopsis,
-      genres: JSON.stringify(metadata.genres),
-      release_year: metadata.releaseYear,
-      runtime_minutes: metadata.runtimeMinutes,
-      episode_count: metadata.episodeCount,
-    })
+      ...metadataToDbFields(metadata),
+    } as NewMedia)
     .returningAll()
     .executeTakeFirstOrThrow();
 

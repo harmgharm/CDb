@@ -5,7 +5,11 @@
  * No auth required.
  */
 
-import type { JikanAnimeDetailResponse, JikanSearchResponse } from "@/types/jikan";
+import type {
+  JikanAnimeDetailResponse,
+  JikanRecommendationsResponse,
+  JikanSearchResponse,
+} from "@/types/jikan";
 
 const BASE_URL = "https://api.jikan.moe/v4";
 
@@ -49,4 +53,18 @@ export async function searchAnime(query: string, page = 1): Promise<JikanSearchR
 
 export async function getAnimeDetails(malId: number): Promise<JikanAnimeDetailResponse> {
   return jikanFetch(`/anime/${malId.toString()}`);
+}
+
+export async function getAnimeRecommendations(
+  malId: number,
+): Promise<JikanRecommendationsResponse> {
+  return jikanFetch(`/anime/${malId.toString()}/recommendations`);
+}
+
+export async function discoverAnime(params: Record<string, string>): Promise<JikanSearchResponse> {
+  return jikanFetch<JikanSearchResponse>("/anime", {
+    sfw: "true",
+    limit: "20",
+    ...params,
+  });
 }

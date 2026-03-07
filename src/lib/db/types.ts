@@ -11,8 +11,11 @@ import type { ColumnType, Generated, Insertable, Selectable, Updateable } from "
 // ENUMS
 // ============================================
 
-export type UserRole = "admin" | "member";
+export type UserRole = "admin" | "moderator" | "member";
 export type MediaType = "movie" | "tv" | "anime";
+export type WatchlistStatus = "planning" | "watching" | "scrapped";
+export type RecommendationType = "content" | "collaborative" | "tmdb" | "jikan" | "group";
+
 export type AuditAction =
   | "user.created"
   | "user.updated"
@@ -27,7 +30,15 @@ export type AuditAction =
   | "rating.updated"
   | "rating.deleted"
   | "invite.created"
-  | "invite.used";
+  | "invite.updated"
+  | "invite.deleted"
+  | "invite.used"
+  | "media.bulk_refresh"
+  | "watchlist.added"
+  | "watchlist.updated"
+  | "watchlist.removed"
+  | "recommendation.computed"
+  | "recommendation.invalidated";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -81,6 +92,22 @@ export interface MediaTable extends TimestampColumns {
   release_year: number | null;
   episode_count: number | null;
   runtime_minutes: number | null;
+  directors: JsonColumn<string[]> | null;
+  imdb_id: string | null;
+  tmdb_rating: number | null;
+  mal_score: number | null;
+  status: string | null;
+  original_title: string | null;
+  tagline: string | null;
+  vote_count: number | null;
+  season_count: number | null;
+  trailer_key: string | null;
+  origin_country: JsonColumn<string[]> | null;
+  certification: string | null;
+  networks: JsonColumn<string[]> | null;
+  budget: ColumnType<string, number | bigint, number | bigint> | null;
+  revenue: ColumnType<string, number | bigint, number | bigint> | null;
+  studios: JsonColumn<string[]> | null;
 }
 
 export type Media = Selectable<MediaTable>;
@@ -94,7 +121,8 @@ export interface WatchSessionsTable extends TimestampColumns {
   media_id: string;
   date_watched: Date;
   time_watched_at: string | null;
-  picked_by_user_id: string;
+  picked_by_user_id: string | null;
+  created_by_user_id: string | null;
   notes: string | null;
 }
 
@@ -120,7 +148,8 @@ export interface RatingsTable extends TimestampColumns {
   id: Generated<string>;
   session_id: string;
   user_id: string;
-  score: number;
+  /** decimal(3,1) — Postgres returns as string, insert/update as number */
+  score: ColumnType<string, number, number>;
   review: string | null;
 }
 
@@ -165,13 +194,71 @@ export interface AuditLogTable {
   user_id: string;
   action: AuditAction;
   entity_type: string;
-  entity_id: string;
+  entity_id: string | null;
   metadata: JsonColumn<Record<string, unknown>> | null;
   created_at: Generated<Date>;
 }
 
 export type AuditLogEntry = Selectable<AuditLogTable>;
 export type NewAuditLogEntry = Insertable<AuditLogTable>;
+
+// ============================================
+
+export interface WatchlistTable extends TimestampColumns {
+  id: Generated<string>;
+  user_id: string;
+  media_id: string | null;
+  ext_title: string | null;
+  ext_poster_url: string | null;
+  ext_media_type: MediaType | null;
+  tmdb_id: number | null;
+  mal_id: number | null;
+  status: Generated<WatchlistStatus>;
+  notes: string | null;
+}
+
+export type WatchlistEntry = Selectable<WatchlistTable>;
+export type NewWatchlistEntry = Insertable<WatchlistTable>;
+export type WatchlistEntryUpdate = Updateable<WatchlistTable>;
+
+// ============================================
+
+export interface RecommendationCacheTable {
+  id: Generated<string>;
+  user_id: string | null;
+  rec_type: RecommendationType;
+  media_id: string | null;
+  tmdb_id: number | null;
+  mal_id: number | null;
+  ext_title: string | null;
+  ext_poster_url: string | null;
+  ext_media_type: MediaType | null;
+  ext_overview: string | null;
+  ext_release_year: number | null;
+  ext_vote_average: ColumnType<string, number, number> | null;
+  score: ColumnType<string, number, number>;
+  reasons: JsonColumn<{ tag: string; detail: string }[]>;
+  computed_at: Generated<Date>;
+  expires_at: Date;
+}
+
+export type RecommendationCache = Selectable<RecommendationCacheTable>;
+export type NewRecommendationCache = Insertable<RecommendationCacheTable>;
+
+// ============================================
+
+export interface TmdbRecommendationCacheTable {
+  id: Generated<string>;
+  source_type: string;
+  source_tmdb_id: number | null;
+  source_mal_id: number | null;
+  recommendations: JsonColumn<unknown[]>;
+  fetched_at: Generated<Date>;
+  expires_at: Date;
+}
+
+export type TmdbRecommendationCacheEntry = Selectable<TmdbRecommendationCacheTable>;
+export type NewTmdbRecommendationCache = Insertable<TmdbRecommendationCacheTable>;
 
 // ============================================
 // DATABASE INTERFACE
@@ -186,4 +273,7 @@ export interface Database {
   invite_codes: InviteCodesTable;
   refresh_tokens: RefreshTokensTable;
   audit_log: AuditLogTable;
+  watchlist: WatchlistTable;
+  recommendation_cache: RecommendationCacheTable;
+  tmdb_recommendation_cache: TmdbRecommendationCacheTable;
 }

@@ -1,16 +1,19 @@
 "use client";
 
-import { GridIcon, ListIcon, PlusIcon } from "lucide-react";
+import { GridIcon, ListIcon, LoaderIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { MediaCard } from "@/components/media/media-card";
 import type { MediaFilterValues } from "@/components/media/media-filters";
 import { MediaFilters } from "@/components/media/media-filters";
 import { MediaPagination } from "@/components/media/media-pagination";
 import { MediaTable } from "@/components/media/media-table";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMediaList } from "@/hooks/use-media";
+import { useMediaRefresh } from "@/hooks/use-media-refresh";
 
 import { ImportMediaDialog } from "./import-dialog";
 
@@ -43,6 +46,8 @@ function MediaListSkeleton() {
 }
 
 export default function DatabasePage() {
+  const { user } = useAuth();
+  const { progress, startRefresh, cancelRefresh } = useMediaRefresh();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -68,22 +73,35 @@ export default function DatabasePage() {
   }, []);
 
   const handleImportSuccess = useCallback(() => {
-    setImportOpen(false);
     void mutate();
   }, [mutate]);
 
+  const isModeratorOrAdmin = user?.role === "admin" || user?.role === "moderator";
+
+  const handleRefresh = useCallback(async () => {
+    const result = await startRefresh();
+    void mutate();
+    if (result.failed === 0) {
+      toast.success(`Refreshed ${String(result.completed)} entries`);
+    } else {
+      toast.warning(
+        `Refreshed ${String(result.completed)}, failed ${String(result.failed)} entries`,
+      );
+    }
+  }, [startRefresh, mutate]);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Database</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Database</h1>
           <p className="text-muted-foreground mt-1">
             {data === undefined
               ? "Browse movies, TV shows, and anime."
               : `${String(data.total)} titles`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-md border">
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
@@ -108,6 +126,31 @@ export default function DatabasePage() {
               <span className="sr-only">List view</span>
             </Button>
           </div>
+          {isModeratorOrAdmin && !progress.isRunning && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                void handleRefresh();
+              }}
+            >
+              <RefreshCwIcon className="mr-2 size-4" />
+              Refresh Database
+            </Button>
+          )}
+          {isModeratorOrAdmin && progress.isRunning && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-sm">
+                <LoaderIcon className="mr-1 inline size-3 animate-spin" />
+                {progress.total > 0
+                  ? `Refreshing ${String(progress.completed)}/${String(progress.total)}...`
+                  : "Refreshing..."}
+              </span>
+              <Button variant="outline" size="sm" onClick={cancelRefresh}>
+                <XIcon className="mr-1 size-3" />
+                Cancel
+              </Button>
+            </div>
+          )}
           <Button
             onClick={() => {
               setImportOpen(true);

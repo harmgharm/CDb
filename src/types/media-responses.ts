@@ -18,6 +18,22 @@ export interface MediaListItem {
   release_year: number | null;
   episode_count: number | null;
   runtime_minutes: number | null;
+  directors: string[] | null;
+  imdb_id: string | null;
+  tmdb_rating: number | null;
+  mal_score: number | null;
+  status: string | null;
+  original_title: string | null;
+  tagline: string | null;
+  vote_count: number | null;
+  season_count: number | null;
+  trailer_key: string | null;
+  origin_country: string[] | null;
+  certification: string | null;
+  networks: string[] | null;
+  budget: string | null;
+  revenue: string | null;
+  studios: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +47,13 @@ export interface MediaListResponse {
   totalPages: number;
 }
 
+/** Attendee info from session */
+export interface SessionAttendee {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+}
+
 /** Session info from media detail */
 export interface MediaSession {
   id: string;
@@ -38,9 +61,11 @@ export interface MediaSession {
   time_watched_at: string | null;
   notes: string | null;
   created_at: string;
-  picker_id: string;
-  picker_username: string;
+  created_by_user_id: string | null;
+  picker_id: string | null;
+  picker_username: string | null;
   picker_display_name: string | null;
+  attendees: SessionAttendee[];
 }
 
 /** Rating info from media detail */

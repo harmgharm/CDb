@@ -39,6 +39,11 @@ export class RateLimiter {
     return { allowed: true };
   }
 
+  /** Reset the counter for a key (e.g., after successful login) */
+  reset(key: string): void {
+    this.store.delete(key);
+  }
+
   /** Remove expired entries to prevent memory leaks */
   cleanup(): void {
     const now = Date.now();
@@ -52,7 +57,7 @@ export class RateLimiter {
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
-/** 5 login attempts per 15 minutes per IP */
+/** 5 login attempts per 15 minutes per IP (reset on success) */
 export const loginLimiter = new RateLimiter(5, FIFTEEN_MINUTES);
 
 /** 5 signup attempts per 15 minutes per IP */

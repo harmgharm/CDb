@@ -1,11 +1,16 @@
 /**
  * Login Schema
+ *
+ * Accepts email or username as the identifier.
  */
 
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  email: z.email("Invalid email address").transform((email) => email.toLowerCase().trim()),
+  identifier: z
+    .string()
+    .min(1, "Email or username is required")
+    .transform((value) => value.toLowerCase().trim()),
   password: z.string().min(1, "Password is required"),
 });
 

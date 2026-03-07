@@ -5,15 +5,20 @@ import {
   DatabaseIcon,
   HomeIcon,
   LogOutIcon,
+  MoonIcon,
+  SettingsIcon,
   ShieldIcon,
+  SparklesIcon,
+  SunIcon,
+  UserIcon,
   UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +44,7 @@ import {
 const NAV_ITEMS = [
   { title: "Home", href: "/home", icon: HomeIcon },
   { title: "Database", href: "/database", icon: DatabaseIcon },
+  { title: "For You", href: "/recommendations", icon: SparklesIcon },
   { title: "Users", href: "/users", icon: UsersIcon },
 ] as const;
 
@@ -50,6 +56,25 @@ function getInitials(displayName: string | null, username: string): string {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+}
+
+function ThemeMenuItem() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <DropdownMenuItem
+      onSelect={(event) => {
+        event.preventDefault();
+        setTheme(theme === "dark" ? "light" : "dark");
+      }}
+    >
+      <div className="relative mr-2 size-4">
+        <SunIcon className="absolute size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+        <MoonIcon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+      </div>
+      Toggle theme
+    </DropdownMenuItem>
+  );
 }
 
 export function AppSidebar() {
@@ -125,6 +150,10 @@ export function AppSidebar() {
                     className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                   >
                     <Avatar className="size-8">
+                      <AvatarImage
+                        src={user.avatarUrl ?? undefined}
+                        alt={user.displayName ?? user.username}
+                      />
                       <AvatarFallback className="text-xs">
                         {getInitials(user.displayName, user.username)}
                       </AvatarFallback>
@@ -148,11 +177,18 @@ export function AppSidebar() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <div className="flex items-center justify-between">
-                      <span>Theme</span>
-                      <ThemeToggle />
-                    </div>
+                    <Link href={`/users/${user.id}`}>
+                      <UserIcon className="mr-2 size-4" />
+                      My Profile
+                    </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">
+                      <SettingsIcon className="mr-2 size-4" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <ThemeMenuItem />
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => {

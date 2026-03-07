@@ -16,7 +16,7 @@ import {
   signupLimiter,
   validateInviteCode,
 } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db, isUniqueViolation } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { registerSchema } from "@/lib/validations/auth";
 import type { SafeUser } from "@/types/auth";
@@ -55,51 +55,74 @@ export async function POST(req: NextRequest) {
     return errorResponse("Email or username already taken", 409);
   }
 
+  if (displayName !== undefined) {
+    const existingDisplayName = await db
+      .selectFrom("users")
+      .select("id")
+      .where("display_name", "=", displayName)
+      .executeTakeFirst();
+
+    if (existingDisplayName !== undefined) {
+      return errorResponse("Display name already taken", 409);
+    }
+  }
+
   // Hash password
   const passwordHash = await hashPassword(password);
 
   // Transaction: create user + mark invite used + create refresh token + audit
-  const result = await withTransaction(async (trx) => {
-    const user = await trx
-      .insertInto("users")
-      .values({
-        email,
-        username,
-        password_hash: passwordHash,
-        display_name: displayName ?? null,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+  let result;
+  try {
+    result = await withTransaction(async (trx) => {
+      const user = await trx
+        .insertInto("users")
+        .values({
+          email,
+          username,
+          password_hash: passwordHash,
+          display_name: displayName ?? null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    await trx
-      .updateTable("invite_codes")
-      .set({ used_by_user_id: user.id })
-      .where("code", "=", inviteCode)
-      .execute();
+      await trx
+        .updateTable("invite_codes")
+        .set({ used_by_user_id: user.id })
+        .where("code", "=", inviteCode)
+        .execute();
 
-    await trx
-      .insertInto("audit_log")
-      .values({
-        user_id: user.id,
-        action: "user.created",
-        entity_type: "user",
-        entity_id: user.id,
-        metadata: JSON.stringify({ invite_code: inviteCode }),
-      })
-      .execute();
+      await trx
+        .insertInto("audit_log")
+        .values({
+          user_id: user.id,
+          action: "user.created",
+          entity_type: "user",
+          entity_id: user.id,
+          metadata: JSON.stringify({ invite_code: inviteCode }),
+        })
+        .execute();
 
-    await trx
-      .insertInto("audit_log")
-      .values({
-        user_id: user.id,
-        action: "invite.used",
-        entity_type: "invite_code",
-        entity_id: invite.id,
-      })
-      .execute();
+      await trx
+        .insertInto("audit_log")
+        .values({
+          user_id: user.id,
+          action: "invite.used",
+          entity_type: "invite_code",
+          entity_id: invite.id,
+        })
+        .execute();
 
-    return user;
-  });
+      return user;
+    });
+  } catch (error: unknown) {
+    if (isUniqueViolation(error)) {
+      return errorResponse("Email, username, or display name already taken", 409);
+    }
+    throw error;
+  }
+
+  // Clear rate limit on successful signup
+  signupLimiter.reset(ip);
 
   // Create tokens (outside transaction — refresh token stored separately)
   const accessToken = await signAccessToken({ userId: result.id, role: result.role });

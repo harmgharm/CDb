@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const recentSessions = await db
     .selectFrom("watch_sessions")
     .innerJoin("media", "media.id", "watch_sessions.media_id")
-    .innerJoin("users", "users.id", "watch_sessions.picked_by_user_id")
+    .leftJoin("users", "users.id", "watch_sessions.picked_by_user_id")
     .select([
       "watch_sessions.id",
       "watch_sessions.created_at",
@@ -57,13 +57,18 @@ export async function GET(req: NextRequest) {
     .execute();
 
   // Merge and sort by created_at
+  type NormalizedRating = Omit<(typeof recentRatings)[number], "score"> & { score: number };
   type FeedItem =
     | { type: "session"; data: (typeof recentSessions)[number]; createdAt: Date }
-    | { type: "rating"; data: (typeof recentRatings)[number]; createdAt: Date };
+    | { type: "rating"; data: NormalizedRating; createdAt: Date };
 
   const feed: FeedItem[] = [
     ...recentSessions.map((s) => ({ type: "session" as const, data: s, createdAt: s.created_at })),
-    ...recentRatings.map((r) => ({ type: "rating" as const, data: r, createdAt: r.created_at })),
+    ...recentRatings.map((r) => ({
+      type: "rating" as const,
+      data: { ...r, score: Number(r.score) },
+      createdAt: r.created_at,
+    })),
   ];
 
   feed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

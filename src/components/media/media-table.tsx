@@ -14,12 +14,19 @@ import {
 } from "@/components/ui/table";
 import type { MediaListItem } from "@/types/media-responses";
 
+function formatRuntime(minutes: number): string {
+  if (minutes < 60) return `${String(minutes)}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${String(hours)}h` : `${String(hours)}h ${String(remainder)}m`;
+}
+
 function MediaDuration({
   runtime,
   episodes,
 }: Readonly<{ runtime: number | null; episodes: number | null }>) {
   if (runtime !== null) {
-    return <>{String(runtime)}m</>;
+    return <>{formatRuntime(runtime)}</>;
   }
   if (episodes !== null) {
     return <>{String(episodes)} eps</>;
@@ -41,8 +48,8 @@ export function MediaTable({ items }: MediaTableProps) {
             <TableHead>Title</TableHead>
             <TableHead className="w-24">Type</TableHead>
             <TableHead className="w-16">Year</TableHead>
-            <TableHead className="w-24">Genres</TableHead>
-            <TableHead className="w-20">Runtime</TableHead>
+            <TableHead className="hidden w-24 sm:table-cell">Genres</TableHead>
+            <TableHead className="hidden w-20 sm:table-cell">Runtime</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -68,10 +75,10 @@ export function MediaTable({ items }: MediaTableProps) {
               <TableCell className="text-muted-foreground">
                 {media.release_year === null ? "—" : String(media.release_year)}
               </TableCell>
-              <TableCell className="text-muted-foreground text-xs">
+              <TableCell className="text-muted-foreground hidden text-xs sm:table-cell">
                 {media.genres.length > 0 ? media.genres.slice(0, 2).join(", ") : "—"}
               </TableCell>
-              <TableCell className="text-muted-foreground">
+              <TableCell className="text-muted-foreground hidden sm:table-cell">
                 <MediaDuration runtime={media.runtime_minutes} episodes={media.episode_count} />
               </TableCell>
             </TableRow>

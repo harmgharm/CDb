@@ -1,7 +1,7 @@
 /**
  * POST /api/auth/login
  *
- * Authenticate with email + password.
+ * Authenticate with email or username + password.
  */
 
 import type { NextRequest } from "next/server";
@@ -34,24 +34,27 @@ export async function POST(req: NextRequest) {
     return errorResponse("Invalid input", 400);
   }
 
-  const { email, password } = parsed.data;
+  const { identifier, password } = parsed.data;
 
-  // Find user
+  // Find user by email or username
   const user = await db
     .selectFrom("users")
     .selectAll()
-    .where("email", "=", email)
+    .where((eb) => eb.or([eb("email", "=", identifier), eb("username", "=", identifier)]))
     .executeTakeFirst();
 
   if (!user) {
-    return errorResponse("Invalid email or password", 401);
+    return errorResponse("Invalid credentials", 401);
   }
 
   // Verify password
   const valid = await verifyPassword(user.password_hash, password);
   if (!valid) {
-    return errorResponse("Invalid email or password", 401);
+    return errorResponse("Invalid credentials", 401);
   }
+
+  // Clear rate limit on successful login
+  loginLimiter.reset(ip);
 
   // Create tokens
   const accessToken = await signAccessToken({ userId: user.id, role: user.role });

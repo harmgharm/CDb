@@ -7,8 +7,9 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAdmin, requireAuth } from "@/lib/auth";
+import { logAudit, requireAuth, requireModerator } from "@/lib/auth";
 import { db } from "@/lib/db";
+import type { UpdateMediaInput } from "@/lib/validations/media";
 import { updateMediaSchema } from "@/lib/validations/media";
 
 interface RouteParams {
@@ -28,13 +29,14 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   // Fetch sessions with picker info
   const sessions = await db
     .selectFrom("watch_sessions")
-    .innerJoin("users", "users.id", "watch_sessions.picked_by_user_id")
+    .leftJoin("users", "users.id", "watch_sessions.picked_by_user_id")
     .select([
       "watch_sessions.id",
       "watch_sessions.date_watched",
       "watch_sessions.time_watched_at",
       "watch_sessions.notes",
       "watch_sessions.created_at",
+      "watch_sessions.created_by_user_id",
       "users.id as picker_id",
       "users.username as picker_username",
       "users.display_name as picker_display_name",
@@ -42,6 +44,40 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     .where("watch_sessions.media_id", "=", id)
     .orderBy("watch_sessions.date_watched", "desc")
     .execute();
+
+  // Fetch all attendees for this media's sessions
+  const sessionIds = sessions.map((s) => s.id);
+  const attendees =
+    sessionIds.length > 0
+      ? await db
+          .selectFrom("session_attendees")
+          .innerJoin("users", "users.id", "session_attendees.user_id")
+          .select([
+            "session_attendees.session_id",
+            "users.id as user_id",
+            "users.username",
+            "users.display_name",
+          ])
+          .where("session_attendees.session_id", "in", sessionIds)
+          .execute()
+      : [];
+
+  // Group attendees by session
+  const attendeesBySession = new Map<string, typeof attendees>();
+  for (const attendee of attendees) {
+    const list = attendeesBySession.get(attendee.session_id) ?? [];
+    list.push(attendee);
+    attendeesBySession.set(attendee.session_id, list);
+  }
+
+  const sessionsWithAttendees = sessions.map((session) => ({
+    ...session,
+    attendees: (attendeesBySession.get(session.id) ?? []).map((a) => ({
+      user_id: a.user_id,
+      username: a.username,
+      display_name: a.display_name,
+    })),
+  }));
 
   // Fetch all ratings for this media across sessions
   const ratings = await db
@@ -61,14 +97,15 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     .where("watch_sessions.media_id", "=", id)
     .execute();
 
-  // Compute stats
-  const scores = ratings.map((r) => r.score);
+  // Convert decimal scores to numbers (Postgres returns decimal as string)
+  const normalizedRatings = ratings.map((r) => ({ ...r, score: Number(r.score) }));
+  const scores = normalizedRatings.map((r) => r.score);
   const avgRating = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
 
   return successResponse({
     ...media,
-    sessions,
-    ratings,
+    sessions: sessionsWithAttendees,
+    ratings: normalizedRatings,
     stats: {
       sessionCount: sessions.length,
       ratingCount: ratings.length,
@@ -77,8 +114,63 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   });
 }
 
+/** Maps camelCase input keys to snake_case DB columns */
+const FIELD_MAP: Record<string, string> = {
+  title: "title",
+  type: "type",
+  tmdbId: "tmdb_id",
+  malId: "mal_id",
+  posterUrl: "poster_url",
+  backdropUrl: "backdrop_url",
+  synopsis: "synopsis",
+  releaseYear: "release_year",
+  runtimeMinutes: "runtime_minutes",
+  episodeCount: "episode_count",
+  imdbId: "imdb_id",
+  tmdbRating: "tmdb_rating",
+  malScore: "mal_score",
+  status: "status",
+  originalTitle: "original_title",
+  tagline: "tagline",
+  voteCount: "vote_count",
+  seasonCount: "season_count",
+  trailerKey: "trailer_key",
+  certification: "certification",
+  budget: "budget",
+  revenue: "revenue",
+};
+
+/** Fields that need JSON.stringify before storage */
+const JSON_FIELD_MAP: Record<string, string> = {
+  genres: "genres",
+  directors: "directors",
+  originCountry: "origin_country",
+  networks: "networks",
+  studios: "studios",
+};
+
+function buildMediaUpdateSet(data: UpdateMediaInput): Record<string, unknown> {
+  const fields: Record<string, unknown> = { updated_at: new Date() };
+
+  for (const [key, column] of Object.entries(FIELD_MAP)) {
+    const value = data[key as keyof UpdateMediaInput];
+    if (value !== undefined) {
+      fields[column] = value;
+    }
+  }
+
+  for (const [key, column] of Object.entries(JSON_FIELD_MAP)) {
+    const value = data[key as keyof UpdateMediaInput];
+    if (value !== undefined) {
+      fields[column] = JSON.stringify(value);
+    }
+  }
+
+  return fields;
+}
+
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const admin = await requireAdmin();
+  const admin = await requireModerator();
   const { id } = await params;
 
   const media = await db.selectFrom("media").select("id").where("id", "=", id).executeTakeFirst();
@@ -95,20 +187,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const data = parsed.data;
   const updated = await db
     .updateTable("media")
-    .set({
-      ...(data.title !== undefined && { title: data.title }),
-      ...(data.type !== undefined && { type: data.type }),
-      ...(data.tmdbId !== undefined && { tmdb_id: data.tmdbId }),
-      ...(data.malId !== undefined && { mal_id: data.malId }),
-      ...(data.posterUrl !== undefined && { poster_url: data.posterUrl }),
-      ...(data.backdropUrl !== undefined && { backdrop_url: data.backdropUrl }),
-      ...(data.synopsis !== undefined && { synopsis: data.synopsis }),
-      ...(data.genres !== undefined && { genres: JSON.stringify(data.genres) }),
-      ...(data.releaseYear !== undefined && { release_year: data.releaseYear }),
-      ...(data.runtimeMinutes !== undefined && { runtime_minutes: data.runtimeMinutes }),
-      ...(data.episodeCount !== undefined && { episode_count: data.episodeCount }),
-      updated_at: new Date(),
-    })
+    .set(buildMediaUpdateSet(data))
     .where("id", "=", id)
     .returningAll()
     .executeTakeFirstOrThrow();
@@ -125,7 +204,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await requireAdmin();
+  const admin = await requireModerator();
   const { id } = await params;
 
   const media = await db

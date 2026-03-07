@@ -12,8 +12,8 @@ function displayName(name: string | null, username: string): string {
   return name ?? username;
 }
 
-function getInitials(name: string | null, username: string): string {
-  const display = name ?? username;
+function getInitials(name: string | null, username: string | null): string {
+  const display = name ?? username ?? "?";
   return display
     .split(" ")
     .map((part) => part[0])

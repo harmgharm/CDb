@@ -6,8 +6,9 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { invalidateUserRecommendations } from "@/lib/recommendations";
 import { ratingSchema } from "@/lib/validations/sessions";
 
 export async function GET(req: NextRequest) {
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
 
   const results = await query.orderBy("ratings.created_at", "desc").execute();
 
-  return successResponse(results);
+  return successResponse(results.map((r) => ({ ...r, score: Number(r.score) })));
 }
 
 export async function POST(req: NextRequest) {
@@ -51,7 +52,18 @@ export async function POST(req: NextRequest) {
     return errorResponse("Invalid input", 400);
   }
 
-  const { sessionId, score, review } = parsed.data;
+  const { sessionId, score, review, userId: targetUserId } = parsed.data;
+
+  // Determine who the rating is for
+  const ratingUserId = targetUserId ?? user.id;
+
+  // Only admins/mods can submit ratings on behalf of other users
+  if (targetUserId !== undefined && targetUserId !== user.id && !isModeratorOrAdmin(user.role)) {
+    return errorResponse(
+      "Only admins and moderators can submit ratings on behalf of other users",
+      403,
+    );
+  }
 
   // Verify session exists
   const session = await db
@@ -63,16 +75,16 @@ export async function POST(req: NextRequest) {
     return errorResponse("Session not found", 404);
   }
 
-  // Verify user is an attendee
+  // Verify target user is an attendee
   const attendance = await db
     .selectFrom("session_attendees")
     .select("id")
     .where("session_id", "=", sessionId)
-    .where("user_id", "=", user.id)
+    .where("user_id", "=", ratingUserId)
     .executeTakeFirst();
 
   if (!attendance) {
-    return errorResponse("You must be an attendee of this session to rate it", 403);
+    return errorResponse("User must be an attendee of this session to rate it", 403);
   }
 
   // Check for existing rating (unique constraint)
@@ -80,18 +92,18 @@ export async function POST(req: NextRequest) {
     .selectFrom("ratings")
     .select("id")
     .where("session_id", "=", sessionId)
-    .where("user_id", "=", user.id)
+    .where("user_id", "=", ratingUserId)
     .executeTakeFirst();
 
   if (existing) {
-    return errorResponse("You have already rated this session", 409);
+    return errorResponse("This user has already rated this session", 409);
   }
 
   const rating = await db
     .insertInto("ratings")
     .values({
       session_id: sessionId,
-      user_id: user.id,
+      user_id: ratingUserId,
       score,
       review: review ?? null,
     })
@@ -103,8 +115,13 @@ export async function POST(req: NextRequest) {
     action: "rating.created",
     entityType: "rating",
     entityId: rating.id,
-    metadata: { sessionId, score },
+    metadata: { sessionId, score, onBehalfOf: targetUserId ?? undefined },
   });
 
-  return successResponse(rating, "Rating submitted", 201);
+  // Invalidate recommendation cache for the rating user
+  void invalidateUserRecommendations(ratingUserId).catch((error: unknown) => {
+    console.error("Failed to invalidate user recommendations:", error);
+  });
+
+  return successResponse({ ...rating, score: Number(rating.score) }, "Rating submitted", 201);
 }

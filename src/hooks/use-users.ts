@@ -4,6 +4,7 @@
 
 import useSWR from "swr";
 
+import type { UserDetailedStatsResponse } from "@/types/detailed-stats";
 import type { UserDetailedStats, UserListItem, UserProfile } from "@/types/user-responses";
 
 export function useUserList() {
@@ -16,4 +17,8 @@ export function useUserProfile(id: string | null) {
 
 export function useUserStats(id: string | null) {
   return useSWR<UserDetailedStats>(id === null ? null : `/api/users/${id}/stats`);
+}
+
+export function useUserDetailedStats(id: string | null) {
+  return useSWR<UserDetailedStatsResponse>(id === null ? null : `/api/users/${id}/stats/detailed`);
 }
