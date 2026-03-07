@@ -52,6 +52,7 @@ export interface SessionAttendee {
   user_id: string;
   username: string;
   display_name: string | null;
+  avatar_url: string | null;
 }
 
 /** Session info from media detail */
@@ -65,6 +66,7 @@ export interface MediaSession {
   picker_id: string | null;
   picker_username: string | null;
   picker_display_name: string | null;
+  picker_avatar_url: string | null;
   attendees: SessionAttendee[];
 }
 
@@ -78,6 +80,7 @@ export interface MediaRating {
   user_id: string;
   username: string;
   display_name: string | null;
+  avatar_url: string | null;
 }
 
 /** Full media detail from GET /api/media/[id] */

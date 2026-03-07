@@ -5,6 +5,7 @@
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 import type {
   WatchlistGroupCounts,
@@ -74,7 +75,7 @@ export function useAddToWatchlist() {
       setIsAdding(true);
       setError(null);
       try {
-        const response = await fetch("/api/watchlist", {
+        const response = await fetchWithAuth("/api/watchlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(params),
@@ -110,7 +111,7 @@ export function useUpdateWatchlistEntry() {
     async (entryId: string, params: UpdateWatchlistParams): Promise<boolean> => {
       setIsUpdating(true);
       try {
-        const response = await fetch(`/api/watchlist/${entryId}`, {
+        const response = await fetchWithAuth(`/api/watchlist/${entryId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(params),
@@ -135,7 +136,7 @@ export function useRemoveFromWatchlist() {
   const removeFromWatchlist = useCallback(async (entryId: string): Promise<boolean> => {
     setIsRemoving(true);
     try {
-      const response = await fetch(`/api/watchlist/${entryId}`, {
+      const response = await fetchWithAuth(`/api/watchlist/${entryId}`, {
         method: "DELETE",
       });
       const json = (await response.json()) as ApiResponse<unknown>;

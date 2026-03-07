@@ -4,6 +4,15 @@
 
 import { z } from "zod";
 
+const inlineRatingSchema = z.object({
+  userId: z.uuid("Invalid user ID"),
+  score: z
+    .number()
+    .min(1, "Score must be at least 1")
+    .max(10, "Score must be at most 10")
+    .refine((v) => Math.round(v * 10) === v * 10, "Score must have at most one decimal place"),
+});
+
 export const createSessionSchema = z.object({
   mediaId: z.uuid("Invalid media ID"),
   dateWatched: z.coerce.date(),
@@ -14,6 +23,7 @@ export const createSessionSchema = z.object({
   pickedByUserId: z.uuid("Invalid user ID").nullable().optional(),
   attendeeIds: z.array(z.uuid()).min(1, "At least one attendee is required"),
   notes: z.string().max(1000).optional(),
+  ratings: z.array(inlineRatingSchema).optional(),
 });
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;

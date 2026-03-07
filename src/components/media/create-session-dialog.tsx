@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -33,6 +33,14 @@ import type { UserListItem } from "@/types/user-responses";
 
 const GROUP_PICK_VALUE = "__group__";
 
+/** Only allow valid rating input: empty, integers 1-10, or one decimal place (e.g. 7.3) */
+const RATING_INPUT_PATTERN = /^(?:[1-9](?:\.\d?)?|10(?:\.0?)?)$/;
+
+function sanitizeRatingInput(value: string): string | null {
+  if (value.length === 0 || RATING_INPUT_PATTERN.test(value)) return value;
+  return null;
+}
+
 interface CreateSessionDialogProps {
   readonly mediaId: string;
   readonly mediaTitle: string;
@@ -59,6 +67,10 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
   const [pickerId, setPickerId] = useState("");
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
+  const [inlineRatings, setInlineRatings] = useState<Record<string, string>>({});
+
+  const canRateForOthers =
+    currentUser !== null && (currentUser.role === "admin" || currentUser.role === "moderator");
 
   function resetForm() {
     setDateWatched(todayString());
@@ -66,6 +78,7 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
     setPickerId("");
     setAttendeeIds([]);
     setNotes("");
+    setInlineRatings({});
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -79,10 +92,26 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
     }
   }
 
-  function toggleAttendee(userId: string) {
-    setAttendeeIds((previous) =>
-      previous.includes(userId) ? previous.filter((id) => id !== userId) : [...previous, userId],
+  function clearRatingForUser(userId: string) {
+    setInlineRatings((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([key]) => key !== userId)),
     );
+  }
+
+  function toggleAttendee(userId: string) {
+    setAttendeeIds((previous) => {
+      if (previous.includes(userId)) {
+        clearRatingForUser(userId);
+        return previous.filter((id) => id !== userId);
+      }
+      return [...previous, userId];
+    });
+  }
+
+  function updateInlineRating(userId: string, value: string) {
+    const sanitized = sanitizeRatingInput(value);
+    if (sanitized === null) return;
+    setInlineRatings((previous) => ({ ...previous, [userId]: sanitized }));
   }
 
   async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
@@ -99,6 +128,12 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
     const finalAttendees =
       isGroupPick || attendeeIds.includes(pickerId) ? attendeeIds : [...attendeeIds, pickerId];
 
+    // Build inline ratings from filled-in fields
+    const ratings = Object.entries(inlineRatings)
+      .filter(([, value]) => value.length > 0)
+      .map(([userId, value]) => ({ userId, score: Number(value) }))
+      .filter(({ score }) => !Number.isNaN(score) && score >= 1 && score <= 10);
+
     const success = await createSession({
       mediaId,
       dateWatched,
@@ -106,6 +141,7 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
       pickedByUserId: isGroupPick ? null : pickerId,
       attendeeIds: finalAttendees,
       notes: notes.length > 0 ? notes : undefined,
+      ratings: ratings.length > 0 ? ratings : undefined,
     });
 
     if (success) {
@@ -194,6 +230,10 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
                 users={users ?? []}
                 attendeeIds={attendeeIds}
                 onToggle={toggleAttendee}
+                inlineRatings={inlineRatings}
+                onRatingChange={updateInlineRating}
+                currentUserId={currentUser?.id ?? null}
+                canRateForOthers={canRateForOthers}
               />
             </div>
           </div>
@@ -236,32 +276,64 @@ interface AttendeeListProps {
   readonly users: UserListItem[];
   readonly attendeeIds: string[];
   readonly onToggle: (userId: string) => void;
+  readonly inlineRatings: Record<string, string>;
+  readonly onRatingChange: (userId: string, value: string) => void;
+  readonly currentUserId: string | null;
+  readonly canRateForOthers: boolean;
 }
 
-function AttendeeList({ users, attendeeIds, onToggle }: AttendeeListProps) {
+function AttendeeList({
+  users,
+  attendeeIds,
+  onToggle,
+  inlineRatings,
+  onRatingChange,
+  currentUserId,
+  canRateForOthers,
+}: AttendeeListProps) {
   if (users.length === 0) {
     return <p className="text-muted-foreground text-sm">Loading users...</p>;
   }
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {users.map((user) => (
-        <label
-          key={user.id}
-          className="hover:bg-accent/50 flex cursor-pointer items-center gap-2 rounded-md p-1.5 transition-colors"
-        >
-          <Checkbox
-            checked={attendeeIds.includes(user.id)}
-            onCheckedChange={() => {
-              onToggle(user.id);
-            }}
-          />
-          <Avatar className="size-6">
-            <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
-          </Avatar>
-          <span className="text-sm">{user.display_name ?? user.username}</span>
-        </label>
-      ))}
+    <div className="grid gap-2">
+      {users.map((user) => {
+        const isChecked = attendeeIds.includes(user.id);
+        const showRating = isChecked && (canRateForOthers || user.id === currentUserId);
+
+        return (
+          <div key={user.id} className="flex items-center gap-2">
+            <label className="hover:bg-accent/50 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md p-1.5 transition-colors">
+              <Checkbox
+                checked={isChecked}
+                onCheckedChange={() => {
+                  onToggle(user.id);
+                }}
+              />
+              <Avatar className="size-6 shrink-0">
+                <AvatarImage
+                  src={user.avatar_url ?? undefined}
+                  alt={user.display_name ?? user.username}
+                />
+                <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
+              </Avatar>
+              <span className="truncate text-sm">{user.display_name ?? user.username}</span>
+            </label>
+            {showRating && (
+              <Input
+                type="text"
+                inputMode="decimal"
+                placeholder="Rating"
+                value={inlineRatings[user.id] ?? ""}
+                onChange={(event) => {
+                  onRatingChange(user.id, event.target.value);
+                }}
+                className="h-8 w-20 shrink-0 text-sm"
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 import type { RecommendationType } from "@/lib/db/types";
 import type { RecommendationsResponse } from "@/types/recommendation-responses";
@@ -41,7 +42,7 @@ export function useRefreshRecommendations() {
       if (type !== undefined) {
         params.set("type", type);
       }
-      const response = await fetch(`/api/recommendations?${params.toString()}`);
+      const response = await fetchWithAuth(`/api/recommendations?${params.toString()}`);
       const json = (await response.json()) as ApiResponse<RecommendationsResponse>;
       return json.error === null;
     } catch {

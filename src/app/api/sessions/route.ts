@@ -6,10 +6,14 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
-import { invalidateGroupRecommendations } from "@/lib/recommendations";
+import type { UserRole } from "@/lib/db/types";
+import {
+  invalidateGroupRecommendations,
+  invalidateUserRecommendations,
+} from "@/lib/recommendations";
 import { createSessionSchema, sessionQuerySchema } from "@/lib/validations/sessions";
 
 export async function GET(req: NextRequest) {
@@ -41,6 +45,7 @@ export async function GET(req: NextRequest) {
       "users.id as picker_id",
       "users.username as picker_username",
       "users.display_name as picker_display_name",
+      "users.avatar_url as picker_avatar_url",
     ]);
 
   if (mediaId !== undefined) {
@@ -70,6 +75,30 @@ export async function GET(req: NextRequest) {
   return successResponse({ items: results, page, limit });
 }
 
+interface InlineRating {
+  userId: string;
+  score: number;
+}
+
+interface ValidateRatingsOptions {
+  ratings: InlineRating[];
+  attendeeIds: string[];
+  currentUserId: string;
+  currentUserRole: UserRole;
+}
+
+function validateInlineRatings(options: ValidateRatingsOptions): string | null {
+  for (const r of options.ratings) {
+    if (!options.attendeeIds.includes(r.userId)) {
+      return "Rating user must be an attendee";
+    }
+    if (r.userId !== options.currentUserId && !isModeratorOrAdmin(options.currentUserRole)) {
+      return "Only admins and moderators can submit ratings on behalf of other users";
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
 
@@ -79,7 +108,8 @@ export async function POST(req: NextRequest) {
     return errorResponse("Invalid input", 400);
   }
 
-  const { mediaId, dateWatched, timeWatchedAt, pickedByUserId, attendeeIds, notes } = parsed.data;
+  const { mediaId, dateWatched, timeWatchedAt, pickedByUserId, attendeeIds, notes, ratings } =
+    parsed.data;
 
   // Verify media exists
   const media = await db
@@ -98,6 +128,20 @@ export async function POST(req: NextRequest) {
     !attendeeIds.includes(pickedByUserId)
   ) {
     return errorResponse("Picker must be an attendee", 400);
+  }
+
+  // Validate inline ratings
+  if (ratings !== undefined && ratings.length > 0) {
+    const ratingError = validateInlineRatings({
+      ratings,
+      attendeeIds,
+      currentUserId: user.id,
+      currentUserRole: user.role,
+    });
+    if (ratingError !== null) {
+      const status = ratingError.includes("admins") ? 403 : 400;
+      return errorResponse(ratingError, status);
+    }
   }
 
   const session = await withTransaction(async (trx) => {
@@ -125,6 +169,21 @@ export async function POST(req: NextRequest) {
       )
       .execute();
 
+    // Insert inline ratings
+    if (ratings !== undefined && ratings.length > 0) {
+      await trx
+        .insertInto("ratings")
+        .values(
+          ratings.map((r) => ({
+            session_id: newSession.id,
+            user_id: r.userId,
+            score: r.score,
+            review: null,
+          })),
+        )
+        .execute();
+    }
+
     // Auto-remove from attendees' watchlists for this media
     await trx
       .deleteFrom("watchlist")
@@ -142,6 +201,32 @@ export async function POST(req: NextRequest) {
     entityId: session.id,
     metadata: { mediaId, attendeeCount: attendeeIds.length },
   });
+
+  // Audit log for inline ratings
+  if (ratings !== undefined && ratings.length > 0) {
+    await Promise.all(
+      ratings.map((r) =>
+        logAudit({
+          userId: user.id,
+          action: "rating.created",
+          entityType: "rating",
+          entityId: session.id,
+          metadata: {
+            sessionId: session.id,
+            score: r.score,
+            onBehalfOf: r.userId === user.id ? undefined : r.userId,
+          },
+        }),
+      ),
+    );
+
+    // Invalidate recommendation caches for users who rated
+    for (const r of ratings) {
+      void invalidateUserRecommendations(r.userId).catch((error: unknown) => {
+        console.error("Failed to invalidate user recommendations:", error);
+      });
+    }
+  }
 
   // Invalidate group recommendation cache
   void invalidateGroupRecommendations().catch((error: unknown) => {

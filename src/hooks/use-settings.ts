@@ -4,6 +4,7 @@
 
 import { useCallback, useState } from "react";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 
 interface UpdateProfileParams {
@@ -22,7 +23,7 @@ export function useUpdateProfile() {
       setIsUpdating(true);
       setError(null);
       try {
-        const response = await fetch(`/api/users/${userId}`, {
+        const response = await fetchWithAuth(`/api/users/${userId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
@@ -60,7 +61,7 @@ export function useChangePassword() {
     setIsChanging(true);
     setError(null);
     try {
-      const response = await fetch("/api/auth/change-password", {
+      const response = await fetchWithAuth("/api/auth/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

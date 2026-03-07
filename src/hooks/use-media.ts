@@ -5,6 +5,7 @@
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 import type { MediaSearchResult } from "@/types/media";
 import type { MediaDetail, MediaListResponse } from "@/types/media-responses";
@@ -60,7 +61,7 @@ export function useMediaSearch() {
         params.set("type", type);
       }
 
-      const response = await fetch(`/api/media/search?${params.toString()}`);
+      const response = await fetchWithAuth(`/api/media/search?${params.toString()}`);
       const json = (await response.json()) as ApiResponse<MediaSearchResult[]>;
 
       if (json.error === null) {
@@ -112,7 +113,7 @@ export function useMediaImport() {
       setImportError(null);
 
       try {
-        const response = await fetch("/api/media/import", {
+        const response = await fetchWithAuth("/api/media/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(params),

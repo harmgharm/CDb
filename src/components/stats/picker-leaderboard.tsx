@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { PickerLeaderboardEntry } from "@/types/detailed-stats";
 
@@ -61,6 +61,10 @@ function PickerRow({ picker, rank }: Readonly<{ picker: PickerLeaderboardEntry; 
           }}
         >
           <Avatar className="size-8">
+            <AvatarImage
+              src={picker.avatarUrl ?? undefined}
+              alt={picker.displayName ?? picker.username}
+            />
             <AvatarFallback className="text-xs">
               {getInitials(picker.displayName, picker.username)}
             </AvatarFallback>

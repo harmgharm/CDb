@@ -3,7 +3,7 @@
 import { ClapperboardIcon, StarIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -85,6 +85,10 @@ function FeedItemCard({ item, index }: Readonly<{ item: FeedItem; index: number 
     >
       <div className="flex items-start gap-3 rounded-lg border p-3">
         <Avatar className="size-8">
+          <AvatarImage
+            src={data.avatar_url ?? undefined}
+            alt={data.display_name ?? data.username}
+          />
           <AvatarFallback className="text-xs">
             {getInitials(data.display_name, data.username)}
           </AvatarFallback>

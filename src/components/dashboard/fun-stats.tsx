@@ -100,6 +100,7 @@ export function FunStats() {
               year: "numeric",
               month: "long",
               day: "numeric",
+              timeZone: "UTC",
             })}
           </p>
         ) : null,

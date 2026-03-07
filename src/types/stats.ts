@@ -8,6 +8,7 @@ export interface UserStat {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl: string | null;
 }
 
 export interface DashboardStats {
@@ -45,6 +46,7 @@ export interface FeedSessionItem {
     media_poster_url: string | null;
     picker_username: string;
     picker_display_name: string | null;
+    picker_avatar_url: string | null;
   };
   createdAt: string;
 }
@@ -60,6 +62,7 @@ export interface FeedRatingItem {
     media_type: MediaType;
     username: string;
     display_name: string | null;
+    avatar_url: string | null;
   };
   createdAt: string;
 }

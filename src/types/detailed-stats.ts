@@ -44,6 +44,7 @@ export interface PickerLeaderboardEntry {
   userId: string;
   username: string;
   displayName: string | null;
+  avatarUrl: string | null;
   pickCount: number;
   avgPickRating: number | null;
   topPicks: RankedMedia[];

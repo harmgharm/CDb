@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 
 interface BatchResponse {
@@ -41,7 +42,7 @@ export function useMediaRefresh() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ref is mutated externally by cancelRefresh
       while (!cancelledReference.current) {
-        const response = await fetch("/api/admin/media/refresh", {
+        const response = await fetchWithAuth("/api/admin/media/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cursor }),
@@ -96,7 +97,7 @@ export function useSingleMediaRefresh() {
   const refreshMedia = useCallback(async (id: string): Promise<boolean> => {
     setIsRefreshing(true);
     try {
-      const response = await fetch(`/api/media/${id}/refresh`, { method: "POST" });
+      const response = await fetchWithAuth(`/api/media/${id}/refresh`, { method: "POST" });
       const json = (await response.json()) as ApiResponse<unknown>;
       return json.error === null;
     } catch {

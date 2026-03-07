@@ -55,10 +55,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     .slice(0, 10)
     .map(([genre, count]) => ({ genre, count }));
 
-  // Pick history (recent picks with media info)
+  // Pick history (recent picks with media info + avg rating for W/L)
   const picks = await db
     .selectFrom("watch_sessions")
     .innerJoin("media", "media.id", "watch_sessions.media_id")
+    .leftJoin("ratings", "ratings.session_id", "watch_sessions.id")
     .select([
       "watch_sessions.id as session_id",
       "watch_sessions.date_watched",
@@ -66,8 +67,18 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "media.title",
       "media.type",
       "media.poster_url",
+      db.fn.avg("ratings.score").as("avg_score"),
+      db.fn.count("ratings.id").as("rating_count"),
     ])
     .where("watch_sessions.picked_by_user_id", "=", id)
+    .groupBy([
+      "watch_sessions.id",
+      "watch_sessions.date_watched",
+      "media.id",
+      "media.title",
+      "media.type",
+      "media.poster_url",
+    ])
     .orderBy("watch_sessions.date_watched", "desc")
     .limit(20)
     .execute();
@@ -78,6 +89,14 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       count: Number(r.count),
     })),
     topGenres,
-    recentPicks: picks,
+    recentPicks: picks.map((p) => ({
+      session_id: p.session_id,
+      date_watched: p.date_watched,
+      media_id: p.media_id,
+      title: p.title,
+      type: p.type,
+      poster_url: p.poster_url,
+      avgScore: Number(p.rating_count) >= 2 ? Math.round(Number(p.avg_score) * 10) / 10 : null,
+    })),
   });
 }

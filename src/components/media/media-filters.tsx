@@ -90,6 +90,7 @@ export function MediaFilters({ filters, onFilterChange }: MediaFiltersProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="created_at">Date added</SelectItem>
+          <SelectItem value="date_watched">Date watched</SelectItem>
           <SelectItem value="title">Title</SelectItem>
           <SelectItem value="release_year">Release year</SelectItem>
         </SelectContent>

@@ -3,7 +3,7 @@
 import { CrownIcon, HeartIcon, UsersIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardStats } from "@/hooks/use-stats";
@@ -102,6 +102,10 @@ export function GroupStats() {
               {item.user !== null && item.user !== undefined ? (
                 <div className="flex items-center gap-3">
                   <Avatar className="size-10">
+                    <AvatarImage
+                      src={item.user.avatarUrl ?? undefined}
+                      alt={item.user.displayName ?? item.user.username}
+                    />
                     <AvatarFallback>
                       {getInitials(item.user.displayName, item.user.username)}
                     </AvatarFallback>

@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       "media.poster_url as media_poster_url",
       "users.username as picker_username",
       "users.display_name as picker_display_name",
+      "users.avatar_url as picker_avatar_url",
     ])
     .orderBy("watch_sessions.created_at", "desc")
     .offset(offset)
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
       "media.type as media_type",
       "users.username",
       "users.display_name",
+      "users.avatar_url",
     ])
     .orderBy("ratings.created_at", "desc")
     .offset(offset)

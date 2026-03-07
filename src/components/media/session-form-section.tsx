@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,21 @@ import type { UserListItem } from "@/types/user-responses";
 
 const GROUP_PICK_VALUE = "__group__";
 
+/** Only allow valid rating input: empty, integers 1-10, or one decimal place (e.g. 7.3) */
+const RATING_INPUT_PATTERN = /^(?:[1-9](?:\.\d?)?|10(?:\.0?)?)$/;
+
+function sanitizeRatingInput(value: string): string | null {
+  if (value.length === 0 || RATING_INPUT_PATTERN.test(value)) return value;
+  return null;
+}
+
 export interface SessionFormState {
   readonly dateWatched: string;
   readonly timeWatched: string;
   readonly pickerId: string;
   readonly attendeeIds: string[];
   readonly notes: string;
+  readonly inlineRatings: Record<string, string>;
 }
 
 function getInitials(user: UserListItem): string {
@@ -33,14 +42,36 @@ interface SessionFormSectionProps {
   readonly state: SessionFormState;
   readonly onChange: (state: SessionFormState) => void;
   readonly users: UserListItem[];
+  readonly currentUserId: string | null;
+  readonly canRateForOthers: boolean;
 }
 
-export function SessionFormSection({ state, onChange, users }: SessionFormSectionProps) {
+export function SessionFormSection({
+  state,
+  onChange,
+  users,
+  currentUserId,
+  canRateForOthers,
+}: SessionFormSectionProps) {
   function toggleAttendee(userId: string) {
-    const updated = state.attendeeIds.includes(userId)
-      ? state.attendeeIds.filter((id) => id !== userId)
-      : [...state.attendeeIds, userId];
-    onChange({ ...state, attendeeIds: updated });
+    if (state.attendeeIds.includes(userId)) {
+      const updatedRatings = Object.fromEntries(
+        Object.entries(state.inlineRatings).filter(([key]) => key !== userId),
+      );
+      onChange({
+        ...state,
+        attendeeIds: state.attendeeIds.filter((id) => id !== userId),
+        inlineRatings: updatedRatings,
+      });
+    } else {
+      onChange({ ...state, attendeeIds: [...state.attendeeIds, userId] });
+    }
+  }
+
+  function updateRating(userId: string, value: string) {
+    const sanitized = sanitizeRatingInput(value);
+    if (sanitized === null) return;
+    onChange({ ...state, inlineRatings: { ...state.inlineRatings, [userId]: sanitized } });
   }
 
   return (
@@ -100,24 +131,44 @@ export function SessionFormSection({ state, onChange, users }: SessionFormSectio
 
       <div className="space-y-1.5">
         <Label className="text-xs">Who Watched?</Label>
-        <div className="grid gap-1.5 rounded-md border p-2 sm:grid-cols-2">
-          {users.map((user) => (
-            <label
-              key={user.id}
-              className="hover:bg-accent/50 flex cursor-pointer items-center gap-2 rounded-md p-1 transition-colors"
-            >
-              <Checkbox
-                checked={state.attendeeIds.includes(user.id)}
-                onCheckedChange={() => {
-                  toggleAttendee(user.id);
-                }}
-              />
-              <Avatar className="size-5">
-                <AvatarFallback className="text-[9px]">{getInitials(user)}</AvatarFallback>
-              </Avatar>
-              <span className="text-xs">{user.display_name ?? user.username}</span>
-            </label>
-          ))}
+        <div className="grid gap-1.5 rounded-md border p-2">
+          {users.map((user) => {
+            const isChecked = state.attendeeIds.includes(user.id);
+            const showRating = isChecked && (canRateForOthers || user.id === currentUserId);
+
+            return (
+              <div key={user.id} className="flex items-center gap-2">
+                <label className="hover:bg-accent/50 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md p-1 transition-colors">
+                  <Checkbox
+                    checked={isChecked}
+                    onCheckedChange={() => {
+                      toggleAttendee(user.id);
+                    }}
+                  />
+                  <Avatar className="size-5 shrink-0">
+                    <AvatarImage
+                      src={user.avatar_url ?? undefined}
+                      alt={user.display_name ?? user.username}
+                    />
+                    <AvatarFallback className="text-[9px]">{getInitials(user)}</AvatarFallback>
+                  </Avatar>
+                  <span className="truncate text-xs">{user.display_name ?? user.username}</span>
+                </label>
+                {showRating && (
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Rating"
+                    value={state.inlineRatings[user.id] ?? ""}
+                    onChange={(event) => {
+                      updateRating(user.id, event.target.value);
+                    }}
+                    className="h-7 w-20 shrink-0 text-xs"
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

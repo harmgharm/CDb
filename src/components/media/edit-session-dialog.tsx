@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -170,6 +170,10 @@ export function EditSessionDialog({
                   <SelectItem key={user.id} value={user.id}>
                     <div className="flex items-center gap-2">
                       <Avatar className="size-5">
+                        <AvatarImage
+                          src={user.avatar_url ?? undefined}
+                          alt={user.display_name ?? user.username}
+                        />
                         <AvatarFallback className="text-[9px]">{getInitials(user)}</AvatarFallback>
                       </Avatar>
                       {user.display_name ?? user.username}
@@ -251,6 +255,10 @@ function AttendeeList({ users, attendeeIds, onToggle }: AttendeeListProps) {
             }}
           />
           <Avatar className="size-6">
+            <AvatarImage
+              src={user.avatar_url ?? undefined}
+              alt={user.display_name ?? user.username}
+            />
             <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
           </Avatar>
           <span className="text-sm">{user.display_name ?? user.username}</span>

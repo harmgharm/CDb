@@ -40,6 +40,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "users.id as picker_id",
       "users.username as picker_username",
       "users.display_name as picker_display_name",
+      "users.avatar_url as picker_avatar_url",
     ])
     .where("watch_sessions.media_id", "=", id)
     .orderBy("watch_sessions.date_watched", "desc")
@@ -57,6 +58,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
             "users.id as user_id",
             "users.username",
             "users.display_name",
+            "users.avatar_url",
           ])
           .where("session_attendees.session_id", "in", sessionIds)
           .execute()
@@ -76,6 +78,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       user_id: a.user_id,
       username: a.username,
       display_name: a.display_name,
+      avatar_url: a.avatar_url,
     })),
   }));
 
@@ -93,6 +96,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "users.id as user_id",
       "users.username",
       "users.display_name",
+      "users.avatar_url",
     ])
     .where("watch_sessions.media_id", "=", id)
     .execute();

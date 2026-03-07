@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       "users.id as user_id",
       "users.username",
       "users.display_name",
+      "users.avatar_url",
     ]);
 
   if (sessionId !== undefined) {

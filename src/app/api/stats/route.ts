@@ -34,9 +34,15 @@ export async function GET() {
   const topPicker = await db
     .selectFrom("watch_sessions")
     .innerJoin("users", "users.id", "watch_sessions.picked_by_user_id")
-    .select(["users.id", "users.username", "users.display_name", db.fn.countAll().as("pick_count")])
+    .select([
+      "users.id",
+      "users.username",
+      "users.display_name",
+      "users.avatar_url",
+      db.fn.countAll().as("pick_count"),
+    ])
     .where("watch_sessions.picked_by_user_id", "is not", null)
-    .groupBy(["users.id", "users.username", "users.display_name"])
+    .groupBy(["users.id", "users.username", "users.display_name", "users.avatar_url"])
     .orderBy("pick_count", "desc")
     .limit(1)
     .executeTakeFirst();
@@ -49,10 +55,11 @@ export async function GET() {
       "users.id",
       "users.username",
       "users.display_name",
+      "users.avatar_url",
       db.fn.avg("ratings.score").as("avg_score"),
       db.fn.countAll().as("rating_count"),
     ])
-    .groupBy(["users.id", "users.username", "users.display_name"])
+    .groupBy(["users.id", "users.username", "users.display_name", "users.avatar_url"])
     .having(db.fn.countAll(), ">=", 3)
     .orderBy("avg_score", "desc")
     .limit(1)
@@ -66,9 +73,10 @@ export async function GET() {
       "users.id",
       "users.username",
       "users.display_name",
+      "users.avatar_url",
       db.fn.countAll().as("attendance_count"),
     ])
-    .groupBy(["users.id", "users.username", "users.display_name"])
+    .groupBy(["users.id", "users.username", "users.display_name", "users.avatar_url"])
     .orderBy("attendance_count", "desc")
     .limit(1)
     .executeTakeFirst();
@@ -130,6 +138,7 @@ export async function GET() {
           id: topPicker.id,
           username: topPicker.username,
           displayName: topPicker.display_name,
+          avatarUrl: topPicker.avatar_url,
           pickCount: Number(topPicker.pick_count),
         }
       : null,
@@ -138,6 +147,7 @@ export async function GET() {
           id: topRater.id,
           username: topRater.username,
           displayName: topRater.display_name,
+          avatarUrl: topRater.avatar_url,
           avgScore: Math.round(Number(topRater.avg_score) * 10) / 10,
         }
       : null,
@@ -146,6 +156,7 @@ export async function GET() {
           id: topAttendee.id,
           username: topAttendee.username,
           displayName: topAttendee.display_name,
+          avatarUrl: topAttendee.avatar_url,
           attendanceCount: Number(topAttendee.attendance_count),
         }
       : null,

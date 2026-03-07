@@ -61,11 +61,32 @@ export async function GET(req: NextRequest) {
   const total = Number(countResult.total);
 
   // Sort
+  if (sortBy === "date_watched") {
+    // Sort by most recent watch session date (subquery)
+    const results = await query
+      .select(
+        sql<Date | null>`(SELECT MAX(ws.date_watched) FROM watch_sessions ws WHERE ws.media_id = media.id)`.as(
+          "latest_watched",
+        ),
+      )
+      .orderBy(sql`latest_watched ${sql.raw(sortOrder)} nulls last`)
+      .offset(offset)
+      .limit(limit)
+      .execute();
+
+    return successResponse({
+      items: results,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  }
+
   const sortColumnMap = {
     title: "media.title",
     release_year: "media.release_year",
     rating: "media.created_at",
-    date_watched: "media.created_at",
     created_at: "media.created_at",
   } as const;
   const sortColumn = sortColumnMap[sortBy];

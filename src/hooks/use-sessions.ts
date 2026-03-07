@@ -4,7 +4,13 @@
 
 import { useCallback, useState } from "react";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
+
+interface InlineRating {
+  readonly userId: string;
+  readonly score: number;
+}
 
 interface CreateSessionParams {
   readonly mediaId: string;
@@ -13,6 +19,7 @@ interface CreateSessionParams {
   readonly pickedByUserId?: string | null;
   readonly attendeeIds: string[];
   readonly notes?: string;
+  readonly ratings?: InlineRating[];
 }
 
 export function useCreateSession() {
@@ -23,7 +30,7 @@ export function useCreateSession() {
     setIsCreating(true);
     setError(null);
     try {
-      const response = await fetch("/api/sessions", {
+      const response = await fetchWithAuth("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
@@ -60,7 +67,7 @@ export function useSubmitRating() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch("/api/ratings", {
+      const response = await fetchWithAuth("/api/ratings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
@@ -98,7 +105,7 @@ export function useUpdateSession() {
       setIsUpdating(true);
       setError(null);
       try {
-        const response = await fetch(`/api/sessions/${sessionId}`, {
+        const response = await fetchWithAuth(`/api/sessions/${sessionId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(params),
@@ -128,7 +135,7 @@ export function useDeleteMedia() {
   const deleteMedia = useCallback(async (mediaId: string): Promise<boolean> => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/media/${mediaId}`, { method: "DELETE" });
+      const response = await fetchWithAuth(`/api/media/${mediaId}`, { method: "DELETE" });
       const json = (await response.json()) as ApiResponse<unknown>;
       return json.error === null;
     } catch {
@@ -147,7 +154,7 @@ export function useDeleteSession() {
   const deleteSession = useCallback(async (sessionId: string): Promise<boolean> => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      const response = await fetchWithAuth(`/api/sessions/${sessionId}`, { method: "DELETE" });
       const json = (await response.json()) as ApiResponse<unknown>;
       return json.error === null;
     } catch {
@@ -166,7 +173,7 @@ export function useDeleteRating() {
   const deleteRating = useCallback(async (ratingId: string): Promise<boolean> => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/ratings/${ratingId}`, { method: "DELETE" });
+      const response = await fetchWithAuth(`/api/ratings/${ratingId}`, { method: "DELETE" });
       const json = (await response.json()) as ApiResponse<unknown>;
       return json.error === null;
     } catch {
@@ -194,7 +201,7 @@ export function useUpdateSessionAttendees() {
 
         if (added.length > 0) {
           promises.push(
-            fetch(`/api/sessions/${sessionId}/attendees`, {
+            fetchWithAuth(`/api/sessions/${sessionId}/attendees`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userIds: added }),
@@ -204,7 +211,7 @@ export function useUpdateSessionAttendees() {
 
         for (const userId of removed) {
           promises.push(
-            fetch(`/api/sessions/${sessionId}/attendees?userId=${userId}`, {
+            fetchWithAuth(`/api/sessions/${sessionId}/attendees?userId=${userId}`, {
               method: "DELETE",
             }),
           );
@@ -231,7 +238,7 @@ export function useUpdateRating() {
     async (ratingId: string, data: { score?: number; review?: string }): Promise<boolean> => {
       setIsUpdating(true);
       try {
-        const response = await fetch(`/api/ratings/${ratingId}`, {
+        const response = await fetchWithAuth(`/api/ratings/${ratingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),

@@ -312,14 +312,30 @@ export async function fetchAvgStartTime(): Promise<string | null> {
 
   if (rows.length === 0) return null;
 
-  let totalMinutes = 0;
+  // Use circular mean to handle times that wrap around midnight.
+  // Convert each time to an angle on a 24-hour clock, average the
+  // sin/cos components, then convert back to a time.
+  const TWO_PI = 2 * Math.PI;
+  const MINUTES_IN_DAY = 24 * 60;
+  let sinSum = 0;
+  let cosSum = 0;
+
   for (const row of rows) {
     if (row.time_watched_at === null) continue;
     const [hoursString = "0", minutesString = "0"] = row.time_watched_at.split(":");
-    totalMinutes += Number(hoursString) * 60 + Number(minutesString);
+    const minutes = Number(hoursString) * 60 + Number(minutesString);
+    const angle = (minutes / MINUTES_IN_DAY) * TWO_PI;
+    sinSum += Math.sin(angle);
+    cosSum += Math.cos(angle);
   }
 
-  const avgMinutes = Math.round(totalMinutes / rows.length);
+  const avgAngle = Math.atan2(sinSum / rows.length, cosSum / rows.length);
+  let avgMinutes = Math.round(
+    ((avgAngle < 0 ? avgAngle + TWO_PI : avgAngle) / TWO_PI) * MINUTES_IN_DAY,
+  );
+  // Clamp to valid range
+  avgMinutes = ((avgMinutes % MINUTES_IN_DAY) + MINUTES_IN_DAY) % MINUTES_IN_DAY;
+
   const hours = Math.floor(avgMinutes / 60);
   const minutes = avgMinutes % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
@@ -356,6 +372,7 @@ interface PickerRow {
   id: string;
   username: string;
   display_name: string | null;
+  avatar_url: string | null;
   pick_count: KyselyCount;
   avg_pick_rating: KyselyAggregate | null;
 }
@@ -379,11 +396,12 @@ export async function fetchPickerLeaderboard(limit = 5) {
       "users.id",
       "users.username",
       "users.display_name",
+      "users.avatar_url",
       db.fn.count("watch_sessions.id").distinct().as("pick_count"),
       db.fn.avg("ratings.score").as("avg_pick_rating"),
     ])
     .where("watch_sessions.picked_by_user_id", "is not", null)
-    .groupBy(["users.id", "users.username", "users.display_name"])
+    .groupBy(["users.id", "users.username", "users.display_name", "users.avatar_url"])
     .orderBy("avg_pick_rating", "desc")
     .limit(limit)
     .execute();
@@ -425,6 +443,7 @@ export async function fetchPickerLeaderboard(limit = 5) {
     userId: p.id,
     username: p.username,
     displayName: p.display_name,
+    avatarUrl: p.avatar_url,
     pickCount: Number(p.pick_count),
     avgPickRating:
       p.avg_pick_rating === null ? null : Math.round(Number(p.avg_pick_rating) * 10) / 10,

@@ -5,6 +5,7 @@
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 import type { UserRole } from "@/lib/db/types";
 import type { AdminUser, AuditLogResponse, InviteCodeItem } from "@/types/admin-responses";
@@ -48,7 +49,7 @@ export function useChangeRole() {
   const changeRole = useCallback(async (userId: string, role: UserRole): Promise<boolean> => {
     setIsUpdating(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetchWithAuth(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role }),
@@ -71,7 +72,7 @@ export function useDeleteUser() {
   const deleteUser = useCallback(async (userId: string): Promise<boolean> => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetchWithAuth(`/api/admin/users/${userId}`, {
         method: "DELETE",
       });
       const json = (await response.json()) as ApiResponse<unknown>;
@@ -92,7 +93,7 @@ export function useGenerateInviteCode() {
   const generate = useCallback(async (expiresInDays = 30): Promise<boolean> => {
     setIsGenerating(true);
     try {
-      const response = await fetch("/api/admin/invite-codes", {
+      const response = await fetchWithAuth("/api/admin/invite-codes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expiresInDays }),
@@ -115,7 +116,7 @@ export function useDeleteInviteCode() {
   const deleteCode = useCallback(async (codeId: string): Promise<boolean> => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/admin/invite-codes/${codeId}`, {
+      const response = await fetchWithAuth(`/api/admin/invite-codes/${codeId}`, {
         method: "DELETE",
       });
       const json = (await response.json()) as ApiResponse<unknown>;
@@ -137,7 +138,7 @@ export function useUpdateInviteCode() {
     async (codeId: string, expiresInDays: number): Promise<boolean> => {
       setIsUpdating(true);
       try {
-        const response = await fetch(`/api/admin/invite-codes/${codeId}`, {
+        const response = await fetchWithAuth(`/api/admin/invite-codes/${codeId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ expiresInDays }),

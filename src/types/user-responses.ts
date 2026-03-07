@@ -44,6 +44,8 @@ export interface RecentPick {
   title: string;
   type: MediaType;
   poster_url: string | null;
+  /** Avg session rating (null if < 2 ratings) */
+  avgScore: number | null;
 }
 
 /** User detailed stats from GET /api/users/[id]/stats */

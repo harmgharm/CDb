@@ -17,6 +17,7 @@ function formatDate(dateString: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -53,7 +54,20 @@ export function RecentPicks({ picks }: RecentPicksProps) {
                     className="h-16 w-11 shrink-0"
                   />
                   <div className="min-w-0 flex-1">
-                    <h4 className="truncate text-sm font-medium">{pick.title}</h4>
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="truncate text-sm font-medium">{pick.title}</h4>
+                      {pick.avgScore !== null && (
+                        <span
+                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none font-bold ${
+                            pick.avgScore >= 7.5
+                              ? "bg-emerald-500/15 text-emerald-500"
+                              : "bg-red-500/15 text-red-500"
+                          }`}
+                        >
+                          {pick.avgScore >= 7.5 ? "W" : "L"}
+                        </span>
+                      )}
+                    </div>
                     <MediaTypeBadge type={pick.type} />
                     <p className="text-muted-foreground mt-1 text-xs">
                       {formatDate(pick.date_watched)}
