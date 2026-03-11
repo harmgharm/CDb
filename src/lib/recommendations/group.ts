@@ -8,10 +8,16 @@
  */
 
 import { discoverMovies, discoverTv, tmdbImageUrl } from "@/lib/api/tmdb";
-import { getMovieGenreId, getTvGenreId } from "@/lib/api/tmdb-genres";
+import {
+  getMovieGenreId,
+  getTvGenreId,
+  mapMovieGenreIds,
+  mapTvGenreIds,
+} from "@/lib/api/tmdb-genres";
 import { db } from "@/lib/db";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+import { addScoreJitter, randomPage, randomSample } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
 import { getGroupWatchedIds, isAlreadyWatched } from "./watched";
@@ -57,7 +63,10 @@ export async function computeGroupRecommendations(limit = 60): Promise<Recommend
     userPreferences,
   });
 
-  return sliceWithTypeDepth(deduplicateAndSort(results), limit);
+  const deduplicated = deduplicateAndSort(results);
+  const jittered = addScoreJitter(deduplicated);
+  const pool = randomSample(jittered, Math.max(limit, 100));
+  return sliceWithTypeDepth(pool, limit);
 }
 
 async function computeAllUserPreferences(
@@ -221,6 +230,7 @@ async function discoverMovieItems(
       with_genres: genreIds.join(","),
       sort_by: "vote_average.desc",
       "vote_count.gte": "200",
+      page: randomPage(3),
     });
 
     const results: RecommendationItem[] = [];
@@ -246,6 +256,7 @@ async function discoverTvItems(
       with_genres: genreIds.join(","),
       sort_by: "vote_average.desc",
       "vote_count.gte": "200",
+      page: randomPage(3),
     });
 
     const results: RecommendationItem[] = [];
@@ -270,6 +281,7 @@ function movieToGroupItem(item: TmdbMovieSearchResult, sharedGenres: string[]): 
     overview: item.overview,
     releaseYear: item.release_date.length > 0 ? Number(item.release_date.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: mapMovieGenreIds(item.genre_ids),
     score: 0,
     recType: "group",
     reasons: [
@@ -292,6 +304,7 @@ function tvToGroupItem(item: TmdbTvSearchResult, sharedGenres: string[]): Recomm
     overview: item.overview,
     releaseYear: item.first_air_date.length > 0 ? Number(item.first_air_date.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: mapTvGenreIds(item.genre_ids),
     score: 0,
     recType: "group",
     reasons: [
@@ -423,6 +436,7 @@ function fetchWatchlistPopularItems(options: {
       overview: null,
       releaseYear: null,
       voteAverage: null,
+      genres: [],
       score: Math.round(watchlistScore * 1000) / 1000,
       recType: "group",
       watchlistCount: popular.count,

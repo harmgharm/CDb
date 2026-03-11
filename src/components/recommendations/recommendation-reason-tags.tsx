@@ -8,6 +8,7 @@ const TAG_STYLES: Record<string, string> = {
   "Top genre": "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20",
   "Top director": "bg-purple-500/10 text-purple-500 hover:bg-purple-500/20",
   "Similar taste": "bg-green-500/10 text-green-500 hover:bg-green-500/20",
+  "Shared taste": "bg-green-500/10 text-green-500 hover:bg-green-500/20",
   "TMDB suggests": "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20",
   "MAL suggests": "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20",
   "Group genre": "bg-pink-500/10 text-pink-500 hover:bg-pink-500/20",
@@ -24,39 +25,60 @@ interface RecommendationReasonTagsProps {
 }
 
 export function RecommendationReasonTags({ reasons, maxTags = 2 }: RecommendationReasonTagsProps) {
-  const displayReasons = reasons.slice(0, maxTags);
+  // Deduplicate by tag name — show each category once, collect all details
+  const tagMap = new Map<string, string[]>();
+  for (const reason of reasons) {
+    const details = tagMap.get(reason.tag) ?? [];
+    if (!details.includes(reason.detail)) {
+      details.push(reason.detail);
+    }
+    tagMap.set(reason.tag, details);
+  }
+
+  const tags = [...tagMap.entries()];
+  const displayTags = tags.slice(0, maxTags);
 
   return (
     <TooltipProvider>
       <div className="flex flex-wrap gap-1">
-        {displayReasons.map((reason, index) => (
-          <Tooltip key={`${reason.tag}-${String(index)}`}>
+        {displayTags.map(([tag, details]) => (
+          <Tooltip key={tag}>
             <TooltipTrigger asChild>
               <Badge
                 variant="secondary"
-                className={`cursor-default text-[10px] font-normal ${TAG_STYLES[reason.tag] ?? DEFAULT_STYLE}`}
+                className={`cursor-default text-[10px] font-normal ${TAG_STYLES[tag] ?? DEFAULT_STYLE}`}
               >
-                {reason.tag}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-60">
-              <p className="text-xs">{reason.detail}</p>
-            </TooltipContent>
-          </Tooltip>
-        ))}
-        {reasons.length > maxTags && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="secondary" className="cursor-default text-[10px] font-normal">
-                +{String(reasons.length - maxTags)}
+                {tag}
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-60">
               <div className="space-y-1">
-                {reasons.slice(maxTags).map((reason, index) => (
-                  <p key={`${reason.tag}-extra-${String(index)}`} className="text-xs">
-                    <span className="font-medium">{reason.tag}:</span> {reason.detail}
+                {details.map((detail) => (
+                  <p key={detail} className="text-xs">
+                    {detail}
                   </p>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        ))}
+        {tags.length > maxTags && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="secondary" className="cursor-default text-[10px] font-normal">
+                +{String(tags.length - maxTags)}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-60">
+              <div className="space-y-1">
+                {tags.slice(maxTags).map(([tag, details]) => (
+                  <div key={tag}>
+                    {details.map((detail) => (
+                      <p key={detail} className="text-xs">
+                        <span className="font-medium">{tag}:</span> {detail}
+                      </p>
+                    ))}
+                  </div>
                 ))}
               </div>
             </TooltipContent>

@@ -109,6 +109,9 @@ export async function cleanExpiredCache(): Promise<number> {
 
 // ── Internal helpers ─────────────────────────────────────────────────
 
+/** Pool size: compute more than we serve so dismissals don't thin results */
+const COMPUTE_POOL_SIZE = 80;
+
 async function computeByType(
   userId: string,
   type: RecommendationType,
@@ -116,17 +119,17 @@ async function computeByType(
 ): Promise<RecommendationItem[]> {
   switch (type) {
     case "content": {
-      return computeContentRecommendations(userId);
+      return computeContentRecommendations(userId, COMPUTE_POOL_SIZE);
     }
     case "collaborative": {
-      return computeCollaborativeRecommendations(userId);
+      return computeCollaborativeRecommendations(userId, COMPUTE_POOL_SIZE);
     }
     case "tmdb":
     case "jikan": {
-      return computeTmdbRecommendations(userId, 60, forceRefresh);
+      return computeTmdbRecommendations(userId, COMPUTE_POOL_SIZE, forceRefresh);
     }
     case "group": {
-      return computeGroupRecommendations();
+      return computeGroupRecommendations(COMPUTE_POOL_SIZE);
     }
   }
 }
@@ -157,6 +160,7 @@ async function getCachedResults(
     overview: row.ext_overview,
     releaseYear: row.ext_release_year,
     voteAverage: row.ext_vote_average === null ? null : Number(row.ext_vote_average),
+    genres: parseGenres(row.ext_genres),
     score: Number(row.score),
     recType: row.rec_type,
     reasons: parseReasons(row.reasons),
@@ -196,6 +200,7 @@ async function cacheResults(
     ext_overview: item.overview,
     ext_release_year: item.releaseYear,
     ext_vote_average: item.voteAverage,
+    ext_genres: item.genres.length > 0 ? JSON.stringify(item.genres) : null,
     score: item.score,
     reasons: JSON.stringify(item.reasons),
     computed_at: new Date(),
@@ -203,6 +208,18 @@ async function cacheResults(
   }));
 
   await db.insertInto("recommendation_cache").values(values).execute();
+}
+
+function parseGenres(raw: string[] | string | null | undefined): string[] {
+  if (raw === null || raw === undefined) return [];
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as string[];
+    } catch {
+      return [];
+    }
+  }
+  return raw;
 }
 
 function parseReasons(raw: { tag: string; detail: string }[] | string): RecommendationReason[] {

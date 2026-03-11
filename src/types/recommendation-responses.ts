@@ -9,6 +9,12 @@ export interface RecommendationReason {
   detail: string;
 }
 
+export interface FriendWatch {
+  username: string;
+  displayName: string | null;
+  score: number;
+}
+
 export interface RecommendationItem {
   mediaId: string | null;
   tmdbId: number | null;
@@ -19,11 +25,13 @@ export interface RecommendationItem {
   overview: string | null;
   releaseYear: number | null;
   voteAverage: number | null;
+  genres: string[];
   score: number;
   recType: RecommendationType;
   reasons: RecommendationReason[];
   watchlistEntryId?: string;
   watchlistCount?: number;
+  watchedByFriends?: FriendWatch[];
 }
 
 export interface RecommendationsMeta {
@@ -37,4 +45,19 @@ export interface RecommendationsMeta {
 export interface RecommendationsResponse {
   items: RecommendationItem[];
   meta: RecommendationsMeta;
+}
+
+export interface DismissedRecommendation {
+  id: string;
+  mediaId: string | null;
+  tmdbId: number | null;
+  malId: number | null;
+  title: string | null;
+  posterUrl: string | null;
+  mediaType: string | null;
+  createdAt: string;
+}
+
+export interface DismissedRecommendationsResponse {
+  items: DismissedRecommendation[];
 }

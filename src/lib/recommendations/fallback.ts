@@ -8,9 +8,10 @@
 
 import { db } from "@/lib/db";
 
+import { getUserDismissedIds } from "./dismissed";
 import { computeTmdbRecommendations } from "./tmdb-recs";
 import type { RecommendationItem } from "./types";
-import { getUserWatchedIds, isAlreadyWatched } from "./watched";
+import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
 
 /**
  * Compute fallback (non-personalized) recommendations for a user with < 5 ratings.
@@ -20,7 +21,10 @@ export async function computeFallbackRecommendations(
   userId: string,
   limit = 20,
 ): Promise<RecommendationItem[]> {
-  const watched = await getUserWatchedIds(userId);
+  const watched = mergeWatchedIds(
+    await getUserWatchedIds(userId),
+    await getUserDismissedIds(userId),
+  );
   const results: RecommendationItem[] = [];
 
   // 1. Get group's recently highly-rated media (avg >= 7.5, last 90 days)
@@ -42,6 +46,7 @@ export async function computeFallbackRecommendations(
       "media.release_year",
       "media.tmdb_rating",
       "media.mal_score",
+      "media.genres",
       db.fn.avg("ratings.score").as("avg_score"),
       db.fn.countAll().as("rating_count"),
     ])
@@ -57,6 +62,7 @@ export async function computeFallbackRecommendations(
       "media.release_year",
       "media.tmdb_rating",
       "media.mal_score",
+      "media.genres",
     ])
     .having(db.fn.avg("ratings.score"), ">=", 7.5)
     .having(db.fn.countAll(), ">=", 2)
@@ -81,6 +87,7 @@ export async function computeFallbackRecommendations(
       overview: item.synopsis,
       releaseYear: item.release_year,
       voteAverage: item.tmdb_rating ?? item.mal_score,
+      genres: item.genres,
       score: Math.round((avgScore / 10) * 1000) / 1000,
       recType: "group",
       reasons: [

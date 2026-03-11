@@ -38,7 +38,9 @@ export type AuditAction =
   | "watchlist.updated"
   | "watchlist.removed"
   | "recommendation.computed"
-  | "recommendation.invalidated";
+  | "recommendation.invalidated"
+  | "recommendation.dismissed"
+  | "recommendation.undismissed";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -236,6 +238,7 @@ export interface RecommendationCacheTable {
   ext_overview: string | null;
   ext_release_year: number | null;
   ext_vote_average: ColumnType<string, number, number> | null;
+  ext_genres: JsonColumn<string[]> | null;
   score: ColumnType<string, number, number>;
   reasons: JsonColumn<{ tag: string; detail: string }[]>;
   computed_at: Generated<Date>;
@@ -261,6 +264,23 @@ export type TmdbRecommendationCacheEntry = Selectable<TmdbRecommendationCacheTab
 export type NewTmdbRecommendationCache = Insertable<TmdbRecommendationCacheTable>;
 
 // ============================================
+
+export interface RecommendationDismissalsTable {
+  id: Generated<string>;
+  user_id: string;
+  media_id: string | null;
+  tmdb_id: number | null;
+  mal_id: number | null;
+  ext_title: string | null;
+  ext_poster_url: string | null;
+  ext_media_type: MediaType | null;
+  created_at: Generated<Date>;
+}
+
+export type RecommendationDismissal = Selectable<RecommendationDismissalsTable>;
+export type NewRecommendationDismissal = Insertable<RecommendationDismissalsTable>;
+
+// ============================================
 // DATABASE INTERFACE
 // ============================================
 
@@ -276,4 +296,5 @@ export interface Database {
   watchlist: WatchlistTable;
   recommendation_cache: RecommendationCacheTable;
   tmdb_recommendation_cache: TmdbRecommendationCacheTable;
+  recommendation_dismissals: RecommendationDismissalsTable;
 }

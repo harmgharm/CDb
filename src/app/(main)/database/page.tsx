@@ -4,6 +4,7 @@ import { GridIcon, ListIcon, LoaderIcon, PlusIcon, RefreshCwIcon, XIcon } from "
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
+import { ImportMediaDialog } from "@/components/media/import-media-dialog";
 import { MediaCard } from "@/components/media/media-card";
 import type { MediaFilterValues } from "@/components/media/media-filters";
 import { MediaFilters } from "@/components/media/media-filters";
@@ -14,8 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMediaList } from "@/hooks/use-media";
 import { useMediaRefresh } from "@/hooks/use-media-refresh";
-
-import { ImportMediaDialog } from "./import-dialog";
 
 type ViewMode = "grid" | "list";
 

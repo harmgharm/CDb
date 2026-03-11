@@ -53,6 +53,17 @@ function buildWatchedIds(
 }
 
 /**
+ * Merge two WatchedIds sets (e.g., watched + dismissed).
+ */
+export function mergeWatchedIds(a: WatchedIds, b: WatchedIds): WatchedIds {
+  return {
+    tmdbIds: new Set([...a.tmdbIds, ...b.tmdbIds]),
+    malIds: new Set([...a.malIds, ...b.malIds]),
+    mediaIds: new Set([...a.mediaIds, ...b.mediaIds]),
+  };
+}
+
+/**
  * Check if a recommendation item is already watched.
  */
 export function isAlreadyWatched(

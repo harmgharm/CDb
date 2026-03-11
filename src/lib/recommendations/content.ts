@@ -12,13 +12,20 @@ import { sql } from "kysely";
 import { discoverAnime } from "@/lib/api/jikan";
 import { getMalGenreId } from "@/lib/api/jikan-genres";
 import { discoverMovies, discoverTv, tmdbImageUrl } from "@/lib/api/tmdb";
-import { getMovieGenreId, getTvGenreId } from "@/lib/api/tmdb-genres";
+import {
+  getMovieGenreId,
+  getTvGenreId,
+  mapMovieGenreIds,
+  mapTvGenreIds,
+} from "@/lib/api/tmdb-genres";
 import { db } from "@/lib/db";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+import { getUserDismissedIds } from "./dismissed";
+import { addScoreJitter, randomPage, randomSample } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getUserWatchedIds, isAlreadyWatched } from "./watched";
+import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
 
 type ParsedMediaItem = Omit<RecommendationItem, "score" | "recType" | "reasons">;
 
@@ -57,11 +64,11 @@ export async function computeContentRecommendations(
   const genreScores = computeGenreScores(ratedMedia);
   const directorScores = computeDirectorScores(ratedMedia);
 
-  // Top genres (avg >= 7.0) and directors (avg >= 7.5)
+  // Top genres (avg >= 7.0) — widened to 5 to avoid genre lock-in
   const topGenres = genreScores
     .filter((g) => g.avgRating >= 7)
     .toSorted((a, b) => b.avgRating - a.avgRating)
-    .slice(0, 3);
+    .slice(0, 5);
 
   const topDirectors = directorScores
     .filter((d) => d.avgRating >= 7.5)
@@ -69,7 +76,10 @@ export async function computeContentRecommendations(
     .slice(0, 3);
 
   // 3. Get watched IDs for exclusion
-  const watched = await getUserWatchedIds(userId);
+  const watched = mergeWatchedIds(
+    await getUserWatchedIds(userId),
+    await getUserDismissedIds(userId),
+  );
   const results: RecommendationItem[] = [];
 
   // 4. Genre-based TMDB discover (max 3 API calls)
@@ -169,21 +179,23 @@ async function fetchMovieGenreResults(
   if (movieGenreId === null) return [];
 
   const results: RecommendationItem[] = [];
-  const targetCount = 20;
+  const maxPerGenre = 12;
+  const startPage = Number(randomPage(5));
 
-  // Fetch up to 3 pages to compensate for already-watched filtering
-  for (let page = 1; page <= 3 && results.length < targetCount; page += 1) {
+  // Fetch up to 3 pages starting from a random page for variety
+  for (let offset = 0; offset < 3 && results.length < maxPerGenre; offset += 1) {
     try {
       const response = await discoverMovies({
         with_genres: movieGenreId.toString(),
         sort_by: "vote_average.desc",
         "vote_count.gte": "100",
-        page: page.toString(),
+        page: String(startPage + offset),
       });
 
       if (response.results.length === 0) break;
 
       for (const item of response.results) {
+        if (results.length >= maxPerGenre) break;
         if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
         results.push(scoreGenreResult(parseMovieResult(item), genreScore));
       }
@@ -203,21 +215,23 @@ async function fetchTvGenreResults(
   if (tvGenreId === null) return [];
 
   const results: RecommendationItem[] = [];
-  const targetCount = 20;
+  const maxPerGenre = 12;
+  const startPage = Number(randomPage(5));
 
-  // Fetch up to 3 pages to compensate for already-watched filtering
-  for (let page = 1; page <= 3 && results.length < targetCount; page += 1) {
+  // Fetch up to 3 pages starting from a random page for variety
+  for (let offset = 0; offset < 3 && results.length < maxPerGenre; offset += 1) {
     try {
       const response = await discoverTv({
         with_genres: tvGenreId.toString(),
         sort_by: "vote_average.desc",
         "vote_count.gte": "100",
-        page: page.toString(),
+        page: String(startPage + offset),
       });
 
       if (response.results.length === 0) break;
 
       for (const item of response.results) {
+        if (results.length >= maxPerGenre) break;
         if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
         results.push(scoreGenreResult(parseTvResult(item), genreScore));
       }
@@ -242,6 +256,7 @@ async function fetchAnimeGenreResultsForGenre(
       order_by: "score",
       sort: "desc",
       min_score: "7",
+      page: randomPage(3),
     });
 
     const results: RecommendationItem[] = [];
@@ -260,6 +275,7 @@ async function fetchAnimeGenreResultsForGenre(
             overview: anime.synopsis,
             releaseYear: anime.year,
             voteAverage: anime.score,
+            genres: anime.genres.map((g) => g.name),
           },
           genreScore,
         ),
@@ -334,6 +350,7 @@ async function fetchDirectorBasedResults(
         overview: item.synopsis,
         releaseYear: item.release_year,
         voteAverage: item.tmdb_rating ?? item.mal_score,
+        genres: item.genres,
         score: Math.round(combinedScore * 1000) / 1000,
         recType: "content",
         reasons: [
@@ -360,6 +377,7 @@ function parseMovieResult(item: TmdbMovieSearchResult): ParsedMediaItem {
     overview: item.overview,
     releaseYear: item.release_date.length > 0 ? Number(item.release_date.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: mapMovieGenreIds(item.genre_ids),
   };
 }
 
@@ -374,10 +392,11 @@ function parseTvResult(item: TmdbTvSearchResult): ParsedMediaItem {
     overview: item.overview,
     releaseYear: item.first_air_date.length > 0 ? Number(item.first_air_date.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: mapTvGenreIds(item.genre_ids),
   };
 }
 
-/** Deduplicate items then apply type-depth slicing */
+/** Deduplicate, apply jitter, random-sample from oversized pool, then type-depth slice */
 function deduplicateAndSlice(items: RecommendationItem[], limit: number): RecommendationItem[] {
   const seen = new Set<string>();
   const unique: RecommendationItem[] = [];
@@ -391,5 +410,10 @@ function deduplicateAndSlice(items: RecommendationItem[], limit: number): Recomm
     unique.push(item);
   }
 
-  return sliceWithTypeDepth(unique, limit);
+  // Add score jitter for ordering variety, then sample from the larger pool
+  const jittered = addScoreJitter(unique);
+  const poolSize = Math.min(jittered.length, Math.max(limit, 100));
+  const pool = randomSample(jittered, poolSize);
+
+  return sliceWithTypeDepth(pool, limit);
 }

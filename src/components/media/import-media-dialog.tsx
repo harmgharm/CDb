@@ -2,7 +2,7 @@
 
 import { ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { buildWatchlistLookup, SearchResultsList } from "@/components/media/search-results-list";
@@ -39,17 +39,23 @@ interface ImportMediaDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSuccess: () => void;
+  readonly initialQuery?: string;
 }
 
 function todayString(): string {
   return new Date().toISOString().split("T")[0] ?? "";
 }
 
-export function ImportMediaDialog({ open, onOpenChange, onSuccess }: ImportMediaDialogProps) {
+export function ImportMediaDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+  initialQuery = "",
+}: ImportMediaDialogProps) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
   const { data: users } = useUserList();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [typeFilter, setTypeFilter] = useState("");
   const [importedMap, setImportedMap] = useState<Map<string, string>>(new Map());
   const [sessionOpen, setSessionOpen] = useState(false);
@@ -77,6 +83,14 @@ export function ImportMediaDialog({ open, onOpenChange, onSuccess }: ImportMedia
   // Track items added during this dialog session (SWR may not have refreshed yet)
   const [locallyAdded, setLocallyAdded] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Auto-search when dialog mounts with an initialQuery.
+  // Callers should use a `key` prop to ensure a fresh mount per query.
+  useEffect(() => {
+    if (initialQuery.length > 0) {
+      void search(initialQuery);
+    }
+  }, [initialQuery, search]);
 
   const watchlistLookup = buildWatchlistLookup(myWatchlist);
 

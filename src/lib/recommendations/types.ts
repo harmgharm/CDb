@@ -9,6 +9,12 @@ export interface RecommendationReason {
   detail: string;
 }
 
+export interface FriendWatch {
+  username: string;
+  displayName: string | null;
+  score: number;
+}
+
 export interface RecommendationItem {
   /** Internal DB media ID (if already imported) */
   mediaId: string | null;
@@ -23,6 +29,8 @@ export interface RecommendationItem {
   overview: string | null;
   releaseYear: number | null;
   voteAverage: number | null;
+  /** Genre names (e.g., ["Action", "Drama"]) */
+  genres: string[];
   /** Normalized 0–1 recommendation score */
   score: number;
   /** Which algorithm produced this recommendation */
@@ -33,6 +41,8 @@ export interface RecommendationItem {
   watchlistEntryId?: string;
   /** Number of group members who have this on their watchlist */
   watchlistCount?: number;
+  /** Group members who watched this title, with their ratings */
+  watchedByFriends?: FriendWatch[];
 }
 
 /** Threshold: users need this many ratings for personalized recs */

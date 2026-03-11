@@ -8,14 +8,21 @@
 import { sql } from "kysely";
 
 import { discoverMovies, discoverTv, tmdbImageUrl } from "@/lib/api/tmdb";
-import { getMovieGenreId, getTvGenreId } from "@/lib/api/tmdb-genres";
+import {
+  getMovieGenreId,
+  getTvGenreId,
+  mapMovieGenreIds,
+  mapTvGenreIds,
+} from "@/lib/api/tmdb-genres";
 import { db } from "@/lib/db";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+import { getUserDismissedIds } from "./dismissed";
 import { pearsonCorrelation } from "./math";
+import { addScoreJitter, randomPage, randomSample } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getUserWatchedIds, isAlreadyWatched } from "./watched";
+import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
 
 // Re-export for public API
 export { pearsonCorrelation } from "./math";
@@ -79,11 +86,15 @@ export async function computeCollaborativeRecommendations(
 
   if (similarities.length === 0) return [];
 
-  // 4. Take top 3 most similar users
-  const topSimilar = similarities.toSorted((a, b) => b.correlation - a.correlation).slice(0, 3);
+  // 4. Randomly select 3 from top 5 most similar users for variety
+  const topCandidates = similarities.toSorted((a, b) => b.correlation - a.correlation).slice(0, 5);
+  const topSimilar = randomSample(topCandidates, 3);
 
   // 5. Get watched IDs for exclusion
-  const watched = await getUserWatchedIds(userId);
+  const watched = mergeWatchedIds(
+    await getUserWatchedIds(userId),
+    await getUserDismissedIds(userId),
+  );
   const results: RecommendationItem[] = [];
 
   // 6. For each similar user, find media they rated >= 7.5 that current user hasn't watched
@@ -103,6 +114,7 @@ export async function computeCollaborativeRecommendations(
         "media.release_year",
         "media.tmdb_rating",
         "media.mal_score",
+        "media.genres",
         "ratings.score",
       ])
       .where("ratings.user_id", "=", similar.userId)
@@ -133,6 +145,7 @@ export async function computeCollaborativeRecommendations(
         overview: item.synopsis,
         releaseYear: item.release_year,
         voteAverage: item.tmdb_rating ?? item.mal_score,
+        genres: item.genres,
         score: Math.round(combinedScore * 1000) / 1000,
         recType: "collaborative",
         reasons: [
@@ -151,8 +164,11 @@ export async function computeCollaborativeRecommendations(
     results.push(...fallbackItems);
   }
 
-  // Deduplicate (same media might be highly rated by multiple similar users)
-  return sliceWithTypeDepth(deduplicateCollaborative(results), limit);
+  // Deduplicate, jitter, sample, then type-depth slice
+  const deduplicated = deduplicateCollaborative(results);
+  const jittered = addScoreJitter(deduplicated);
+  const pool = randomSample(jittered, Math.max(limit, 100));
+  return sliceWithTypeDepth(pool, limit);
 }
 
 async function computeUserSimilarity(
@@ -285,16 +301,19 @@ async function discoverForSharedGenres(
 
     try {
       const isMovie = movieGenreId !== null;
+      const page = randomPage(5);
       const response = isMovie
         ? await discoverMovies({
             with_genres: targetGenreId.toString(),
             sort_by: "vote_average.desc",
             "vote_count.gte": "100",
+            page,
           })
         : await discoverTv({
             with_genres: targetGenreId.toString(),
             sort_by: "vote_average.desc",
             "vote_count.gte": "100",
+            page,
           });
 
       for (const item of response.results.slice(0, 5)) {
@@ -332,6 +351,7 @@ function parseDiscoverResult(
 ): Omit<RecommendationItem, "score" | "recType" | "reasons"> {
   const title = "title" in item ? item.title : item.name;
   const dateField = "release_date" in item ? item.release_date : item.first_air_date;
+  const genreMapper = mediaType === "movie" ? mapMovieGenreIds : mapTvGenreIds;
 
   return {
     mediaId: null,
@@ -343,6 +363,7 @@ function parseDiscoverResult(
     overview: item.overview,
     releaseYear: dateField.length > 0 ? Number(dateField.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: genreMapper(item.genre_ids),
   };
 }
 

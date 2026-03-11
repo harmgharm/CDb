@@ -79,6 +79,20 @@ export function getMovieGenreId(genreName: string): number | null {
   return null;
 }
 
+/** Map TMDB genre IDs to names for movie results */
+export function mapMovieGenreIds(genreIds: number[]): string[] {
+  return genreIds
+    .map((id) => TMDB_MOVIE_GENRES[id])
+    .filter((name): name is string => name !== undefined);
+}
+
+/** Map TMDB genre IDs to names for TV results */
+export function mapTvGenreIds(genreIds: number[]): string[] {
+  return genreIds
+    .map((id) => TMDB_TV_GENRES[id])
+    .filter((name): name is string => name !== undefined);
+}
+
 /** Get the first TMDB TV genre ID for a genre name, or null */
 export function getTvGenreId(genreName: string): number | null {
   for (const [id, name] of Object.entries(TMDB_TV_GENRES)) {

@@ -9,14 +9,17 @@ import { sql } from "kysely";
 
 import { getAnimeRecommendations } from "@/lib/api/jikan";
 import { getMovieRecommendations, getTvRecommendations, tmdbImageUrl } from "@/lib/api/tmdb";
+import { mapMovieGenreIds, mapTvGenreIds } from "@/lib/api/tmdb-genres";
 import { db } from "@/lib/db";
 import type { MediaType } from "@/lib/db/types";
 import type { JikanRecommendationEntry } from "@/types/jikan";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+import { getUserDismissedIds } from "./dismissed";
+import { addScoreJitter, randomSample } from "./random";
 import type { RecommendationItem } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getUserWatchedIds, isAlreadyWatched } from "./watched";
+import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
 
 const TMDB_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -38,8 +41,8 @@ export async function computeTmdbRecommendations(
   limit = 60,
   forceRefresh = false,
 ): Promise<RecommendationItem[]> {
-  // 1. Get user's top rated media per type (score >= 8.0)
-  // Fetch top 5 per media type to ensure type diversity in sources
+  // 1. Get user's top rated media per type (score >= 7.5, widened from 8.0)
+  // Fetch a wider pool for random source selection
   const topRated = await db
     .selectFrom("ratings")
     .innerJoin("watch_sessions", "watch_sessions.id", "ratings.session_id")
@@ -53,34 +56,38 @@ export async function computeTmdbRecommendations(
       "ratings.score",
     ])
     .where("ratings.user_id", "=", userId)
-    .where(sql`ratings.score`, ">=", sql`8.0`)
+    .where(sql`ratings.score`, ">=", sql`7.5`)
     .orderBy("ratings.score", "desc")
-    .limit(15)
+    .limit(30)
     .execute();
 
   if (topRated.length === 0) return [];
 
-  // Select up to 3 sources per media type (max 9 total)
+  // Group by type, then randomly select 3–5 sources per type for variety
   const sourcesByType = new Map<string, RatedMediaSource[]>();
   for (const row of topRated) {
     const group = sourcesByType.get(row.type) ?? [];
-    if (group.length < 3) {
-      group.push({
-        mediaId: row.media_id,
-        title: row.title,
-        type: row.type,
-        tmdbId: row.tmdb_id,
-        malId: row.mal_id,
-        userScore: Number(row.score),
-      });
-      sourcesByType.set(row.type, group);
-    }
+    group.push({
+      mediaId: row.media_id,
+      title: row.title,
+      type: row.type,
+      tmdbId: row.tmdb_id,
+      malId: row.mal_id,
+      userScore: Number(row.score),
+    });
+    sourcesByType.set(row.type, group);
   }
 
-  const sources: RatedMediaSource[] = [...sourcesByType.values()].flat();
+  const sources: RatedMediaSource[] = [];
+  for (const group of sourcesByType.values()) {
+    sources.push(...randomSample(group, 5));
+  }
 
   // 2. Fetch recommendations for each source (with caching)
-  const watched = await getUserWatchedIds(userId);
+  const watched = mergeWatchedIds(
+    await getUserWatchedIds(userId),
+    await getUserDismissedIds(userId),
+  );
   const allResults: { source: RatedMediaSource; items: RecommendationItem[] }[] = [];
 
   for (const source of sources) {
@@ -88,8 +95,11 @@ export async function computeTmdbRecommendations(
     allResults.push({ source, items });
   }
 
-  // 3. Merge, score by frequency, and ensure type depth
-  return sliceWithTypeDepth(mergeAndScore(allResults, watched), limit);
+  // 3. Merge, score, jitter, sample, and ensure type depth
+  const merged = mergeAndScore(allResults, watched);
+  const jittered = addScoreJitter(merged);
+  const pool = randomSample(jittered, Math.max(limit, 100));
+  return sliceWithTypeDepth(pool, limit);
 }
 
 async function fetchRecommendationsForSource(
@@ -266,6 +276,7 @@ function movieResultToItem(
     overview: item.overview,
     releaseYear: item.release_date.length > 0 ? Number(item.release_date.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: mapMovieGenreIds(item.genre_ids),
     score: 0, // Will be computed in mergeAndScore
     recType: "tmdb",
     reasons: [
@@ -288,6 +299,7 @@ function tvResultToItem(item: TmdbTvSearchResult, source: RatedMediaSource): Rec
     overview: item.overview,
     releaseYear: item.first_air_date.length > 0 ? Number(item.first_air_date.slice(0, 4)) : null,
     voteAverage: item.vote_average,
+    genres: mapTvGenreIds(item.genre_ids),
     score: 0,
     recType: "tmdb",
     reasons: [
@@ -313,6 +325,7 @@ function animeResultToItem(
     overview: null,
     releaseYear: null,
     voteAverage: null,
+    genres: [],
     score: 0,
     recType: "jikan",
     reasons: [
