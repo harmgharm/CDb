@@ -24,10 +24,19 @@ export interface UserProfile extends UserListItem {
   };
 }
 
+/** Individual rating within a bucket */
+export interface RatingDetail {
+  mediaId: string;
+  title: string;
+  posterUrl: string | null;
+  score: number;
+}
+
 /** Rating distribution bucket */
 export interface RatingBucket {
   score: number;
   count: number;
+  ratings: RatingDetail[];
 }
 
 /** Genre count */

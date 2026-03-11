@@ -2,7 +2,7 @@
 
 import { ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { buildWatchlistLookup, SearchResultsList } from "@/components/media/search-results-list";
@@ -73,7 +73,8 @@ export function ImportMediaDialog({
 
   const canRateForOthers =
     currentUser !== null && (currentUser.role === "admin" || currentUser.role === "moderator");
-  const { results, isSearching, searchError, search, clearResults } = useMediaSearch();
+  const { results, isSearching, searchError, search, clearResults, existingMediaMap } =
+    useMediaSearch();
   const { isImporting, importError, importMedia } = useMediaImport();
   const { createSession, isCreating } = useCreateSession();
   const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
@@ -91,6 +92,15 @@ export function ImportMediaDialog({
       void search(initialQuery);
     }
   }, [initialQuery, search]);
+
+  // Merge DB-persisted existing media with session-local imports
+  const mergedImportedMap = useMemo(() => {
+    const merged = new Map(existingMediaMap);
+    for (const [key, value] of importedMap) {
+      merged.set(key, value);
+    }
+    return merged;
+  }, [existingMediaMap, importedMap]);
 
   const watchlistLookup = buildWatchlistLookup(myWatchlist);
 
@@ -365,7 +375,7 @@ export function ImportMediaDialog({
             isSearching={isSearching}
             query={query}
             results={results}
-            importedMap={importedMap}
+            importedMap={mergedImportedMap}
             locallyAdded={locallyAdded}
             watchlistLookup={watchlistLookup}
             isAddingToWatchlist={isAddingToWatchlist}

@@ -2,7 +2,6 @@
  * GET /api/users/[id]/stats — Detailed user statistics
  */
 
-import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
@@ -24,14 +23,25 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("User not found", 404);
   }
 
-  // Rating distribution (1-10 histogram)
-  const ratingDistribution = await db
+  // Rating distribution — individual ratings with media info
+  const allRatings = await db
     .selectFrom("ratings")
-    .select([sql<string>`floor(score)`.as("bucket"), db.fn.countAll().as("count")])
-    .where("user_id", "=", id)
-    .groupBy(sql`floor(score)`)
-    .orderBy("bucket", "asc")
+    .innerJoin("watch_sessions", "watch_sessions.id", "ratings.session_id")
+    .innerJoin("media", "media.id", "watch_sessions.media_id")
+    .select(["ratings.score", "media.id as media_id", "media.title", "media.poster_url"])
+    .where("ratings.user_id", "=", id)
+    .orderBy("ratings.score", "desc")
     .execute();
+
+  // Group into buckets by floor(score)
+  const bucketMap = new Map<number, { count: number; ratings: typeof allRatings }>();
+  for (const rating of allRatings) {
+    const bucket = Math.floor(Number(rating.score));
+    const existing = bucketMap.get(bucket) ?? { count: 0, ratings: [] };
+    existing.count += 1;
+    existing.ratings.push(rating);
+    bucketMap.set(bucket, existing);
+  }
 
   // Genre breakdown (count per genre from attended sessions)
   const genreBreakdown = await db
@@ -84,9 +94,15 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     .execute();
 
   return successResponse({
-    ratingDistribution: ratingDistribution.map((r) => ({
-      score: Number(r.bucket),
-      count: Number(r.count),
+    ratingDistribution: [...bucketMap.entries()].map(([score, data]) => ({
+      score,
+      count: data.count,
+      ratings: data.ratings.map((r) => ({
+        mediaId: r.media_id,
+        title: r.title,
+        posterUrl: r.poster_url,
+        score: Math.round(Number(r.score) * 10) / 10,
+      })),
     })),
     topGenres,
     recentPicks: picks.map((p) => ({

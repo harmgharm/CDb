@@ -3,12 +3,16 @@
 import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
+  CheckCircle2Icon,
   CheckIcon,
+  DatabaseIcon,
   DownloadIcon,
   LoaderIcon,
 } from "lucide-react";
+import { useState } from "react";
 
 import { MediaInfoRow } from "@/components/media/media-card";
+import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
 import { Button } from "@/components/ui/button";
 import type { MediaSearchResult } from "@/types/media";
@@ -64,6 +68,62 @@ interface SearchResultsListProps {
   readonly onNavigate: (mediaId: string) => void;
 }
 
+function ImportStatusButton({
+  isImported,
+  isFromDatabase,
+  isImporting,
+  onImport,
+}: {
+  readonly isImported: boolean;
+  readonly isFromDatabase: boolean;
+  readonly isImporting: boolean;
+  readonly onImport: () => void;
+}) {
+  if (!isImported) {
+    return (
+      <Button
+        size="sm"
+        disabled={isImporting}
+        onClick={(event) => {
+          event.stopPropagation();
+          onImport();
+        }}
+      >
+        {isImporting ? (
+          <LoaderIcon className="mr-1 size-3 animate-spin" />
+        ) : (
+          <DownloadIcon className="mr-1 size-3" />
+        )}
+        Import
+      </Button>
+    );
+  }
+
+  if (isFromDatabase) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+      >
+        <DatabaseIcon className="mr-1 size-3" />
+        In Database
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+    >
+      <CheckCircle2Icon className="mr-1 size-3" />
+      Added
+    </Button>
+  );
+}
+
 export function SearchResultsList({
   isSearching,
   query,
@@ -77,6 +137,8 @@ export function SearchResultsList({
   onAddToWatchlist,
   onNavigate,
 }: SearchResultsListProps) {
+  const [previewResult, setPreviewResult] = useState<MediaSearchResult | null>(null);
+
   if (isSearching) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -111,30 +173,42 @@ export function SearchResultsList({
         const alreadyWatchlisted =
           locallyAdded.has(key) || isAlreadyWatchlisted(result, importedMediaId, watchlistLookup);
 
+        const isFromDatabase = result.existingMediaId !== undefined;
+
+        const handleRowClick = () => {
+          if (isImported) {
+            onNavigate(importedMediaId);
+          } else {
+            setPreviewResult(result);
+          }
+        };
+
         return (
           <div
             key={key}
-            role={isImported ? "link" : undefined}
-            tabIndex={isImported ? 0 : undefined}
-            className={`hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-              isImported ? "cursor-pointer" : ""
-            }`}
-            onClick={() => {
-              if (isImported) onNavigate(importedMediaId);
-            }}
+            role={isImported ? "link" : "button"}
+            tabIndex={0}
+            className="hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
+            onClick={handleRowClick}
             onKeyDown={(event) => {
-              if (isImported && (event.key === "Enter" || event.key === " ")) {
-                onNavigate(importedMediaId);
+              if (event.key === "Enter" || event.key === " ") {
+                handleRowClick();
               }
             }}
           >
-            <div className="min-w-0 flex-1">
+            <div className="relative min-w-0 flex-1">
+              {isImported && (
+                <div className="absolute top-0 left-0 z-10 flex size-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm">
+                  <CheckIcon className="size-3 text-white" />
+                </div>
+              )}
               <MediaInfoRow
                 posterUrl={result.posterUrl}
                 title={result.title}
                 type={result.type}
                 releaseYear={result.releaseYear}
                 overview={result.overview}
+                rating={result.voteAverage}
               />
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -158,31 +232,48 @@ export function SearchResultsList({
                   Watchlist
                 </Button>
               )}
-              {importedMediaId === undefined ? (
-                <Button
-                  size="sm"
-                  disabled={isImporting}
-                  onClick={() => {
-                    void onImport(result);
-                  }}
-                >
-                  {isImporting ? (
-                    <LoaderIcon className="mr-1 size-3 animate-spin" />
-                  ) : (
-                    <DownloadIcon className="mr-1 size-3" />
-                  )}
-                  Import
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline">
-                  <CheckIcon className="mr-1 size-3" />
-                  Added
-                </Button>
-              )}
+              <ImportStatusButton
+                isImported={isImported}
+                isFromDatabase={isFromDatabase}
+                isImporting={isImporting}
+                onImport={() => {
+                  void onImport(result);
+                }}
+              />
             </div>
           </div>
         );
       })}
+
+      {/* Preview dialog for unimported results */}
+      {previewResult !== null &&
+        (() => {
+          const previewKey = `${previewResult.source}-${String(previewResult.externalId)}`;
+          const previewImportedId = importedMap.get(previewKey);
+          const previewWatchlisted =
+            locallyAdded.has(previewKey) ||
+            isAlreadyWatchlisted(previewResult, previewImportedId, watchlistLookup);
+
+          return (
+            <MediaPreviewDialog
+              open
+              onOpenChange={(isOpen) => {
+                if (!isOpen) setPreviewResult(null);
+              }}
+              result={previewResult}
+              isImporting={isImporting}
+              onImport={() => {
+                void onImport(previewResult);
+                setPreviewResult(null);
+              }}
+              isWatchlisted={previewWatchlisted}
+              isAddingToWatchlist={isAddingToWatchlist}
+              onAddToWatchlist={() => {
+                void onAddToWatchlist(previewResult, previewImportedId);
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }

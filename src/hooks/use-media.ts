@@ -7,7 +7,7 @@ import useSWR from "swr";
 
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
-import type { MediaSearchResult } from "@/types/media";
+import type { MediaPreviewDetail, MediaSearchResult } from "@/types/media";
 import type { MediaDetail, MediaListResponse } from "@/types/media-responses";
 
 interface MediaQueryParams {
@@ -45,6 +45,7 @@ export function useMediaSearch() {
   const [results, setResults] = useState<MediaSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [existingMediaMap, setExistingMediaMap] = useState<Map<string, string>>(new Map());
 
   const search = useCallback(async (query: string, type?: string) => {
     if (query.trim().length === 0) {
@@ -74,6 +75,16 @@ export function useMediaSearch() {
           return true;
         });
         setResults(unique);
+
+        // Build map of already-imported media from API response
+        const existing = new Map<string, string>();
+        for (const item of unique) {
+          if (item.existingMediaId !== undefined) {
+            const key = `${item.source}-${String(item.externalId)}`;
+            existing.set(key, item.existingMediaId);
+          }
+        }
+        setExistingMediaMap(existing);
       } else {
         setSearchError(json.error);
         setResults([]);
@@ -89,9 +100,10 @@ export function useMediaSearch() {
   const clearResults = useCallback(() => {
     setResults([]);
     setSearchError(null);
+    setExistingMediaMap(new Map());
   }, []);
 
-  return { results, isSearching, searchError, search, clearResults };
+  return { results, isSearching, searchError, search, clearResults, existingMediaMap };
 }
 
 interface ImportedMedia {
@@ -138,4 +150,17 @@ export function useMediaImport() {
   );
 
   return { isImporting, importError, importMedia };
+}
+
+export function useMediaPreview(
+  source: string | null,
+  externalId: number | null,
+  type: string | null,
+) {
+  const key =
+    source !== null && externalId !== null && type !== null
+      ? `/api/media/preview?source=${source}&externalId=${String(externalId)}&type=${type}`
+      : null;
+
+  return useSWR<MediaPreviewDetail>(key);
 }

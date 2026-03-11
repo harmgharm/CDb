@@ -19,6 +19,7 @@ import type {
 
 interface WatchlistQueryParams {
   userId?: string;
+  mediaId?: string;
   status?: string;
   page?: number;
   limit?: number;

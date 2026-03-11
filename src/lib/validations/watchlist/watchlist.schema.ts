@@ -45,6 +45,7 @@ export type UpdateWatchlistEntryInput = z.infer<typeof updateWatchlistEntrySchem
 
 export const watchlistQuerySchema = z.object({
   userId: z.uuid().optional(),
+  mediaId: z.uuid().optional(),
   status: watchlistStatusSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),

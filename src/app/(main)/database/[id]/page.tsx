@@ -85,7 +85,7 @@ export default function MediaDetailPage() {
   const { deleteMedia, isDeleting: isDeletingMedia } = useDeleteMedia();
   const { refreshMedia, isRefreshing } = useSingleMediaRefresh();
   const { data: myWatchlist, mutate: mutateWatchlist } = useWatchlist(
-    user === null ? {} : { userId: user.id },
+    user === null || media === undefined ? {} : { userId: user.id, mediaId: media.id, limit: 1 },
   );
   const { data: groupCounts } = useWatchlistGroupCounts(media === undefined ? [] : [media.id]);
   const [showDeleteMedia, setShowDeleteMedia] = useState(false);

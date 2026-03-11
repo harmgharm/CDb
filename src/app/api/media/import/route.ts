@@ -82,6 +82,26 @@ export async function POST(req: NextRequest) {
     .returningAll()
     .executeTakeFirstOrThrow();
 
+  // Link existing watchlist entries (added via external ID) to the new media record.
+  // Must clear external IDs to satisfy the watchlist_anchor_check constraint
+  // (media_id XOR external IDs).
+  if (tmdbId !== undefined) {
+    await db
+      .updateTable("watchlist")
+      .set({ media_id: media.id, tmdb_id: null, mal_id: null })
+      .where("tmdb_id", "=", tmdbId)
+      .where("media_id", "is", null)
+      .execute();
+  }
+  if (malId !== undefined) {
+    await db
+      .updateTable("watchlist")
+      .set({ media_id: media.id, tmdb_id: null, mal_id: null })
+      .where("mal_id", "=", malId)
+      .where("media_id", "is", null)
+      .execute();
+  }
+
   await logAudit({
     userId: user.id,
     action: "media.created",

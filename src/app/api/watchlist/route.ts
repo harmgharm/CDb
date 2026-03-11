@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     return errorResponse("Invalid query parameters", 400);
   }
 
-  const { status, page, limit } = parsed.data;
+  const { status, mediaId, page, limit } = parsed.data;
   const userId = parsed.data.userId ?? user.id;
   const offset = (page - 1) * limit;
 
@@ -48,6 +48,10 @@ export async function GET(req: NextRequest) {
     query = query.where("watchlist.status", "=", status);
   }
 
+  if (mediaId !== undefined) {
+    query = query.where("watchlist.media_id", "=", mediaId);
+  }
+
   // Count total for pagination
   let countQuery = db
     .selectFrom("watchlist")
@@ -56,6 +60,10 @@ export async function GET(req: NextRequest) {
 
   if (status !== undefined) {
     countQuery = countQuery.where("status", "=", status);
+  }
+
+  if (mediaId !== undefined) {
+    countQuery = countQuery.where("media_id", "=", mediaId);
   }
 
   const countResult = await countQuery.executeTakeFirstOrThrow();
