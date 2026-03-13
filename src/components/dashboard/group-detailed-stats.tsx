@@ -47,7 +47,13 @@ export function GroupDetailedStats() {
   const { data: stats, isLoading } = useGroupDetailedStats();
 
   if (isLoading) return <DetailedStatsSkeleton />;
-  if (stats === undefined) return null;
+  if (stats === undefined) {
+    return (
+      <p className="text-muted-foreground py-8 text-center text-sm">
+        Not enough watch history yet. Log some sessions to see detailed stats!
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-4">

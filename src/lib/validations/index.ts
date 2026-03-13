@@ -2,6 +2,7 @@ export * from "./admin";
 export * from "./auth";
 export * from "./common";
 export * from "./media";
+export * from "./predictions";
 export * from "./recommendations";
 export * from "./sessions";
 export * from "./users";

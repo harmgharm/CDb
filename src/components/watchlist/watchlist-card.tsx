@@ -1,6 +1,13 @@
 "use client";
 
-import { BookmarkXIcon, EllipsisVerticalIcon, EyeIcon, ListIcon, XCircleIcon } from "lucide-react";
+import {
+  BookmarkXIcon,
+  EllipsisVerticalIcon,
+  EyeIcon,
+  ListIcon,
+  SparklesIcon,
+  XCircleIcon,
+} from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
 import { useState } from "react";
@@ -9,6 +16,7 @@ import { toast } from "sonner";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,9 +26,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRemoveFromWatchlist, useUpdateWatchlistEntry } from "@/hooks/use-watchlist";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  useAddToWatchlist,
+  useRemoveFromWatchlist,
+  useUpdateWatchlistEntry,
+} from "@/hooks/use-watchlist";
 import type { WatchlistStatus } from "@/lib/db/types";
 import type { MediaSearchResult } from "@/types/media";
+import type { PredictionSummary } from "@/types/prediction-responses";
 import type { WatchlistItem } from "@/types/watchlist-responses";
 
 import { WatchlistStatusBadge } from "./watchlist-status-badge";
@@ -58,19 +72,31 @@ const STATUS_OPTIONS: { value: WatchlistStatus; label: string; icon: typeof List
   { value: "scrapped", label: "Scrapped", icon: XCircleIcon },
 ];
 
+interface WatchlistCardLinkProps {
+  readonly mediaId: string | null;
+  readonly searchResult: MediaSearchResult | null;
+  readonly previewOpen: boolean;
+  readonly onPreviewOpenChange: (open: boolean) => void;
+  readonly isWatchlisted: boolean;
+  readonly isAddingToWatchlist: boolean;
+  readonly onAddToWatchlist: () => void;
+  readonly isRemoving?: boolean;
+  readonly onRemoveFromWatchlist?: () => void;
+  readonly children: React.ReactNode;
+}
+
 function WatchlistCardLink({
   mediaId,
   searchResult,
   previewOpen,
   onPreviewOpenChange,
+  isWatchlisted,
+  isAddingToWatchlist,
+  onAddToWatchlist,
+  isRemoving = false,
+  onRemoveFromWatchlist,
   children,
-}: {
-  readonly mediaId: string | null;
-  readonly searchResult: MediaSearchResult | null;
-  readonly previewOpen: boolean;
-  readonly onPreviewOpenChange: (open: boolean) => void;
-  readonly children: React.ReactNode;
-}) {
+}: WatchlistCardLinkProps) {
   if (mediaId !== null) {
     return (
       <Link href={`/database/${mediaId}`} className="block">
@@ -108,14 +134,21 @@ function WatchlistCardLink({
         onImport={() => {
           /* no-op: import not available from watchlist card */
         }}
-        isWatchlisted
-        isAddingToWatchlist={false}
-        onAddToWatchlist={() => {
-          /* already watchlisted */
-        }}
+        isWatchlisted={isWatchlisted}
+        isAddingToWatchlist={isAddingToWatchlist}
+        onAddToWatchlist={onAddToWatchlist}
+        isRemovingFromWatchlist={isRemoving}
+        onRemoveFromWatchlist={onRemoveFromWatchlist}
       />
     </>
   );
+}
+
+function getPredictionColor(score: number): string {
+  if (score >= 8) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
+  if (score >= 6.5) return "border-blue-500/30 bg-blue-500/10 text-blue-400";
+  if (score >= 5) return "border-yellow-500/30 bg-yellow-500/10 text-yellow-400";
+  return "border-red-500/30 bg-red-500/10 text-red-400";
 }
 
 interface WatchlistCardProps {
@@ -123,13 +156,27 @@ interface WatchlistCardProps {
   readonly index: number;
   readonly isOwnProfile: boolean;
   readonly onChanged: () => void;
+  readonly prediction?: PredictionSummary;
 }
 
-export function WatchlistCard({ entry, index, isOwnProfile, onChanged }: WatchlistCardProps) {
+export function WatchlistCard({
+  entry,
+  index,
+  isOwnProfile,
+  onChanged,
+  prediction,
+}: WatchlistCardProps) {
   const { updateEntry } = useUpdateWatchlistEntry();
-  const { removeFromWatchlist } = useRemoveFromWatchlist();
+  const { removeFromWatchlist, isRemoving } = useRemoveFromWatchlist();
+  const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [myWatchlistEntryId, setMyWatchlistEntryId] = useState<string>();
+  const [locallyRemoved, setLocallyRemoved] = useState(false);
   const searchResult = entry.media_id === null ? toSearchResult(entry) : null;
+
+  // On own profile, the entry is always in the user's watchlist.
+  // On other profiles, track whether the current user has added it to their own watchlist.
+  const isInMyWatchlist = isOwnProfile ? true : myWatchlistEntryId !== undefined && !locallyRemoved;
 
   async function handleStatusChange(newStatus: WatchlistStatus) {
     const success = await updateEntry(entry.id, { status: newStatus });
@@ -163,6 +210,23 @@ export function WatchlistCard({ entry, index, isOwnProfile, onChanged }: Watchli
         <div className="mt-1 flex items-center gap-1.5">
           <MediaTypeBadge type={entry.media_type} />
           <WatchlistStatusBadge status={entry.status} />
+          {prediction !== undefined && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant="outline"
+                  className={`gap-0.5 text-[10px] ${getPredictionColor(prediction.predictedScore)}`}
+                >
+                  <SparklesIcon className="size-2.5" />
+                  {String(prediction.predictedScore)}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Predicted rating: {String(prediction.predictedScore)}/10 — {prediction.verdict} (
+                {prediction.confidence} confidence)
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
         {entry.notes !== null && entry.notes.length > 0 && (
           <p className="text-muted-foreground mt-1.5 line-clamp-2 text-xs">{entry.notes}</p>
@@ -183,6 +247,47 @@ export function WatchlistCard({ entry, index, isOwnProfile, onChanged }: Watchli
         searchResult={searchResult}
         previewOpen={previewOpen}
         onPreviewOpenChange={setPreviewOpen}
+        isWatchlisted={isInMyWatchlist}
+        isAddingToWatchlist={isAddingToWatchlist}
+        onAddToWatchlist={() => {
+          void (async () => {
+            const added = await addToWatchlist({
+              mediaId: entry.media_id ?? undefined,
+              tmdbId: entry.tmdb_id ?? undefined,
+              malId: entry.mal_id ?? undefined,
+              extTitle: entry.title,
+              extPosterUrl: entry.poster_url,
+              extMediaType: entry.media_type,
+            });
+            if (added === null) {
+              toast.error("Failed to add to watchlist");
+            } else {
+              setMyWatchlistEntryId(added.id);
+              setLocallyRemoved(false);
+              toast.success("Added to watchlist");
+            }
+          })();
+        }}
+        isRemoving={isRemoving}
+        onRemoveFromWatchlist={() => {
+          const entryIdToRemove = isOwnProfile ? entry.id : myWatchlistEntryId;
+          if (entryIdToRemove === undefined) return;
+          void (async () => {
+            const success = await removeFromWatchlist(entryIdToRemove);
+            if (success) {
+              if (isOwnProfile) {
+                setPreviewOpen(false);
+                onChanged();
+              } else {
+                setMyWatchlistEntryId(undefined);
+                setLocallyRemoved(true);
+              }
+              toast.success("Removed from watchlist");
+            } else {
+              toast.error("Failed to remove from watchlist");
+            }
+          })();
+        }}
       >
         {cardContent}
       </WatchlistCardLink>

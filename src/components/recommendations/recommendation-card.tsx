@@ -1,38 +1,64 @@
 "use client";
 
-import { DownloadIcon, EyeIcon, InfoIcon, StarIcon, UsersIcon, XCircleIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, StarIcon, UsersIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { ImportMediaDialog } from "@/components/media/import-media-dialog";
 import { MediaPoster } from "@/components/media/media-poster";
+import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
 import { RecommendationReasonTags } from "@/components/recommendations/recommendation-reason-tags";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { AddToWatchlistButton } from "@/components/watchlist/add-to-watchlist-button";
+import { useAddToWatchlist, useRemoveFromWatchlist } from "@/hooks/use-watchlist";
+import type { MediaSearchResult } from "@/types/media";
 import type { RecommendationItem } from "@/types/recommendation-responses";
+
+/** Convert a RecommendationItem to a MediaSearchResult for the preview dialog.
+ *  Prefers TMDB as source when available (better trailer/metadata coverage). */
+function toSearchResult(item: RecommendationItem): MediaSearchResult {
+  const source = item.tmdbId === null ? "jikan" : "tmdb";
+  const externalId = source === "tmdb" ? (item.tmdbId ?? 0) : (item.malId ?? 0);
+
+  return {
+    externalId,
+    title: item.title,
+    type: item.mediaType,
+    posterUrl: item.posterUrl,
+    releaseYear: item.releaseYear,
+    overview: item.overview,
+    source,
+    voteAverage: item.voteAverage,
+    genres: item.genres,
+    existingMediaId: item.mediaId ?? undefined,
+  };
+}
 
 interface RecommendationCardProps {
   readonly item: RecommendationItem;
   readonly index: number;
-  readonly onWatchlistChange?: () => void;
   readonly onDismiss?: (item: RecommendationItem) => void;
 }
 
-export function RecommendationCard({
-  item,
-  index,
-  onWatchlistChange,
-  onDismiss,
-}: RecommendationCardProps) {
+export function RecommendationCard({ item, index, onDismiss }: RecommendationCardProps) {
   const hasDbEntry = item.mediaId !== null;
   const watchlistCount = item.watchlistCount ?? 0;
   const friends = item.watchedByFriends ?? [];
   const hasFriendWatches = friends.length > 0;
   const [importOpen, setImportOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [localWatchlistEntryId, setLocalWatchlistEntryId] = useState<string>();
+  const [locallyRemoved, setLocallyRemoved] = useState(false);
+  const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
+  const { removeFromWatchlist, isRemoving: isRemovingFromWatchlist } = useRemoveFromWatchlist();
+
+  const watchlistEntryId = locallyRemoved
+    ? undefined
+    : (localWatchlistEntryId ?? item.watchlistEntryId);
+  const isWatchlisted = watchlistEntryId !== undefined;
 
   const posterOverlay = (
     <>
@@ -64,13 +90,27 @@ export function RecommendationCard({
   const cardInfo = (
     <div className="space-y-1.5 p-3">
       <h3 className="truncate text-sm font-medium">{item.title}</h3>
-      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+      <div className="text-muted-foreground flex h-4 items-center gap-2 text-xs">
         {item.releaseYear !== null && <span>{String(item.releaseYear)}</span>}
       </div>
       <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1">
           <RecommendationReasonTags reasons={item.reasons} />
         </div>
+        {onDismiss !== undefined && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-destructive inline-flex shrink-0 items-center gap-1 text-xs opacity-0 transition-all group-hover:opacity-100"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onDismiss(item);
+            }}
+          >
+            <EyeOffIcon className="size-3" />
+            <span className="hidden sm:inline">Not interested</span>
+          </button>
+        )}
       </div>
       {hasFriendWatches && <FriendWatchBadge friends={friends} />}
     </div>
@@ -104,12 +144,12 @@ export function RecommendationCard({
           tabIndex={0}
           className="group hover:border-primary/50 cursor-pointer overflow-hidden rounded-lg border text-left transition-colors"
           onClick={() => {
-            setImportOpen(true);
+            setPreviewOpen(true);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              setImportOpen(true);
+              setPreviewOpen(true);
             }
           }}
         >
@@ -120,53 +160,8 @@ export function RecommendationCard({
               className="size-full transition-transform duration-300 group-hover:scale-105"
             />
             {posterOverlay}
-
-            {/* Import indicator */}
-            <div className="absolute right-2 bottom-10 opacity-0 transition-opacity group-hover:opacity-100">
-              <Badge variant="secondary" className="gap-1 text-[10px]">
-                <DownloadIcon className="size-2.5" />
-                Import
-              </Badge>
-            </div>
           </div>
           {cardInfo}
-        </div>
-      )}
-
-      {/* Action buttons — positioned outside the link/button to avoid nesting */}
-      <div className="absolute top-2 left-2 flex flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100 [div:hover>&]:opacity-100">
-        <AddToWatchlistButton
-          mediaId={hasDbEntry ? (item.mediaId ?? undefined) : undefined}
-          tmdbId={item.tmdbId ?? undefined}
-          malId={item.malId ?? undefined}
-          extTitle={hasDbEntry ? undefined : item.title}
-          extPosterUrl={hasDbEntry ? undefined : item.posterUrl}
-          extMediaType={hasDbEntry ? undefined : item.mediaType}
-          existingEntryId={item.watchlistEntryId}
-          onAdded={onWatchlistChange}
-          onRemoved={onWatchlistChange}
-          size="icon"
-        />
-        {onDismiss !== undefined && (
-          <button
-            type="button"
-            className="bg-background/80 text-muted-foreground hover:text-destructive hover:bg-background rounded-full p-1.5 backdrop-blur-sm transition-colors"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onDismiss(item);
-            }}
-          >
-            <XCircleIcon className="size-4" />
-            <span className="sr-only">Not interested</span>
-          </button>
-        )}
-      </div>
-
-      {/* Why This popover */}
-      {item.reasons.length > 0 && (
-        <div className="absolute right-2 bottom-2">
-          <WhyThisPopover item={item} />
         </div>
       )}
 
@@ -180,6 +175,57 @@ export function RecommendationCard({
             setImportOpen(false);
           }}
           initialQuery={item.title}
+        />
+      )}
+
+      {/* Preview dialog for unimported items */}
+      {previewOpen && !hasDbEntry && (
+        <MediaPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          result={toSearchResult(item)}
+          isImporting={false}
+          onImport={() => {
+            setPreviewOpen(false);
+            setImportOpen(true);
+          }}
+          isWatchlisted={isWatchlisted}
+          isAddingToWatchlist={isAddingToWatchlist}
+          onAddToWatchlist={() => {
+            void (async () => {
+              const entry = await addToWatchlist({
+                tmdbId: item.tmdbId ?? undefined,
+                malId: item.malId ?? undefined,
+                extTitle: item.title,
+                extPosterUrl: item.posterUrl,
+                extMediaType: item.mediaType,
+              });
+              if (entry === null) {
+                toast.error("Failed to add to watchlist");
+              } else {
+                setLocalWatchlistEntryId(entry.id);
+                setLocallyRemoved(false);
+                toast.success("Added to watchlist");
+              }
+            })();
+          }}
+          isRemovingFromWatchlist={isRemovingFromWatchlist}
+          onRemoveFromWatchlist={
+            watchlistEntryId === undefined
+              ? undefined
+              : () => {
+                  void (async () => {
+                    const success = await removeFromWatchlist(watchlistEntryId);
+                    if (success) {
+                      setLocalWatchlistEntryId(undefined);
+                      setLocallyRemoved(true);
+                      toast.success("Removed from watchlist");
+                    } else {
+                      toast.error("Failed to remove from watchlist");
+                    }
+                  })();
+                }
+          }
         />
       )}
     </motion.div>
@@ -223,64 +269,5 @@ function FriendWatchBadge({
         {tooltipText}
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-function WhyThisPopover({ item }: { readonly item: RecommendationItem }) {
-  const hasOverview = item.overview !== null && item.overview.length > 0;
-  const hasGenres = item.genres.length > 0;
-  const hasDetails =
-    item.releaseYear !== null || (item.voteAverage !== null && item.voteAverage > 0);
-
-  if (!hasOverview && !hasGenres && !hasDetails) return null;
-
-  return (
-    <Popover>
-      <PopoverTrigger className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full p-1 transition-colors">
-        <InfoIcon className="size-3.5" />
-        <span className="sr-only">About this title</span>
-      </PopoverTrigger>
-      <PopoverContent side="top" align="end" className="w-80">
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold">{item.title}</h4>
-
-          {/* Media details */}
-          {(hasDetails || hasGenres) && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {item.releaseYear !== null && (
-                <Badge variant="outline" className="text-[10px]">
-                  {String(item.releaseYear)}
-                </Badge>
-              )}
-              {item.voteAverage !== null && item.voteAverage > 0 && (
-                <Badge variant="outline" className="gap-0.5 text-[10px]">
-                  <StarIcon className="size-2.5 fill-amber-500 text-amber-500" />
-                  {String(Math.round(item.voteAverage * 10) / 10)}
-                </Badge>
-              )}
-              {item.genres.slice(0, 4).map((genre) => (
-                <Badge key={genre} variant="secondary" className="text-[10px]">
-                  {genre}
-                </Badge>
-              ))}
-              {item.genres.length > 4 && (
-                <span className="text-muted-foreground text-[10px]">
-                  +{String(item.genres.length - 4)}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Overview */}
-          {hasOverview && (
-            <div className="border-t pt-2">
-              <p className="text-muted-foreground max-h-32 overflow-y-auto text-xs">
-                {item.overview}
-              </p>
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }

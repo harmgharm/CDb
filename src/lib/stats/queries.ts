@@ -481,11 +481,11 @@ export async function fetchPickerStats(userId: string) {
       ? null
       : Math.round(Number(pickRatingResult.avg_score) * 10) / 10;
 
-  // Win rate: picks where avg group rating >= 7.5
+  // Win rate: picks where avg group rating >= 7.0
   const winRows = await sql<WinStatsRow>`
     SELECT
       COUNT(*) as total,
-      COUNT(*) FILTER (WHERE avg_score >= 7.5) as wins
+      COUNT(*) FILTER (WHERE avg_score >= 7.0) as wins
     FROM (
       SELECT ws.id, AVG(r.score) as avg_score
       FROM watch_sessions ws

@@ -53,6 +53,13 @@ export function MediaTable({ items }: MediaTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {items.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-muted-foreground py-12 text-center text-sm">
+                No media found. Try adjusting your filters.
+              </TableCell>
+            </TableRow>
+          )}
           {items.map((media) => (
             <TableRow key={media.id} className="group">
               <TableCell className="p-2">

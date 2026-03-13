@@ -59,12 +59,12 @@ export function RecentPicks({ picks }: RecentPicksProps) {
                       {pick.avgScore !== null && (
                         <span
                           className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none font-bold ${
-                            pick.avgScore >= 7.5
+                            pick.avgScore >= 7
                               ? "bg-emerald-500/15 text-emerald-500"
                               : "bg-red-500/15 text-red-500"
                           }`}
                         >
-                          {pick.avgScore >= 7.5 ? "W" : "L"}
+                          {pick.avgScore >= 7 ? "W" : "L"}
                         </span>
                       )}
                     </div>

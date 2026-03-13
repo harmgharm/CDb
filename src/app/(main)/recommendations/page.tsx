@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
+import { PredictionSection } from "@/components/predictions/prediction-section";
 import { DismissedItemsSheet } from "@/components/recommendations/dismissed-items-sheet";
 import { RecommendationSection } from "@/components/recommendations/recommendation-section";
 import { Badge } from "@/components/ui/badge";
@@ -55,11 +56,10 @@ function collectGenres(dataSets: (RecommendationItem[] | undefined)[]): string[]
 }
 
 interface SectionProps {
-  readonly onWatchlistChange: () => void;
   readonly onDismiss: (item: RecommendationItem) => void;
 }
 
-function PersonalizedSections({ onWatchlistChange, onDismiss }: SectionProps) {
+function PersonalizedSections({ onDismiss }: SectionProps) {
   const { data: contentData, isLoading: contentLoading } = useRecommendationsByType("content");
   const { data: collabData, isLoading: collabLoading } = useRecommendationsByType("collaborative");
   const { data: tmdbData, isLoading: tmdbLoading } = useRecommendationsByType("tmdb");
@@ -76,7 +76,6 @@ function PersonalizedSections({ onWatchlistChange, onDismiss }: SectionProps) {
         items={(contentData?.items ?? []).slice(0, DISPLAY_LIMIT)}
         isLoading={contentLoading}
         emptyMessage="Rate more titles to get genre-based recommendations."
-        onWatchlistChange={onWatchlistChange}
         onDismiss={onDismiss}
         onRefresh={() => {
           void contentRefresh.refresh();
@@ -90,7 +89,6 @@ function PersonalizedSections({ onWatchlistChange, onDismiss }: SectionProps) {
         items={(collabData?.items ?? []).slice(0, DISPLAY_LIMIT)}
         isLoading={collabLoading}
         emptyMessage="Not enough shared ratings with other users yet."
-        onWatchlistChange={onWatchlistChange}
         onDismiss={onDismiss}
         onRefresh={() => {
           void collabRefresh.refresh();
@@ -104,7 +102,6 @@ function PersonalizedSections({ onWatchlistChange, onDismiss }: SectionProps) {
         items={(tmdbData?.items ?? []).slice(0, DISPLAY_LIMIT)}
         isLoading={tmdbLoading}
         emptyMessage="Rate some titles 8+ to get TMDB-powered suggestions."
-        onWatchlistChange={onWatchlistChange}
         onDismiss={onDismiss}
         onRefresh={() => {
           void tmdbRefresh.refresh();
@@ -115,7 +112,7 @@ function PersonalizedSections({ onWatchlistChange, onDismiss }: SectionProps) {
   );
 }
 
-function FallbackSection({ onWatchlistChange, onDismiss }: SectionProps) {
+function FallbackSection({ onDismiss }: SectionProps) {
   const { data, isLoading } = useRecommendationsByType("content");
   const contentRefresh = useRefreshSection("content");
 
@@ -126,7 +123,6 @@ function FallbackSection({ onWatchlistChange, onDismiss }: SectionProps) {
       items={(data?.items ?? []).slice(0, DISPLAY_LIMIT)}
       isLoading={isLoading}
       emptyMessage="Your group hasn't rated enough titles yet."
-      onWatchlistChange={onWatchlistChange}
       onDismiss={onDismiss}
       onRefresh={() => {
         void contentRefresh.refresh();
@@ -207,10 +203,6 @@ export default function RecommendationsPage() {
     });
   }, [refresh, mutate]);
 
-  const handleWatchlistChange = useCallback(() => {
-    void mutate((key: string) => typeof key === "string" && key.startsWith("/api/recommendations"));
-  }, [mutate]);
-
   const handleDismiss = useCallback(
     (item: RecommendationItem) => {
       void dismiss({
@@ -247,6 +239,9 @@ export default function RecommendationsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Prediction Section */}
+      <PredictionSection />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -354,22 +349,15 @@ export default function RecommendationsPage() {
             items={(filteredData?.items ?? []).slice(0, DISPLAY_LIMIT)}
             isLoading={filteredLoading}
             emptyMessage="No recommendations match your filters. Try adjusting or clearing them."
-            onWatchlistChange={handleWatchlistChange}
             onDismiss={handleDismiss}
           />
         ) : (
           /* Unfiltered: show per-type sections */
           <>
             {isPersonalized ? (
-              <PersonalizedSections
-                onWatchlistChange={handleWatchlistChange}
-                onDismiss={handleDismiss}
-              />
+              <PersonalizedSections onDismiss={handleDismiss} />
             ) : (
-              <FallbackSection
-                onWatchlistChange={handleWatchlistChange}
-                onDismiss={handleDismiss}
-              />
+              <FallbackSection onDismiss={handleDismiss} />
             )}
 
             {/* Group section (always shown) */}
@@ -379,7 +367,6 @@ export default function RecommendationsPage() {
               items={(groupData?.items ?? []).slice(0, DISPLAY_LIMIT)}
               isLoading={groupLoading}
               emptyMessage="Need more group members with ratings to generate group recommendations."
-              onWatchlistChange={handleWatchlistChange}
               onDismiss={handleDismiss}
               onRefresh={() => {
                 void groupRefresh.refresh();

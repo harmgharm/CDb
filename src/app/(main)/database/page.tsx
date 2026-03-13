@@ -1,7 +1,7 @@
 "use client";
 
 import { GridIcon, ListIcon, LoaderIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ImportMediaDialog } from "@/components/media/import-media-dialog";
@@ -56,9 +56,11 @@ export default function DatabasePage() {
     sortBy: "created_at",
     sortOrder: "desc",
   });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { data, isLoading, mutate } = useMediaList({
-    search: filters.search.length > 0 ? filters.search : undefined,
+    search: debouncedSearch.length > 0 ? debouncedSearch : undefined,
     type: filters.type.length > 0 ? filters.type : undefined,
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
@@ -66,9 +68,31 @@ export default function DatabasePage() {
     limit: 20,
   });
 
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== undefined) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
   const handleFilterChange = useCallback((newFilters: MediaFilterValues) => {
     setFilters(newFilters);
     setPage(1);
+
+    // Debounce search, apply other filters immediately
+    if (debounceRef.current !== undefined) {
+      clearTimeout(debounceRef.current);
+    }
+
+    if (newFilters.search.length === 0) {
+      setDebouncedSearch("");
+    } else {
+      debounceRef.current = setTimeout(() => {
+        setDebouncedSearch(newFilters.search);
+      }, 400);
+    }
   }, []);
 
   const handleImportSuccess = useCallback(() => {

@@ -325,6 +325,7 @@ interface WatchlistPopularItem {
   title: string;
   posterUrl: string | null;
   mediaType: string | null;
+  releaseYear: number | null;
   count: number;
 }
 
@@ -374,13 +375,14 @@ async function getWatchlistPopularity(): Promise<WatchlistPopularItem[]> {
           title: entry.ext_title ?? "Unknown",
           posterUrl: entry.ext_poster_url,
           mediaType: entry.ext_media_type,
+          releaseYear: null,
           count: Number(row.count),
         });
       }
     } else {
       const media = await db
         .selectFrom("media")
-        .select(["id", "title", "poster_url", "type", "tmdb_id", "mal_id"])
+        .select(["id", "title", "poster_url", "type", "tmdb_id", "mal_id", "release_year"])
         .where("id", "=", row.media_id)
         .executeTakeFirst();
 
@@ -392,6 +394,7 @@ async function getWatchlistPopularity(): Promise<WatchlistPopularItem[]> {
           title: media.title,
           posterUrl: media.poster_url,
           mediaType: media.type,
+          releaseYear: media.release_year,
           count: Number(row.count),
         });
       }
@@ -434,7 +437,7 @@ function fetchWatchlistPopularItems(options: {
       posterUrl: popular.posterUrl,
       mediaType: popular.mediaType as "movie" | "tv" | "anime",
       overview: null,
-      releaseYear: null,
+      releaseYear: popular.releaseYear,
       voteAverage: null,
       genres: [],
       score: Math.round(watchlistScore * 1000) / 1000,

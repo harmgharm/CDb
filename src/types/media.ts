@@ -16,6 +16,7 @@ export interface MediaPreviewDetail {
   studios: string[];
   status: string | null;
   tagline: string | null;
+  trailerUrl: string | null;
 }
 
 export interface MediaSearchResult {

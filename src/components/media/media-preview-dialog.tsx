@@ -7,9 +7,11 @@ import {
   ClapperboardIcon,
   ClockIcon,
   DownloadIcon,
+  ExternalLinkIcon,
   FilmIcon,
   LoaderIcon,
   MonitorPlayIcon,
+  PlayCircleIcon,
   StarIcon,
   TvIcon,
 } from "lucide-react";
@@ -38,6 +40,8 @@ interface MediaPreviewDialogProps {
   readonly isWatchlisted: boolean;
   readonly isAddingToWatchlist: boolean;
   readonly onAddToWatchlist: () => void;
+  readonly isRemovingFromWatchlist?: boolean;
+  readonly onRemoveFromWatchlist?: () => void;
 }
 
 function formatRuntime(minutes: number): string {
@@ -198,7 +202,7 @@ function DetailInfo({
     });
   }
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && detail.trailerUrl === null) return null;
 
   return (
     <div className="space-y-1.5">
@@ -209,6 +213,21 @@ function DetailInfo({
           <span>{item.value}</span>
         </div>
       ))}
+      {detail.trailerUrl !== null && (
+        <a
+          href={detail.trailerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs transition-colors"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <PlayCircleIcon className="size-3.5" />
+          <span className="font-medium">Watch Trailer</span>
+          <ExternalLinkIcon className="size-2.5" />
+        </a>
+      )}
     </div>
   );
 }
@@ -222,6 +241,8 @@ export function MediaPreviewDialog({
   isWatchlisted,
   isAddingToWatchlist,
   onAddToWatchlist,
+  isRemovingFromWatchlist = false,
+  onRemoveFromWatchlist,
 }: MediaPreviewDialogProps) {
   const { data: detail, isLoading } = useMediaPreview(
     open ? result.source : null,
@@ -231,10 +252,10 @@ export function MediaPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="truncate">{result.title}</span>
+      <DialogContent className="max-h-[80vh] sm:max-w-md">
+        <DialogHeader className="min-w-0">
+          <DialogTitle className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate">{result.title}</span>
             <MediaTypeBadge type={result.type} />
           </DialogTitle>
           {detail?.tagline !== undefined && detail.tagline !== null && (
@@ -265,8 +286,20 @@ export function MediaPreviewDialog({
         <Separator />
         <div className="flex justify-end gap-2">
           {isWatchlisted ? (
-            <Button size="sm" variant="outline" disabled>
-              <BookmarkCheckIcon className="mr-1 size-3.5" />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={onRemoveFromWatchlist === undefined || isRemovingFromWatchlist}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemoveFromWatchlist?.();
+              }}
+            >
+              {isRemovingFromWatchlist ? (
+                <LoaderIcon className="mr-1 size-3.5 animate-spin" />
+              ) : (
+                <BookmarkCheckIcon className="mr-1 size-3.5" />
+              )}
               Watchlisted
             </Button>
           ) : (
@@ -279,7 +312,11 @@ export function MediaPreviewDialog({
                 onAddToWatchlist();
               }}
             >
-              <BookmarkPlusIcon className="mr-1 size-3.5" />
+              {isAddingToWatchlist ? (
+                <LoaderIcon className="mr-1 size-3.5 animate-spin" />
+              ) : (
+                <BookmarkPlusIcon className="mr-1 size-3.5" />
+              )}
               Watchlist
             </Button>
           )}

@@ -21,7 +21,6 @@ interface RecommendationSectionProps {
   readonly items: RecommendationItem[];
   readonly isLoading: boolean;
   readonly emptyMessage?: string;
-  readonly onWatchlistChange?: () => void;
   readonly onDismiss?: (item: RecommendationItem) => void;
   readonly onRefresh?: () => void;
   readonly isRefreshing?: boolean;
@@ -33,7 +32,6 @@ export function RecommendationSection({
   items,
   isLoading,
   emptyMessage = "No recommendations available yet.",
-  onWatchlistChange,
   onDismiss,
   onRefresh,
   isRefreshing = false,
@@ -77,7 +75,6 @@ export function RecommendationSection({
               key={item.mediaId ?? `${String(item.tmdbId)}-${String(item.malId)}`}
               item={item}
               index={index}
-              onWatchlistChange={onWatchlistChange}
               onDismiss={onDismiss}
             />
           ))}

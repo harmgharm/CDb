@@ -7,9 +7,19 @@
 
 import { getAnimeDetails } from "@/lib/api/jikan";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getMovieCredits, getMovieDetails, getTvDetails } from "@/lib/api/tmdb";
+import { findTrailerKey, getMovieCredits, getMovieDetails, getTvDetails } from "@/lib/api/tmdb";
 import { requireAuth } from "@/lib/auth";
 import type { MediaPreviewDetail } from "@/types/media";
+
+function youtubeUrl(key: string | null): string | null {
+  return key === null ? null : `https://www.youtube.com/watch?v=${key}`;
+}
+
+function extractYoutubeKey(embedUrl: string | null): string | null {
+  if (embedUrl === null) return null;
+  const match = /\/embed\/([a-zA-Z0-9_-]+)/.exec(embedUrl);
+  return match?.[1] ?? null;
+}
 
 function extractDirector(credits: { crew: { job: string; name: string }[] }): string | null {
   const director = credits.crew.find((c) => c.job === "Director");
@@ -28,6 +38,7 @@ async function fetchMoviePreview(tmdbId: number): Promise<MediaPreviewDetail> {
     studios: details.production_companies.map((c) => c.name),
     status: details.status,
     tagline: details.tagline.length > 0 ? details.tagline : null,
+    trailerUrl: youtubeUrl(details.videos ? findTrailerKey(details.videos.results) : null),
   };
 }
 
@@ -44,6 +55,7 @@ async function fetchTvPreview(tmdbId: number): Promise<MediaPreviewDetail> {
     studios: details.production_companies.map((c) => c.name),
     status: details.status,
     tagline: details.tagline.length > 0 ? details.tagline : null,
+    trailerUrl: youtubeUrl(details.videos ? findTrailerKey(details.videos.results) : null),
   };
 }
 
@@ -59,6 +71,7 @@ async function fetchAnimePreview(malId: number): Promise<MediaPreviewDetail> {
     studios: anime.studios.map((s) => s.name),
     status: anime.status,
     tagline: null,
+    trailerUrl: youtubeUrl(extractYoutubeKey(anime.trailer.embed_url) ?? anime.trailer.youtube_id),
   };
 }
 
@@ -82,6 +95,17 @@ export async function GET(req: Request) {
   if (source === "tmdb" && type === "tv") {
     const preview = await fetchTvPreview(externalId);
     return successResponse(preview);
+  }
+
+  // TMDB anime: could be stored as TV or movie on TMDB, try TV first then movie
+  if (source === "tmdb" && type === "anime") {
+    try {
+      const preview = await fetchTvPreview(externalId);
+      return successResponse(preview);
+    } catch {
+      const preview = await fetchMoviePreview(externalId);
+      return successResponse(preview);
+    }
   }
 
   if (source === "jikan") {

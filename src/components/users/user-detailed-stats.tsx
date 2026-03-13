@@ -42,7 +42,13 @@ export function UserDetailedStats({ userId }: UserDetailedStatsProps) {
   const { data: stats, isLoading } = useUserDetailedStats(userId);
 
   if (isLoading) return <UserDetailedStatsSkeleton />;
-  if (stats === undefined) return null;
+  if (stats === undefined) {
+    return (
+      <p className="text-muted-foreground py-8 text-center text-sm">
+        No stats yet. Watch and rate some titles to see detailed stats!
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -1,16 +1,19 @@
 "use client";
 
-import { BookmarkIcon } from "lucide-react";
+import { ArrowUpDownIcon, BookmarkIcon } from "lucide-react";
 import * as motion from "motion/react-client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useWatchlistPredictions } from "@/hooks/use-predictions";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import type { WatchlistStatus } from "@/lib/db/types";
-import type { WatchlistResponse } from "@/types/watchlist-responses";
+import type { PredictionSummary } from "@/types/prediction-responses";
+import type { WatchlistItem, WatchlistResponse } from "@/types/watchlist-responses";
 
 import { WatchlistCard } from "./watchlist-card";
 
@@ -21,9 +24,29 @@ interface WatchlistContentProps {
   readonly data: WatchlistResponse | undefined;
   readonly isOwnProfile: boolean;
   readonly onChanged: () => void;
+  readonly predictions: Map<string, PredictionSummary>;
+  readonly sortByPrediction: boolean;
 }
 
-function WatchlistContent({ isLoading, data, isOwnProfile, onChanged }: WatchlistContentProps) {
+function sortByPredictedScore(
+  items: WatchlistItem[],
+  predictions: Map<string, PredictionSummary>,
+): WatchlistItem[] {
+  return [...items].toSorted((a, b) => {
+    const scoreA = predictions.get(a.id)?.predictedScore ?? 0;
+    const scoreB = predictions.get(b.id)?.predictedScore ?? 0;
+    return scoreB - scoreA;
+  });
+}
+
+function WatchlistContent({
+  isLoading,
+  data,
+  isOwnProfile,
+  onChanged,
+  predictions,
+  sortByPrediction,
+}: WatchlistContentProps) {
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2">
@@ -44,15 +67,18 @@ function WatchlistContent({ isLoading, data, isOwnProfile, onChanged }: Watchlis
     );
   }
 
+  const items = sortByPrediction ? sortByPredictedScore(data.items, predictions) : data.items;
+
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {data.items.map((entry, index) => (
+      {items.map((entry, index) => (
         <WatchlistCard
           key={entry.id}
           entry={entry}
           index={index}
           isOwnProfile={isOwnProfile}
           onChanged={onChanged}
+          prediction={predictions.get(entry.id)}
         />
       ))}
     </div>
@@ -66,11 +92,16 @@ interface WatchlistSectionProps {
 
 export function WatchlistSection({ userId, isOwnProfile }: WatchlistSectionProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortByPrediction, setSortByPrediction] = useState(false);
 
   const { data, isLoading, mutate } = useWatchlist({
     userId,
     status: statusFilter === "all" ? undefined : statusFilter,
   });
+
+  const { predictions } = useWatchlistPredictions(data?.items, isOwnProfile);
+
+  const hasPredictions = useMemo(() => predictions.size > 0, [predictions]);
 
   function handleChanged() {
     void mutate();
@@ -92,6 +123,18 @@ export function WatchlistSection({ userId, isOwnProfile }: WatchlistSectionProps
               </CardTitle>
               {data !== undefined && <Badge variant="secondary">{String(data.total)}</Badge>}
             </div>
+            {isOwnProfile && hasPredictions && (
+              <Button
+                variant={sortByPrediction ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setSortByPrediction((previous) => !previous);
+                }}
+              >
+                <ArrowUpDownIcon className="mr-1.5 size-3.5" />
+                {sortByPrediction ? "Sorted by prediction" : "Sort by prediction"}
+              </Button>
+            )}
           </div>
           <Tabs
             value={statusFilter}
@@ -114,6 +157,8 @@ export function WatchlistSection({ userId, isOwnProfile }: WatchlistSectionProps
             data={data}
             isOwnProfile={isOwnProfile}
             onChanged={handleChanged}
+            predictions={predictions}
+            sortByPrediction={sortByPrediction}
           />
         </CardContent>
       </Card>
