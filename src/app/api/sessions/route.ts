@@ -9,7 +9,8 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
-import type { UserRole } from "@/lib/db/types";
+import type { User, UserRole, WatchSession } from "@/lib/db/types";
+import { createRatePendingNotifications } from "@/lib/notifications";
 import {
   invalidateGroupRecommendations,
   invalidateUserRecommendations,
@@ -99,6 +100,65 @@ function validateInlineRatings(options: ValidateRatingsOptions): string | null {
   return null;
 }
 
+interface PostSessionCreationOptions {
+  user: User;
+  session: WatchSession;
+  mediaId: string;
+  mediaTitle: string;
+  attendeeIds: string[];
+  ratings: InlineRating[] | undefined;
+}
+
+async function handlePostSessionCreation(options: PostSessionCreationOptions): Promise<void> {
+  const { user, session, mediaId, mediaTitle, attendeeIds, ratings } = options;
+  await logAudit({
+    userId: user.id,
+    action: "session.created",
+    entityType: "session",
+    entityId: session.id,
+    metadata: { mediaId, attendeeCount: attendeeIds.length },
+  });
+
+  if (ratings !== undefined && ratings.length > 0) {
+    await Promise.all(
+      ratings.map((r) =>
+        logAudit({
+          userId: user.id,
+          action: "rating.created",
+          entityType: "rating",
+          entityId: session.id,
+          metadata: {
+            sessionId: session.id,
+            score: r.score,
+            onBehalfOf: r.userId === user.id ? undefined : r.userId,
+          },
+        }),
+      ),
+    );
+
+    for (const r of ratings) {
+      void invalidateUserRecommendations(r.userId).catch((error: unknown) => {
+        console.error("Failed to invalidate user recommendations:", error);
+      });
+    }
+  }
+
+  void invalidateGroupRecommendations().catch((error: unknown) => {
+    console.error("Failed to invalidate group recommendations:", error);
+  });
+
+  const ratedUserIds = ratings === undefined ? [] : ratings.map((r) => r.userId);
+  void createRatePendingNotifications({
+    sessionId: session.id,
+    mediaId,
+    mediaTitle,
+    attendeeIds,
+    ratedUserIds,
+  }).catch((error: unknown) => {
+    console.error("Failed to create rate-pending notifications:", error);
+  });
+}
+
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
 
@@ -111,10 +171,10 @@ export async function POST(req: NextRequest) {
   const { mediaId, dateWatched, timeWatchedAt, pickedByUserId, attendeeIds, notes, ratings } =
     parsed.data;
 
-  // Verify media exists
+  // Verify media exists (also fetch title for notifications)
   const media = await db
     .selectFrom("media")
-    .select("id")
+    .select(["id", "title"])
     .where("id", "=", mediaId)
     .executeTakeFirst();
   if (!media) {
@@ -194,43 +254,14 @@ export async function POST(req: NextRequest) {
     return newSession;
   });
 
-  await logAudit({
-    userId: user.id,
-    action: "session.created",
-    entityType: "session",
-    entityId: session.id,
-    metadata: { mediaId, attendeeCount: attendeeIds.length },
-  });
-
-  // Audit log for inline ratings
-  if (ratings !== undefined && ratings.length > 0) {
-    await Promise.all(
-      ratings.map((r) =>
-        logAudit({
-          userId: user.id,
-          action: "rating.created",
-          entityType: "rating",
-          entityId: session.id,
-          metadata: {
-            sessionId: session.id,
-            score: r.score,
-            onBehalfOf: r.userId === user.id ? undefined : r.userId,
-          },
-        }),
-      ),
-    );
-
-    // Invalidate recommendation caches for users who rated
-    for (const r of ratings) {
-      void invalidateUserRecommendations(r.userId).catch((error: unknown) => {
-        console.error("Failed to invalidate user recommendations:", error);
-      });
-    }
-  }
-
-  // Invalidate group recommendation cache
-  void invalidateGroupRecommendations().catch((error: unknown) => {
-    console.error("Failed to invalidate group recommendations:", error);
+  // Fire post-creation side effects (audit, cache invalidation, notifications)
+  await handlePostSessionCreation({
+    user,
+    session,
+    mediaId,
+    mediaTitle: media.title,
+    attendeeIds,
+    ratings,
   });
 
   return successResponse(session, "Session created", 201);

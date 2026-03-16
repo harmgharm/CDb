@@ -26,6 +26,9 @@ const envSchema = z.object({
   TMDB_API_KEY: z.string().min(1),
   TMDB_ACCESS_TOKEN: z.string().min(1).optional(),
 
+  // Real-time (Ably)
+  ABLY_API_KEY: z.string().min(1),
+
   // App
   NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),

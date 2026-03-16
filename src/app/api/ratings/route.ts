@@ -3,6 +3,7 @@
  * POST /api/ratings — Submit a rating for a session
  */
 
+import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
@@ -123,6 +124,19 @@ export async function POST(req: NextRequest) {
   void invalidateUserRecommendations(ratingUserId).catch((error: unknown) => {
     console.error("Failed to invalidate user recommendations:", error);
   });
+
+  // Auto-dismiss rate-pending notifications for this session
+  void db
+    .updateTable("notifications")
+    .set({ is_read: true })
+    .where("user_id", "=", ratingUserId)
+    .where("type", "=", "session.rate_pending")
+    .where("is_read", "=", false)
+    .where(sql<boolean>`metadata @> ${JSON.stringify({ sessionId })}::jsonb`)
+    .execute()
+    .catch((error: unknown) => {
+      console.error("Failed to auto-dismiss rate-pending notification:", error);
+    });
 
   return successResponse({ ...rating, score: Number(rating.score) }, "Rating submitted", 201);
 }
