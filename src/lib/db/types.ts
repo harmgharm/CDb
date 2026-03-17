@@ -21,6 +21,10 @@ export type NotificationType =
   | "rating.submitted"
   | "watchlist.friend_watched";
 
+export type GameMode = "solo" | "multiplayer";
+export type GameDifficulty = "normal" | "hard";
+export type GameStatus = "lobby" | "active" | "finished";
+
 export type AuditAction =
   | "user.created"
   | "user.updated"
@@ -50,7 +54,11 @@ export type AuditAction =
   | "notification.read"
   | "notification.read_all"
   | "notification.deleted"
-  | "notification.cleared";
+  | "notification.cleared"
+  | "game.created"
+  | "game.started"
+  | "game.finished"
+  | "game.round_won";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -321,6 +329,80 @@ export type NewNotification = Insertable<NotificationsTable>;
 export type NotificationUpdate = Updateable<NotificationsTable>;
 
 // ============================================
+
+export interface GameSessionsTable {
+  id: Generated<string>;
+  mode: GameMode;
+  difficulty: GameDifficulty;
+  status: Generated<GameStatus>;
+  round_count: Generated<number>;
+  current_round: Generated<number>;
+  created_by_user_id: string;
+  started_at: Date | null;
+  finished_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type GameSession = Selectable<GameSessionsTable>;
+export type NewGameSession = Insertable<GameSessionsTable>;
+export type GameSessionUpdate = Updateable<GameSessionsTable>;
+
+// ============================================
+
+export interface GameRoundsTable {
+  id: Generated<string>;
+  game_id: string;
+  round_number: number;
+  media_id: string | null;
+  tmdb_id: number | null;
+  mal_id: number | null;
+  poster_url: string;
+  title: string;
+  started_at: Date | null;
+  ended_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type GameRound = Selectable<GameRoundsTable>;
+export type NewGameRound = Insertable<GameRoundsTable>;
+export type GameRoundUpdate = Updateable<GameRoundsTable>;
+
+// ============================================
+
+export interface GameGuessesTable {
+  id: Generated<string>;
+  round_id: string;
+  user_id: string;
+  guess_text: string;
+  matched_media_id: string | null;
+  is_correct: boolean;
+  time_from_start_ms: number;
+  score_awarded: Generated<number>;
+  created_at: Generated<Date>;
+}
+
+export type GameGuess = Selectable<GameGuessesTable>;
+export type NewGameGuess = Insertable<GameGuessesTable>;
+
+// ============================================
+
+export interface GameLeaderboardTable {
+  id: Generated<string>;
+  user_id: string;
+  games_played: Generated<number>;
+  games_won: Generated<number>;
+  rounds_won: Generated<number>;
+  total_score: Generated<number>;
+  best_streak: Generated<number>;
+  avg_guess_time_ms: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
+export type GameLeaderboardEntry = Selectable<GameLeaderboardTable>;
+export type NewGameLeaderboardEntry = Insertable<GameLeaderboardTable>;
+export type GameLeaderboardUpdate = Updateable<GameLeaderboardTable>;
+
+// ============================================
 // DATABASE INTERFACE
 // ============================================
 
@@ -339,4 +421,8 @@ export interface Database {
   recommendation_dismissals: RecommendationDismissalsTable;
   notifications: NotificationsTable;
   notification_preferences: NotificationPreferencesTable;
+  game_sessions: GameSessionsTable;
+  game_rounds: GameRoundsTable;
+  game_guesses: GameGuessesTable;
+  game_leaderboard: GameLeaderboardTable;
 }

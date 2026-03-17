@@ -3,6 +3,7 @@
 import {
   ClapperboardIcon,
   DatabaseIcon,
+  Gamepad2Icon,
   HomeIcon,
   LogOutIcon,
   MoonIcon,
@@ -46,6 +47,7 @@ const NAV_ITEMS = [
   { title: "Home", href: "/home", icon: HomeIcon },
   { title: "Database", href: "/database", icon: DatabaseIcon },
   { title: "For You", href: "/recommendations", icon: SparklesIcon },
+  { title: "Play", href: "/play", icon: Gamepad2Icon },
   { title: "Users", href: "/users", icon: UsersIcon },
 ] as const;
 

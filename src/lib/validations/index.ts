@@ -1,6 +1,7 @@
 export * from "./admin";
 export * from "./auth";
 export * from "./common";
+export * from "./games";
 export * from "./media";
 export * from "./notifications";
 export * from "./predictions";

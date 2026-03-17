@@ -29,6 +29,17 @@ export function publishToUser(userId: string, event: string, data: unknown): voi
 }
 
 /**
+ * Publish an event to a game channel (fire-and-forget).
+ */
+export function publishToGame(gameId: string, event: string, data: unknown): void {
+  const client = getAblyClient();
+  const channel = client.channels.get(`game:${gameId}`);
+  void channel.publish(event, data).catch((error: unknown) => {
+    console.error(`Failed to publish ${event} to game:${gameId}:`, error);
+  });
+}
+
+/**
  * Create a signed token request scoped to a user's channel (subscribe-only).
  * Returned to the client via /api/ably/auth so the API key is never exposed.
  */
@@ -39,6 +50,7 @@ export async function createTokenRequest(userId: string): Promise<Ably.TokenRequ
     capability: {
       [`user:${userId}`]: ["subscribe"],
       "presence:group": ["presence", "subscribe"],
+      "game:*": ["publish", "subscribe", "presence"],
     },
   });
 }
