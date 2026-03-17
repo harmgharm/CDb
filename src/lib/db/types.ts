@@ -15,7 +15,11 @@ export type UserRole = "admin" | "moderator" | "member";
 export type MediaType = "movie" | "tv" | "anime";
 export type WatchlistStatus = "planning" | "watching" | "scrapped";
 export type RecommendationType = "content" | "collaborative" | "tmdb" | "jikan" | "group";
-export type NotificationType = "session.rate_pending";
+export type NotificationType =
+  | "session.rate_pending"
+  | "session.created"
+  | "rating.submitted"
+  | "watchlist.friend_watched";
 
 export type AuditAction =
   | "user.created"
@@ -44,7 +48,9 @@ export type AuditAction =
   | "recommendation.undismissed"
   | "notification.created"
   | "notification.read"
-  | "notification.read_all";
+  | "notification.read_all"
+  | "notification.deleted"
+  | "notification.cleared";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -286,6 +292,18 @@ export type NewRecommendationDismissal = Insertable<RecommendationDismissalsTabl
 
 // ============================================
 
+export interface NotificationPreferencesTable extends TimestampColumns {
+  id: Generated<string>;
+  user_id: string;
+  preferences: JsonColumn<Record<string, boolean>>;
+}
+
+export type NotificationPreferences = Selectable<NotificationPreferencesTable>;
+export type NewNotificationPreferences = Insertable<NotificationPreferencesTable>;
+export type NotificationPreferencesUpdate = Updateable<NotificationPreferencesTable>;
+
+// ============================================
+
 export interface NotificationsTable {
   id: Generated<string>;
   user_id: string;
@@ -320,4 +338,5 @@ export interface Database {
   tmdb_recommendation_cache: TmdbRecommendationCacheTable;
   recommendation_dismissals: RecommendationDismissalsTable;
   notifications: NotificationsTable;
+  notification_preferences: NotificationPreferencesTable;
 }

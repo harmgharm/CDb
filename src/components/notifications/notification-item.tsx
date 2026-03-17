@@ -1,6 +1,6 @@
 "use client";
 
-import { StarIcon } from "lucide-react";
+import { FilmIcon, HeartIcon, StarIcon, UsersIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -24,17 +24,22 @@ function formatRelativeTime(dateString: string): string {
 
 const NOTIFICATION_ICONS: Record<string, typeof StarIcon> = {
   "session.rate_pending": StarIcon,
+  "session.created": FilmIcon,
+  "rating.submitted": HeartIcon,
+  "watchlist.friend_watched": UsersIcon,
 };
 
 interface NotificationItemRowProps {
   readonly notification: NotificationItem;
   readonly onRead: (id: string) => void;
+  readonly onDelete: (id: string) => void;
   readonly onClosePanel: () => void;
 }
 
 export function NotificationItemRow({
   notification,
   onRead,
+  onDelete,
   onClosePanel,
 }: NotificationItemRowProps) {
   const Icon = NOTIFICATION_ICONS[notification.type] ?? StarIcon;
@@ -46,10 +51,16 @@ export function NotificationItemRow({
     onClosePanel();
   }
 
+  function handleDelete(event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    onDelete(notification.id);
+  }
+
   const content = (
     <div
       className={cn(
-        "hover:bg-accent flex items-start gap-3 rounded-md px-3 py-2.5 transition-colors",
+        "hover:bg-accent group relative flex items-start gap-3 rounded-md px-3 py-2.5 transition-colors",
         !notification.isRead && "bg-accent/50",
       )}
     >
@@ -63,7 +74,17 @@ export function NotificationItemRow({
           {formatRelativeTime(notification.createdAt)}
         </p>
       </div>
-      {!notification.isRead && <div className="bg-primary mt-2 size-2 shrink-0 rounded-full" />}
+      <div className="flex shrink-0 items-center gap-1">
+        {!notification.isRead && <div className="bg-primary size-2 rounded-full" />}
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="text-muted-foreground hover:text-foreground rounded-sm p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+          aria-label="Delete notification"
+        >
+          <XIcon className="size-3.5" />
+        </button>
+      </div>
     </div>
   );
 

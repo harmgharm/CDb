@@ -1,13 +1,20 @@
 "use client";
 
 import * as Ably from "ably";
-import { AblyProvider as AblyReactProvider, ChannelProvider, useChannel } from "ably/react";
+import {
+  AblyProvider as AblyReactProvider,
+  ChannelProvider,
+  useChannel,
+  usePresence,
+} from "ably/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
+
+const PRESENCE_CHANNEL = "presence:group";
 
 /**
  * Listens on the user's private Ably channel and revalidates SWR
@@ -20,6 +27,23 @@ function NotificationListener({ channelName }: Readonly<{ channelName: string }>
   useChannel({ channelName }, "notification", () => {
     void mutate("/api/notifications/unread-count");
     void mutate((key: unknown) => typeof key === "string" && key.startsWith("/api/notifications"));
+  });
+
+  return null;
+}
+
+/**
+ * Enters presence on the group channel with user metadata.
+ * Must be rendered inside a ChannelProvider for "presence:group".
+ */
+function PresenceEntry() {
+  const { user } = useAuth();
+
+  usePresence(PRESENCE_CHANNEL, {
+    userId: user?.id ?? "",
+    username: user?.username ?? "",
+    displayName: user?.displayName ?? null,
+    avatarUrl: user?.avatarUrl ?? null,
   });
 
   return null;
@@ -86,7 +110,12 @@ export function AblyProvider({ children }: Readonly<{ children: React.ReactNode 
       <ChannelProvider channelName={channelName}>
         <NotificationListener channelName={channelName} />
       </ChannelProvider>
-      {children}
+      <ChannelProvider channelName={PRESENCE_CHANNEL}>
+        <PresenceEntry />
+        {children}
+      </ChannelProvider>
     </AblyReactProvider>
   );
 }
+
+export { PRESENCE_CHANNEL };

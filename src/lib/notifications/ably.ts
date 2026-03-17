@@ -36,6 +36,9 @@ export async function createTokenRequest(userId: string): Promise<Ably.TokenRequ
   const client = getAblyClient();
   return client.auth.createTokenRequest({
     clientId: userId,
-    capability: { [`user:${userId}`]: ["subscribe"] },
+    capability: {
+      [`user:${userId}`]: ["subscribe"],
+      "presence:group": ["presence", "subscribe"],
+    },
   });
 }

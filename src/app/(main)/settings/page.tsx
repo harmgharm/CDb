@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyIcon, UserIcon } from "lucide-react";
+import { BellIcon, KeyIcon, UserIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -12,6 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import {
+  useNotificationPreferences,
+  useUpdateNotificationPreferences,
+} from "@/hooks/use-notifications";
 import { useChangePassword, useUpdateProfile } from "@/hooks/use-settings";
 import type { SafeUser } from "@/types/auth";
 
@@ -266,6 +271,101 @@ function ChangePasswordForm() {
 }
 
 // ============================================
+// Notification Preferences
+// ============================================
+
+const NOTIFICATION_TYPE_LABELS: Record<string, { label: string; description: string }> = {
+  "session.rate_pending": {
+    label: "Rate reminders",
+    description: "Reminders to rate media after watching sessions",
+  },
+  "session.created": {
+    label: "New sessions",
+    description: "When someone logs a new watching session",
+  },
+  "rating.submitted": {
+    label: "Ratings on your picks",
+    description: "When someone rates media you picked",
+  },
+  "watchlist.friend_watched": {
+    label: "Watchlist updates",
+    description: "When friends watch something on your watchlist",
+  },
+};
+
+function NotificationPreferencesForm() {
+  const { data, isLoading } = useNotificationPreferences();
+  const { updatePreferences, isUpdating } = useUpdateNotificationPreferences();
+
+  // Optimistic overrides — null means use SWR data as-is
+  const [optimisticPrefs, setOptimisticPrefs] = useState<Record<string, boolean> | null>(null);
+  const displayPrefs = optimisticPrefs ?? data?.preferences ?? {};
+
+  async function handleToggle(type: string, enabled: boolean) {
+    const updated = { ...displayPrefs, [type]: enabled };
+    setOptimisticPrefs(updated);
+
+    const success = await updatePreferences(updated);
+    if (success) {
+      toast.success("Notification preferences updated");
+    } else {
+      toast.error("Failed to update preferences");
+    }
+    setOptimisticPrefs(null);
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-12 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <BellIcon className="size-5" />
+          Notification Preferences
+        </CardTitle>
+        <CardDescription>Choose which notifications you receive.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {Object.entries(NOTIFICATION_TYPE_LABELS).map(([type, { label, description }]) => (
+            <div key={type} className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label htmlFor={`notif-${type}`} className="text-sm font-medium">
+                  {label}
+                </Label>
+                <p className="text-muted-foreground text-xs">{description}</p>
+              </div>
+              <Switch
+                id={`notif-${type}`}
+                checked={displayPrefs[type] !== false}
+                onCheckedChange={(checked) => {
+                  void handleToggle(type, checked);
+                }}
+                disabled={isUpdating}
+              />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
 // Settings Page
 // ============================================
 
@@ -301,6 +401,14 @@ export default function SettingsPage() {
         transition={{ delay: 0.2, duration: 0.3, ease: "easeOut" as const }}
       >
         <ChangePasswordForm />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.3, ease: "easeOut" as const }}
+      >
+        <NotificationPreferencesForm />
       </motion.div>
     </div>
   );

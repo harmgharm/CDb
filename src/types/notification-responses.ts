@@ -22,3 +22,7 @@ export interface NotificationsResponse {
 export interface UnreadCountResponse {
   count: number;
 }
+
+export interface NotificationPreferencesResponse {
+  preferences: Record<string, boolean>;
+}

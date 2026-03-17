@@ -10,7 +10,11 @@ import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { User, UserRole, WatchSession } from "@/lib/db/types";
-import { createRatePendingNotifications } from "@/lib/notifications";
+import {
+  createRatePendingNotifications,
+  createSessionCreatedNotifications,
+  createWatchlistFriendWatchedNotifications,
+} from "@/lib/notifications";
 import {
   invalidateGroupRecommendations,
   invalidateUserRecommendations,
@@ -156,6 +160,28 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
     ratedUserIds,
   }).catch((error: unknown) => {
     console.error("Failed to create rate-pending notifications:", error);
+  });
+
+  // Notify all members about new session
+  void createSessionCreatedNotifications({
+    sessionId: session.id,
+    mediaId,
+    mediaTitle,
+    creatorUserId: user.id,
+    creatorDisplayName: user.display_name ?? user.username,
+    pickedByUserId: session.picked_by_user_id,
+  }).catch((error: unknown) => {
+    console.error("Failed to create session.created notifications:", error);
+  });
+
+  // Notify users who have this media on their watchlist
+  void createWatchlistFriendWatchedNotifications({
+    sessionId: session.id,
+    mediaId,
+    mediaTitle,
+    attendeeIds,
+  }).catch((error: unknown) => {
+    console.error("Failed to create watchlist.friend_watched notifications:", error);
   });
 }
 

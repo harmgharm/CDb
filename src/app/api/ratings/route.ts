@@ -9,6 +9,7 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createRatingSubmittedNotification } from "@/lib/notifications";
 import { invalidateUserRecommendations } from "@/lib/recommendations";
 import { ratingSchema } from "@/lib/validations/sessions";
 
@@ -67,11 +68,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Verify session exists
+  // Verify session exists + fetch picker/media info for notifications
   const session = await db
     .selectFrom("watch_sessions")
-    .select("id")
-    .where("id", "=", sessionId)
+    .innerJoin("media", "media.id", "watch_sessions.media_id")
+    .select([
+      "watch_sessions.id",
+      "watch_sessions.picked_by_user_id",
+      "media.id as media_id",
+      "media.title as media_title",
+    ])
+    .where("watch_sessions.id", "=", sessionId)
     .executeTakeFirst();
   if (!session) {
     return errorResponse("Session not found", 404);
@@ -137,6 +144,21 @@ export async function POST(req: NextRequest) {
     .catch((error: unknown) => {
       console.error("Failed to auto-dismiss rate-pending notification:", error);
     });
+
+  // Notify the picker about this rating
+  if (session.picked_by_user_id !== null) {
+    void createRatingSubmittedNotification({
+      sessionId,
+      mediaId: session.media_id,
+      mediaTitle: session.media_title,
+      raterUserId: ratingUserId,
+      raterDisplayName: user.display_name ?? user.username,
+      score,
+      pickedByUserId: session.picked_by_user_id,
+    }).catch((error: unknown) => {
+      console.error("Failed to create rating.submitted notification:", error);
+    });
+  }
 
   return successResponse({ ...rating, score: Number(rating.score) }, "Rating submitted", 201);
 }
