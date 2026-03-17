@@ -55,14 +55,22 @@ function PresenceEntry() {
  */
 export function AblyProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
-  const clientRef = useRef<Ably.Realtime | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Track the current client instance for cleanup
+  const clientRef = useRef<Ably.Realtime | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   const client = useMemo(() => {
+    // Close any existing client before creating a new one
+    if (clientRef.current !== null) {
+      clientRef.current.close();
+      clientRef.current = null;
+    }
+
     if (!isMounted || user === null) return null;
 
     const instance = new Ably.Realtime({
@@ -89,7 +97,7 @@ export function AblyProvider({ children }: Readonly<{ children: React.ReactNode 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recreate only when user identity changes or mount state changes
   }, [user?.id, isMounted]);
 
-  // Clean up previous client when user changes or component unmounts
+  // Close client on unmount only
   useEffect(() => {
     return () => {
       if (clientRef.current !== null) {
@@ -97,7 +105,7 @@ export function AblyProvider({ children }: Readonly<{ children: React.ReactNode 
         clientRef.current = null;
       }
     };
-  }, [client]);
+  }, []);
 
   if (client === null) {
     return <>{children}</>;
