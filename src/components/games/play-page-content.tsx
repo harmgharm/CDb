@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * PlayPageContent — Main orchestrator for the /play page
+ * PlayPageContent — Main orchestrator for the /play/poster-reveal page
  *
  * State machine: idle → playing → (game handles its own result state)
  */
 
-import { Gamepad2Icon } from "lucide-react";
+import { Gamepad2Icon, UsersIcon } from "lucide-react";
 import * as motion from "motion/react-client";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { GameLeaderboard } from "@/components/games/game-leaderboard";
@@ -21,12 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCreateGame, useGameMediaOptions } from "@/hooks/use-games";
 import type { GameSessionResponse } from "@/types/game-responses";
 
 type PageState = "idle" | "playing";
 
 export function PlayPageContent() {
+  const router = useRouter();
   const [pageState, setPageState] = useState<PageState>("idle");
   const [activeGame, setActiveGame] = useState<GameSessionResponse | null>(null);
   const [difficulty, setDifficulty] = useState<"normal" | "hard">("normal");
@@ -34,8 +37,9 @@ export function PlayPageContent() {
   const { createGame, isCreating, error } = useCreateGame();
   const { data: mediaData } = useGameMediaOptions();
 
-  const handleStartGame = useCallback(async () => {
+  const handleStartSolo = useCallback(async () => {
     const game = await createGame({
+      mode: "solo",
       difficulty,
       roundCount: Number(roundCount),
     });
@@ -45,6 +49,18 @@ export function PlayPageContent() {
       setPageState("playing");
     }
   }, [createGame, difficulty, roundCount]);
+
+  const handleStartMultiplayer = useCallback(async () => {
+    const game = await createGame({
+      mode: "multiplayer",
+      difficulty,
+      roundCount: Number(roundCount),
+    });
+
+    if (game !== null) {
+      router.push(`/play/poster-reveal/${game.id}`);
+    }
+  }, [createGame, difficulty, roundCount, router]);
 
   const handlePlayAgain = useCallback(() => {
     setActiveGame(null);
@@ -128,17 +144,47 @@ export function PlayPageContent() {
                 </Select>
               </div>
 
-              {/* Start button */}
-              <Button
-                onClick={() => {
-                  void handleStartGame();
-                }}
-                disabled={isCreating}
-                size="lg"
-                className="w-full"
-              >
-                {isCreating ? "Starting..." : "Start Game"}
-              </Button>
+              {/* Mode tabs */}
+              <Tabs defaultValue="solo" className="w-full">
+                <TabsList className="w-full">
+                  <TabsTrigger value="solo" className="flex-1">
+                    <Gamepad2Icon className="mr-1.5 size-4" />
+                    Solo
+                  </TabsTrigger>
+                  <TabsTrigger value="multiplayer" className="flex-1">
+                    <UsersIcon className="mr-1.5 size-4" />
+                    Multiplayer
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="solo" className="mt-4">
+                  <Button
+                    onClick={() => {
+                      void handleStartSolo();
+                    }}
+                    disabled={isCreating}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isCreating ? "Starting..." : "Start Solo Game"}
+                  </Button>
+                </TabsContent>
+                <TabsContent value="multiplayer" className="mt-4 space-y-3">
+                  <p className="text-muted-foreground text-xs">
+                    Create a lobby and invite friends to compete. First correct guess each round
+                    earns a bonus!
+                  </p>
+                  <Button
+                    onClick={() => {
+                      void handleStartMultiplayer();
+                    }}
+                    disabled={isCreating}
+                    size="lg"
+                    className="w-full"
+                  >
+                    {isCreating ? "Creating..." : "Create Multiplayer Lobby"}
+                  </Button>
+                </TabsContent>
+              </Tabs>
 
               {error !== null && <p className="text-sm text-red-500">{error}</p>}
             </CardContent>

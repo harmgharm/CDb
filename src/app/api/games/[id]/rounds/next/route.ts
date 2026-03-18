@@ -1,5 +1,9 @@
 /**
  * POST /api/games/[id]/rounds/next — Advance to the next round or finish the game
+ *
+ * Solo: only creator can advance.
+ * Multiplayer: any player can advance (resilience if host disconnects).
+ * Server validates that the countdown period has elapsed before allowing.
  */
 
 import type { NextRequest } from "next/server";
@@ -9,6 +13,65 @@ import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { updateLeaderboard } from "@/lib/games/leaderboard";
+import { COUNTDOWN_DURATION_MS } from "@/lib/games/scoring";
+import { publishToGame } from "@/lib/notifications/ably";
+import type { GameEndedEvent, RoundEndedEvent, RoundStartedEvent } from "@/types/game-responses";
+
+interface AuthorizeAdvanceOptions {
+  isMultiplayer: boolean;
+  gameId: string;
+  userId: string;
+  creatorId: string;
+}
+
+/**
+ * Authorize the user to advance rounds.
+ * Multiplayer: any game_player. Solo: creator only.
+ */
+async function authorizeAdvance(options: AuthorizeAdvanceOptions): Promise<string | null> {
+  if (options.isMultiplayer) {
+    const player = await db
+      .selectFrom("game_players")
+      .select("id")
+      .where("game_id", "=", options.gameId)
+      .where("user_id", "=", options.userId)
+      .executeTakeFirst();
+    return player === undefined ? "You are not in this game" : null;
+  }
+  return options.creatorId === options.userId ? null : "Only the game creator can advance rounds";
+}
+
+/**
+ * Validate that the countdown period has elapsed or all players have guessed.
+ */
+async function validateCountdownElapsed(
+  gameId: string,
+  roundId: string,
+  firstCorrectAt: Date | null,
+): Promise<boolean> {
+  const playerCount = await db
+    .selectFrom("game_players")
+    .select(({ fn }) => fn.countAll<number>().as("count"))
+    .where("game_id", "=", gameId)
+    .executeTakeFirstOrThrow();
+
+  const finishedGuessers = await db
+    .selectFrom("game_guesses")
+    .select("user_id")
+    .where("round_id", "=", roundId)
+    .where((eb) => eb.or([eb("is_correct", "=", true), eb("guess_text", "=", "(skipped)")]))
+    .groupBy("user_id")
+    .execute();
+
+  if (finishedGuessers.length >= playerCount.count) return true;
+
+  if (firstCorrectAt !== null) {
+    const countdownEnd = firstCorrectAt.getTime() + COUNTDOWN_DURATION_MS;
+    return Date.now() >= countdownEnd - 500;
+  }
+
+  return true;
+}
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAuth();
@@ -28,8 +91,39 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return errorResponse("Game is not active", 400);
   }
 
-  if (session.created_by_user_id !== user.id) {
-    return errorResponse("Only the game creator can advance rounds", 403);
+  const isMultiplayer = session.mode === "multiplayer";
+
+  const authError = await authorizeAdvance({
+    isMultiplayer,
+    gameId,
+    userId: user.id,
+    creatorId: session.created_by_user_id,
+  });
+  if (authError !== null) {
+    return errorResponse(authError, 403);
+  }
+
+  const currentRound = await db
+    .selectFrom("game_rounds")
+    .selectAll()
+    .where("game_id", "=", gameId)
+    .where("round_number", "=", session.current_round)
+    .executeTakeFirst();
+
+  if (currentRound === undefined) {
+    return errorResponse("Current round not found", 500);
+  }
+
+  // Multiplayer: validate countdown has elapsed
+  if (isMultiplayer && currentRound.ended_at === null) {
+    const canAdvance = await validateCountdownElapsed(
+      gameId,
+      currentRound.id,
+      currentRound.first_correct_at,
+    );
+    if (!canAdvance) {
+      return errorResponse("Countdown has not finished yet", 400);
+    }
   }
 
   const now = new Date();
@@ -46,7 +140,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       .execute();
 
     if (isLastRound) {
-      // Game is over
       await trx
         .updateTable("game_sessions")
         .set({
@@ -56,14 +149,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         .where("id", "=", gameId)
         .execute();
     } else {
-      // Advance to next round
       await trx
         .updateTable("game_sessions")
         .set({ current_round: nextRoundNumber })
         .where("id", "=", gameId)
         .execute();
 
-      // Start the next round
       await trx
         .updateTable("game_rounds")
         .set({ started_at: now })
@@ -73,66 +164,325 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     }
   });
 
-  // If game finished, update leaderboard
+  // Publish multiplayer events (round-ended, round-started)
+  if (isMultiplayer) {
+    await publishMultiplayerRoundEvents({
+      gameId,
+      currentRound,
+      currentRoundNumber: session.current_round,
+      nextRoundNumber,
+      isLastRound,
+      now,
+    });
+  }
+
+  // Game finished — update leaderboard
   if (isLastRound) {
-    void (async () => {
-      try {
-        // Gather stats from all guesses
-        const guesses = await db
-          .selectFrom("game_guesses")
-          .innerJoin("game_rounds", "game_rounds.id", "game_guesses.round_id")
-          .select([
-            "game_guesses.is_correct",
-            "game_guesses.score_awarded",
-            "game_guesses.time_from_start_ms",
-          ])
-          .where("game_rounds.game_id", "=", gameId)
-          .where("game_guesses.user_id", "=", user.id)
-          .execute();
-
-        let totalScore = 0;
-        let roundsWon = 0;
-        let bestStreak = 0;
-        let currentStreak = 0;
-        let totalCorrectTime = 0;
-        let correctCount = 0;
-
-        for (const guess of guesses) {
-          totalScore += guess.score_awarded;
-          if (guess.is_correct) {
-            roundsWon += 1;
-            currentStreak += 1;
-            bestStreak = Math.max(bestStreak, currentStreak);
-            totalCorrectTime += guess.time_from_start_ms;
-            correctCount += 1;
-          } else {
-            currentStreak = 0;
-          }
-        }
-
-        const avgGuessTimeMs = correctCount > 0 ? Math.round(totalCorrectTime / correctCount) : 0;
-
-        await updateLeaderboard({
-          userId: user.id,
-          roundsWon,
-          totalScore,
-          bestStreak,
-          avgGuessTimeMs,
-          isWinner: true, // Solo games — player always "wins"
-        });
-
-        await logAudit({
-          userId: user.id,
-          action: "game.finished",
-          entityType: "game_session",
-          entityId: gameId,
-          metadata: { totalScore, roundsWon, bestStreak },
-        });
-      } catch (error: unknown) {
-        console.error("Failed to update leaderboard:", error);
-      }
-    })();
+    void handleGameFinished(gameId, user.id, isMultiplayer);
   }
 
   return successResponse({ advanced: !isLastRound, finished: isLastRound });
+}
+
+interface RoundEventOptions {
+  gameId: string;
+  currentRound: { id: string; title: string; poster_url: string };
+  currentRoundNumber: number;
+  nextRoundNumber: number;
+  isLastRound: boolean;
+  now: Date;
+}
+
+/**
+ * Publish multiplayer round-ended + round-started Ably events.
+ */
+async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promise<void> {
+  const { gameId, currentRound, currentRoundNumber, nextRoundNumber, isLastRound, now } = options;
+  const roundGuesses = await db
+    .selectFrom("game_guesses")
+    .innerJoin("users", "users.id", "game_guesses.user_id")
+    .select([
+      "game_guesses.user_id",
+      "users.username",
+      "game_guesses.is_correct",
+      "game_guesses.score_awarded",
+      "game_guesses.time_from_start_ms",
+    ])
+    .where("game_guesses.round_id", "=", currentRound.id)
+    .execute();
+
+  const correctGuesses = roundGuesses
+    .filter((guess) => guess.is_correct)
+    .toSorted((a, b) => a.time_from_start_ms - b.time_from_start_ms);
+  const firstCorrectUserId = correctGuesses[0]?.user_id ?? null;
+
+  const players = await db
+    .selectFrom("game_players")
+    .innerJoin("users", "users.id", "game_players.user_id")
+    .select(["game_players.user_id", "users.username"])
+    .where("game_id", "=", gameId)
+    .execute();
+
+  const guessMap = new Map(roundGuesses.map((guess) => [guess.user_id, guess]));
+
+  const scores = players.map((player) => {
+    const guess = guessMap.get(player.user_id);
+    return {
+      userId: player.user_id,
+      username: player.username,
+      scoreAwarded: guess?.score_awarded ?? 0,
+      isCorrect: guess?.is_correct ?? false,
+      isFirstCorrect: player.user_id === firstCorrectUserId,
+      timeFromStartMs: guess?.time_from_start_ms ?? null,
+    };
+  });
+
+  const roundEndedEvent: RoundEndedEvent = {
+    roundNumber: currentRoundNumber,
+    correctTitle: currentRound.title,
+    correctPosterUrl: currentRound.poster_url,
+    scores,
+  };
+  publishToGame(gameId, "round-ended", roundEndedEvent);
+
+  if (isLastRound) return;
+
+  const nextRound = await db
+    .selectFrom("game_rounds")
+    .selectAll()
+    .where("game_id", "=", gameId)
+    .where("round_number", "=", nextRoundNumber)
+    .executeTakeFirst();
+
+  if (nextRound !== undefined) {
+    const roundStartedEvent: RoundStartedEvent = {
+      roundNumber: nextRoundNumber,
+      roundId: nextRound.id,
+      posterUrl: nextRound.poster_url,
+      startedAt: now.toISOString(),
+    };
+    publishToGame(gameId, "round-started", roundStartedEvent);
+  }
+}
+
+/**
+ * Handle post-game leaderboard update and audit log (fire-and-forget).
+ */
+async function handleGameFinished(
+  gameId: string,
+  userId: string,
+  isMultiplayer: boolean,
+): Promise<void> {
+  try {
+    await (isMultiplayer
+      ? updateMultiplayerLeaderboard(gameId)
+      : updateSoloLeaderboard(gameId, userId));
+
+    await logAudit({
+      userId,
+      action: "game.finished",
+      entityType: "game_session",
+      entityId: gameId,
+    });
+  } catch (error: unknown) {
+    console.error("Failed to update leaderboard:", error);
+  }
+
+  if (isMultiplayer) {
+    try {
+      const standings = await computeFinalStandings(gameId);
+      const gameEndedEvent: GameEndedEvent = { finalStandings: standings };
+      publishToGame(gameId, "game-ended", gameEndedEvent);
+    } catch (error: unknown) {
+      console.error("Failed to publish game-ended:", error);
+    }
+  }
+}
+
+/**
+ * Update leaderboard for a solo game (original logic).
+ */
+async function updateSoloLeaderboard(gameId: string, userId: string): Promise<void> {
+  const guesses = await db
+    .selectFrom("game_guesses")
+    .innerJoin("game_rounds", "game_rounds.id", "game_guesses.round_id")
+    .select([
+      "game_guesses.is_correct",
+      "game_guesses.score_awarded",
+      "game_guesses.time_from_start_ms",
+    ])
+    .where("game_rounds.game_id", "=", gameId)
+    .where("game_guesses.user_id", "=", userId)
+    .execute();
+
+  let totalScore = 0;
+  let roundsWon = 0;
+  let bestStreak = 0;
+  let currentStreak = 0;
+  let totalCorrectTime = 0;
+  let correctCount = 0;
+
+  for (const guess of guesses) {
+    totalScore += guess.score_awarded;
+    if (guess.is_correct) {
+      roundsWon += 1;
+      currentStreak += 1;
+      bestStreak = Math.max(bestStreak, currentStreak);
+      totalCorrectTime += guess.time_from_start_ms;
+      correctCount += 1;
+    } else {
+      currentStreak = 0;
+    }
+  }
+
+  const avgGuessTimeMs = correctCount > 0 ? Math.round(totalCorrectTime / correctCount) : 0;
+
+  await updateLeaderboard({
+    userId,
+    roundsWon,
+    totalScore,
+    bestStreak,
+    avgGuessTimeMs,
+    isWinner: true,
+  });
+}
+
+/**
+ * Update leaderboard for all players in a multiplayer game.
+ */
+async function updateMultiplayerLeaderboard(gameId: string): Promise<void> {
+  const players = await db
+    .selectFrom("game_players")
+    .select("user_id")
+    .where("game_id", "=", gameId)
+    .execute();
+
+  // Compute per-player stats
+  const playerStats = await Promise.all(
+    players.map(async (player) => {
+      const guesses = await db
+        .selectFrom("game_guesses")
+        .innerJoin("game_rounds", "game_rounds.id", "game_guesses.round_id")
+        .select([
+          "game_guesses.is_correct",
+          "game_guesses.score_awarded",
+          "game_guesses.time_from_start_ms",
+        ])
+        .where("game_rounds.game_id", "=", gameId)
+        .where("game_guesses.user_id", "=", player.user_id)
+        .orderBy("game_rounds.round_number", "asc")
+        .execute();
+
+      let totalScore = 0;
+      let roundsWon = 0;
+      let bestStreak = 0;
+      let currentStreak = 0;
+      let totalCorrectTime = 0;
+      let correctCount = 0;
+
+      for (const guess of guesses) {
+        totalScore += guess.score_awarded;
+        if (guess.is_correct) {
+          roundsWon += 1;
+          currentStreak += 1;
+          bestStreak = Math.max(bestStreak, currentStreak);
+          totalCorrectTime += guess.time_from_start_ms;
+          correctCount += 1;
+        } else {
+          currentStreak = 0;
+        }
+      }
+
+      return {
+        userId: player.user_id,
+        totalScore,
+        roundsWon,
+        bestStreak,
+        avgGuessTimeMs: correctCount > 0 ? Math.round(totalCorrectTime / correctCount) : 0,
+      };
+    }),
+  );
+
+  // Determine winner (highest total score)
+  const maxScore = Math.max(...playerStats.map((s) => s.totalScore));
+
+  await Promise.all(
+    playerStats.map(async (stats) =>
+      updateLeaderboard({
+        userId: stats.userId,
+        roundsWon: stats.roundsWon,
+        totalScore: stats.totalScore,
+        bestStreak: stats.bestStreak,
+        avgGuessTimeMs: stats.avgGuessTimeMs,
+        isWinner: stats.totalScore === maxScore && maxScore > 0,
+      }),
+    ),
+  );
+}
+
+/**
+ * Compute final standings for the game-ended Ably event.
+ */
+async function computeFinalStandings(gameId: string) {
+  const players = await db
+    .selectFrom("game_players")
+    .innerJoin("users", "users.id", "game_players.user_id")
+    .select(["game_players.user_id", "users.username", "users.display_name", "users.avatar_url"])
+    .where("game_id", "=", gameId)
+    .execute();
+
+  const standings = await Promise.all(
+    players.map(async (player) => {
+      const guesses = await db
+        .selectFrom("game_guesses")
+        .innerJoin("game_rounds", "game_rounds.id", "game_guesses.round_id")
+        .select([
+          "game_guesses.is_correct",
+          "game_guesses.score_awarded",
+          "game_guesses.time_from_start_ms",
+        ])
+        .where("game_rounds.game_id", "=", gameId)
+        .where("game_guesses.user_id", "=", player.user_id)
+        .orderBy("game_rounds.round_number", "asc")
+        .execute();
+
+      let totalScore = 0;
+      let roundsWon = 0;
+      let bestStreak = 0;
+      let currentStreak = 0;
+      let totalCorrectTime = 0;
+      let correctCount = 0;
+
+      for (const guess of guesses) {
+        totalScore += guess.score_awarded;
+        if (guess.is_correct) {
+          roundsWon += 1;
+          currentStreak += 1;
+          bestStreak = Math.max(bestStreak, currentStreak);
+          totalCorrectTime += guess.time_from_start_ms;
+          correctCount += 1;
+        } else {
+          currentStreak = 0;
+        }
+      }
+
+      return {
+        userId: player.user_id,
+        username: player.username,
+        displayName: player.display_name,
+        avatarUrl: player.avatar_url,
+        totalScore,
+        roundsWon,
+        bestStreak,
+        avgGuessTimeMs: correctCount > 0 ? Math.round(totalCorrectTime / correctCount) : 0,
+      };
+    }),
+  );
+
+  return standings
+    .toSorted((a, b) => b.totalScore - a.totalScore)
+    .map((standing, index) => ({
+      rank: index + 1,
+      ...standing,
+    }));
 }

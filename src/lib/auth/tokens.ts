@@ -11,7 +11,7 @@ const ACCESS_SECRET = new TextEncoder().encode(env.JWT_SECRET);
 const REFRESH_SECRET = new TextEncoder().encode(env.JWT_REFRESH_SECRET);
 
 const ISSUER = "cdb";
-const ACCESS_TOKEN_EXPIRY = "15m";
+const ACCESS_TOKEN_EXPIRY = "1h";
 const REFRESH_TOKEN_EXPIRY = "7d";
 
 export async function signAccessToken(payload: AccessTokenPayload): Promise<string> {

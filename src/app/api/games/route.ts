@@ -1,5 +1,5 @@
 /**
- * POST /api/games — Create and auto-start a solo game
+ * POST /api/games — Create a game (solo auto-starts, multiplayer creates lobby)
  */
 
 import type { NextRequest } from "next/server";
@@ -7,9 +7,10 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { withTransaction } from "@/lib/db/transaction";
+import type { GameRound } from "@/lib/db/types";
 import { buildMediaPool } from "@/lib/games/media-pool";
 import { createGameSchema } from "@/lib/validations/games";
-import type { GameRoundResponse, GameSessionResponse } from "@/types/game-responses";
+import type { GameRoundResponse, GameSessionResponse, MediaPoolItem } from "@/types/game-responses";
 
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
@@ -20,48 +21,67 @@ export async function POST(req: NextRequest) {
     return errorResponse("Invalid input", 400);
   }
 
-  const { difficulty, roundCount } = parsed.data;
+  const { mode, difficulty, roundCount } = parsed.data;
+  const isMultiplayer = mode === "multiplayer";
 
-  // Build media pool before transaction (may call external APIs for hard mode)
-  let pool;
-  try {
-    pool = await buildMediaPool(difficulty, roundCount);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to build media pool";
-    return errorResponse(message, 400);
+  // Solo: build media pool now. Multiplayer: defer to /start
+  let pool: MediaPoolItem[] | undefined;
+  if (!isMultiplayer) {
+    try {
+      pool = await buildMediaPool(difficulty, roundCount);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to build media pool";
+      return errorResponse(message, 400);
+    }
   }
 
   const now = new Date();
 
   const result = await withTransaction(async (trx) => {
-    // Create game session — auto-started for solo
+    // Create game session
     const session = await trx
       .insertInto("game_sessions")
       .values({
-        mode: "solo",
+        game_type: "poster_reveal",
+        mode,
         difficulty,
-        status: "active",
+        status: isMultiplayer ? "lobby" : "active",
         round_count: roundCount,
         current_round: 0,
         created_by_user_id: user.id,
-        started_at: now,
+        started_at: isMultiplayer ? null : now,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    // Create all rounds upfront
-    const roundValues = pool.map((item, index) => ({
-      game_id: session.id,
-      round_number: index,
-      media_id: item.id,
-      tmdb_id: item.tmdbId,
-      mal_id: item.malId,
-      poster_url: item.posterUrl,
-      title: item.title,
-      started_at: index === 0 ? now : null,
-    }));
+    // Multiplayer: add host as first player
+    if (isMultiplayer) {
+      await trx
+        .insertInto("game_players")
+        .values({
+          game_id: session.id,
+          user_id: user.id,
+          is_host: true,
+        })
+        .execute();
+    }
 
-    const rounds = await trx.insertInto("game_rounds").values(roundValues).returningAll().execute();
+    // Solo: create all rounds upfront
+    let rounds: GameRound[] = [];
+    if (!isMultiplayer && pool !== undefined) {
+      const roundValues = pool.map((item, index) => ({
+        game_id: session.id,
+        round_number: index,
+        media_id: item.id,
+        tmdb_id: item.tmdbId,
+        mal_id: item.malId,
+        poster_url: item.posterUrl,
+        title: item.title,
+        started_at: index === 0 ? now : null,
+      }));
+
+      rounds = await trx.insertInto("game_rounds").values(roundValues).returningAll().execute();
+    }
 
     return { session, rounds };
   });
@@ -71,25 +91,27 @@ export async function POST(req: NextRequest) {
     action: "game.created",
     entityType: "game_session",
     entityId: result.session.id,
-    metadata: { difficulty, roundCount, mode: "solo" },
+    metadata: { difficulty, roundCount, mode },
   });
 
-  // Build response — only reveal first round's poster, redact future rounds
+  // Build response
   const roundResponses: GameRoundResponse[] = result.rounds.map((round) => ({
     id: round.id,
     roundNumber: round.round_number,
     posterUrl: round.round_number === 0 ? round.poster_url : null,
-    title: null, // Never reveal title upfront
+    title: null,
     mediaId: round.round_number === 0 ? round.media_id : null,
     tmdbId: round.round_number === 0 ? round.tmdb_id : null,
     malId: round.round_number === 0 ? round.mal_id : null,
     startedAt: round.started_at?.toISOString() ?? null,
     endedAt: round.ended_at?.toISOString() ?? null,
+    firstCorrectAt: null,
     guesses: [],
   }));
 
   const response: GameSessionResponse = {
     id: result.session.id,
+    gameType: result.session.game_type,
     mode: result.session.mode,
     difficulty: result.session.difficulty,
     status: result.session.status,
@@ -102,6 +124,23 @@ export async function POST(req: NextRequest) {
     rounds: roundResponses,
     totalScore: 0,
     currentStreak: 0,
+    ...(isMultiplayer
+      ? {
+          players: [
+            {
+              userId: user.id,
+              username: user.username,
+              displayName: user.display_name,
+              avatarUrl: user.avatar_url,
+              isHost: true,
+              joinedAt: new Date().toISOString(),
+              totalScore: 0,
+              roundsWon: 0,
+              currentStreak: 0,
+            },
+          ],
+        }
+      : {}),
   };
 
   return successResponse(response, "Game created", 201);

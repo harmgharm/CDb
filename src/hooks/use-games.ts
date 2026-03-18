@@ -12,12 +12,12 @@ import type {
   GuessResultResponse,
   LeaderboardResponse,
 } from "@/types/game-responses";
-// ── Media options for autocomplete ───────────────────────────────
 import type { MediaListResponse } from "@/types/media-responses";
 
 // ── Create Game ──────────────────────────────────────────────────
 
 interface CreateGameParams {
+  readonly mode?: "solo" | "multiplayer";
   readonly difficulty: "normal" | "hard";
   readonly roundCount: number;
 }
@@ -154,4 +154,99 @@ export function useLeaderboard(page = 1, limit = 20) {
 
 export function useGameMediaOptions() {
   return useSWR<MediaListResponse>("/api/media?limit=100");
+}
+
+// ── Join Game ────────────────────────────────────────────────────
+
+export function useJoinGame() {
+  const [isJoining, setIsJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const joinGame = useCallback(async (gameId: string): Promise<boolean> => {
+    setIsJoining(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth(`/api/games/${gameId}/join`, {
+        method: "POST",
+      });
+      const json = (await response.json()) as ApiResponse<{ joined: boolean }>;
+      if (json.error !== null) {
+        setError(json.error);
+        return false;
+      }
+      return true;
+    } catch {
+      setError("Failed to join game");
+      return false;
+    } finally {
+      setIsJoining(false);
+    }
+  }, []);
+
+  return { joinGame, isJoining, error };
+}
+
+// ── Start Game ───────────────────────────────────────────────────
+
+export function useStartGame() {
+  const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startGame = useCallback(async (gameId: string): Promise<GameSessionResponse | null> => {
+    setIsStarting(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth(`/api/games/${gameId}/start`, {
+        method: "POST",
+      });
+      const json = (await response.json()) as ApiResponse<GameSessionResponse>;
+      if (json.error !== null) {
+        setError(json.error);
+        return null;
+      }
+      return json.data;
+    } catch {
+      setError("Failed to start game");
+      return null;
+    } finally {
+      setIsStarting(false);
+    }
+  }, []);
+
+  return { startGame, isStarting, error };
+}
+
+// ── Invite Players ───────────────────────────────────────────────
+
+export function useInvitePlayers() {
+  const [isInviting, setIsInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const invitePlayers = useCallback(
+    async (gameId: string, userIds: string[]): Promise<number | null> => {
+      setIsInviting(true);
+      setError(null);
+      try {
+        const response = await fetchWithAuth(`/api/games/${gameId}/invite`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userIds }),
+        });
+        const json = (await response.json()) as ApiResponse<{ invited: number }>;
+        if (json.error !== null) {
+          setError(json.error);
+          return null;
+        }
+        return json.data.invited;
+      } catch {
+        setError("Failed to invite players");
+        return null;
+      } finally {
+        setIsInviting(false);
+      }
+    },
+    [],
+  );
+
+  return { invitePlayers, isInviting, error };
 }

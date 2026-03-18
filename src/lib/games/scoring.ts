@@ -13,6 +13,12 @@ const MIN_SCORE = 100;
 const SCORE_RANGE = MAX_SCORE - MIN_SCORE;
 const STREAK_BONUS_PER_ROUND = 50;
 
+/** Bonus awarded to the first correct guesser in a multiplayer round */
+export const FIRST_CORRECT_BONUS = 200;
+
+/** Grace period (ms) after first correct guess before auto-advancing */
+export const COUNTDOWN_DURATION_MS = 5000;
+
 /**
  * Calculate score for a correct guess based on response time.
  * Returns 0 for times beyond the window.

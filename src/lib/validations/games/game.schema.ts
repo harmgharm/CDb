@@ -5,6 +5,7 @@
 import { z } from "zod";
 
 export const createGameSchema = z.object({
+  mode: z.enum(["solo", "multiplayer"]).default("solo"),
   difficulty: z.enum(["normal", "hard"]),
   roundCount: z.coerce.number().int().min(1).max(20).default(5),
 });
@@ -26,3 +27,9 @@ export const leaderboardQuerySchema = z.object({
 });
 
 export type LeaderboardQueryInput = z.infer<typeof leaderboardQuerySchema>;
+
+export const invitePlayersSchema = z.object({
+  userIds: z.array(z.uuid("Invalid user ID")).min(1).max(9),
+});
+
+export type InvitePlayersInput = z.infer<typeof invitePlayersSchema>;

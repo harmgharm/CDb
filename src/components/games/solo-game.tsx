@@ -15,6 +15,13 @@ import { getRoundStartTime, PosterReveal } from "@/components/games/poster-revea
 import { RoundResult } from "@/components/games/round-result";
 import { Button } from "@/components/ui/button";
 import { useGameState, useNextRound, useSubmitGuess } from "@/hooks/use-games";
+import {
+  playCorrectSound,
+  playGameEndSound,
+  playRoundStartSound,
+  playSkipSound,
+  playWrongSound,
+} from "@/lib/games/sounds";
 import type { GuessResultResponse } from "@/types/game-responses";
 import type { MediaListItem } from "@/types/media-responses";
 
@@ -63,6 +70,11 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
         // API failed — reset guard so user can retry
         submittedRef.current = false;
       } else {
+        if (result.isCorrect) {
+          playCorrectSound();
+        } else {
+          playWrongSound();
+        }
         setRoundResult(result);
         setRoundPhase("result");
       }
@@ -99,6 +111,7 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
   }, [currentRound, game, gameId, startTimeForRound, submitGuess]);
 
   const handleTimeExpired = useCallback(() => {
+    playSkipSound();
     void handleSkip();
   }, [handleSkip]);
 
@@ -109,10 +122,12 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
     if (result.finished) {
       // Refresh game data to get final state
       await mutate();
+      playGameEndSound();
       setRoundPhase("finished");
     } else {
       // Reset for next round
       await mutate();
+      playRoundStartSound();
       setRoundResult(null);
       setStartTimeForRound(getRoundStartTime());
       submittedRef.current = false;

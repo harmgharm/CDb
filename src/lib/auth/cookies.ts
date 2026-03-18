@@ -15,7 +15,7 @@ const IS_PRODUCTION = env.NODE_ENV === "production";
 const ACCESS_TOKEN_NAME = "access_token";
 const REFRESH_TOKEN_NAME = "refresh_token";
 
-const ACCESS_TOKEN_MAX_AGE = 15 * 60; // 15 minutes
+const ACCESS_TOKEN_MAX_AGE = 60 * 60; // 1 hour
 const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
 
 export function setAuthCookies(

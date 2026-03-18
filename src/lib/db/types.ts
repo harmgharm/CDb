@@ -19,11 +19,13 @@ export type NotificationType =
   | "session.rate_pending"
   | "session.created"
   | "rating.submitted"
-  | "watchlist.friend_watched";
+  | "watchlist.friend_watched"
+  | "game.invited";
 
 export type GameMode = "solo" | "multiplayer";
 export type GameDifficulty = "normal" | "hard";
 export type GameStatus = "lobby" | "active" | "finished";
+export type GameType = "poster_reveal";
 
 export type AuditAction =
   | "user.created"
@@ -58,7 +60,9 @@ export type AuditAction =
   | "game.created"
   | "game.started"
   | "game.finished"
-  | "game.round_won";
+  | "game.round_won"
+  | "game.joined"
+  | "game.invited";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -332,6 +336,7 @@ export type NotificationUpdate = Updateable<NotificationsTable>;
 
 export interface GameSessionsTable {
   id: Generated<string>;
+  game_type: Generated<GameType>;
   mode: GameMode;
   difficulty: GameDifficulty;
   status: Generated<GameStatus>;
@@ -360,6 +365,7 @@ export interface GameRoundsTable {
   title: string;
   started_at: Date | null;
   ended_at: Date | null;
+  first_correct_at: Date | null;
   created_at: Generated<Date>;
 }
 
@@ -403,6 +409,19 @@ export type NewGameLeaderboardEntry = Insertable<GameLeaderboardTable>;
 export type GameLeaderboardUpdate = Updateable<GameLeaderboardTable>;
 
 // ============================================
+
+export interface GamePlayersTable {
+  id: Generated<string>;
+  game_id: string;
+  user_id: string;
+  is_host: Generated<boolean>;
+  joined_at: Generated<Date>;
+}
+
+export type GamePlayer = Selectable<GamePlayersTable>;
+export type NewGamePlayer = Insertable<GamePlayersTable>;
+
+// ============================================
 // DATABASE INTERFACE
 // ============================================
 
@@ -425,4 +444,5 @@ export interface Database {
   game_rounds: GameRoundsTable;
   game_guesses: GameGuessesTable;
   game_leaderboard: GameLeaderboardTable;
+  game_players: GamePlayersTable;
 }

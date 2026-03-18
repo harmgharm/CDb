@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserGameStats } from "@/components/users/game-stats";
 import { RatingDistribution } from "@/components/users/rating-distribution";
 import { RecentPicks } from "@/components/users/recent-picks";
 import { UserDetailedStats } from "@/components/users/user-detailed-stats";
@@ -212,6 +213,9 @@ export default function UserProfilePage() {
 
       {/* Detailed stats (categorized sections) */}
       <UserDetailedStats userId={params.id} />
+
+      {/* Game stats */}
+      <UserGameStats userId={params.id} />
 
       {/* Recent picks */}
       {statsLoading ? (

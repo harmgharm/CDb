@@ -44,10 +44,16 @@ export async function middleware(req: NextRequest) {
   }
 
   // Unauthenticated user on protected route → redirect to login
+  // If a refresh token cookie exists, let the request through — the
+  // client-side fetchWithAuth will refresh the access token automatically.
+  // Only hard-redirect when there is truly no session to recover.
   if (!isPublicRoute && !session) {
-    const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    const hasRefreshToken = req.cookies.has("refresh_token");
+    if (!hasRefreshToken) {
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   // Authenticated user on auth pages → redirect to home

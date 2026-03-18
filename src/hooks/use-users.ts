@@ -5,7 +5,12 @@
 import useSWR from "swr";
 
 import type { UserDetailedStatsResponse } from "@/types/detailed-stats";
-import type { UserDetailedStats, UserListItem, UserProfile } from "@/types/user-responses";
+import type {
+  UserDetailedStats,
+  UserGameStatsResponse,
+  UserListItem,
+  UserProfile,
+} from "@/types/user-responses";
 
 export function useUserList() {
   return useSWR<UserListItem[]>("/api/users");
@@ -21,4 +26,8 @@ export function useUserStats(id: string | null) {
 
 export function useUserDetailedStats(id: string | null) {
   return useSWR<UserDetailedStatsResponse>(id === null ? null : `/api/users/${id}/stats/detailed`);
+}
+
+export function useUserGameStats(id: string | null) {
+  return useSWR<UserGameStatsResponse>(id === null ? null : `/api/users/${id}/games/stats`);
 }
