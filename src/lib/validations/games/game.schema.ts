@@ -24,6 +24,7 @@ export type SubmitGuessInput = z.infer<typeof submitGuessSchema>;
 export const leaderboardQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  category: z.enum(["normal_ranked", "hard_ranked"]).default("normal_ranked"),
 });
 
 export type LeaderboardQueryInput = z.infer<typeof leaderboardQuerySchema>;

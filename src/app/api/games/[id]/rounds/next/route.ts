@@ -13,6 +13,7 @@ import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { updateLeaderboard } from "@/lib/games/leaderboard";
+import { toLeaderboardCategory } from "@/lib/games/ranked-presets";
 import { COUNTDOWN_DURATION_MS } from "@/lib/games/scoring";
 import { publishToGame } from "@/lib/notifications/ably";
 import type { GameEndedEvent, RoundEndedEvent, RoundStartedEvent } from "@/types/game-responses";
@@ -177,11 +178,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // Game finished — update leaderboard
+  let isNewPersonalBest = false;
   if (isLastRound) {
-    void handleGameFinished(gameId, user.id, isMultiplayer);
+    if (isMultiplayer) {
+      void handleGameFinished(session, isMultiplayer);
+    } else {
+      isNewPersonalBest = await handleGameFinished(session, isMultiplayer);
+    }
   }
 
-  return successResponse({ advanced: !isLastRound, finished: isLastRound });
+  return successResponse({ advanced: !isLastRound, finished: isLastRound, isNewPersonalBest });
 }
 
 interface RoundEventOptions {
@@ -266,23 +272,27 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
 }
 
 /**
- * Handle post-game leaderboard update and audit log (fire-and-forget).
+ * Handle post-game leaderboard update and audit log.
+ * Returns whether a new personal best was achieved (solo only).
  */
 async function handleGameFinished(
-  gameId: string,
-  userId: string,
+  session: { id: string; created_by_user_id: string; difficulty: string; is_ranked: boolean },
   isMultiplayer: boolean,
-): Promise<void> {
+): Promise<boolean> {
+  let isNewPersonalBest = false;
+
   try {
-    await (isMultiplayer
-      ? updateMultiplayerLeaderboard(gameId)
-      : updateSoloLeaderboard(gameId, userId));
+    if (isMultiplayer) {
+      await updateMultiplayerLeaderboard(session);
+    } else {
+      isNewPersonalBest = await updateSoloLeaderboard(session);
+    }
 
     await logAudit({
-      userId,
+      userId: session.created_by_user_id,
       action: "game.finished",
       entityType: "game_session",
-      entityId: gameId,
+      entityId: session.id,
     });
   } catch (error: unknown) {
     console.error("Failed to update leaderboard:", error);
@@ -290,19 +300,28 @@ async function handleGameFinished(
 
   if (isMultiplayer) {
     try {
-      const standings = await computeFinalStandings(gameId);
+      const standings = await computeFinalStandings(session.id);
       const gameEndedEvent: GameEndedEvent = { finalStandings: standings };
-      publishToGame(gameId, "game-ended", gameEndedEvent);
+      publishToGame(session.id, "game-ended", gameEndedEvent);
     } catch (error: unknown) {
       console.error("Failed to publish game-ended:", error);
     }
   }
+
+  return isNewPersonalBest;
 }
 
 /**
- * Update leaderboard for a solo game (original logic).
+ * Update leaderboard for a solo game. Returns true if new personal best.
  */
-async function updateSoloLeaderboard(gameId: string, userId: string): Promise<void> {
+async function updateSoloLeaderboard(session: {
+  id: string;
+  created_by_user_id: string;
+  difficulty: string;
+  is_ranked: boolean;
+}): Promise<boolean> {
+  if (!session.is_ranked) return false;
+
   const guesses = await db
     .selectFrom("game_guesses")
     .innerJoin("game_rounds", "game_rounds.id", "game_guesses.round_id")
@@ -311,8 +330,8 @@ async function updateSoloLeaderboard(gameId: string, userId: string): Promise<vo
       "game_guesses.score_awarded",
       "game_guesses.time_from_start_ms",
     ])
-    .where("game_rounds.game_id", "=", gameId)
-    .where("game_guesses.user_id", "=", userId)
+    .where("game_rounds.game_id", "=", session.id)
+    .where("game_guesses.user_id", "=", session.created_by_user_id)
     .execute();
 
   let totalScore = 0;
@@ -336,9 +355,12 @@ async function updateSoloLeaderboard(gameId: string, userId: string): Promise<vo
   }
 
   const avgGuessTimeMs = correctCount > 0 ? Math.round(totalCorrectTime / correctCount) : 0;
+  const category = toLeaderboardCategory(session.difficulty as "normal" | "hard");
 
-  await updateLeaderboard({
-    userId,
+  return updateLeaderboard({
+    userId: session.created_by_user_id,
+    gameId: session.id,
+    category,
     roundsWon,
     totalScore,
     bestStreak,
@@ -350,11 +372,19 @@ async function updateSoloLeaderboard(gameId: string, userId: string): Promise<vo
 /**
  * Update leaderboard for all players in a multiplayer game.
  */
-async function updateMultiplayerLeaderboard(gameId: string): Promise<void> {
+async function updateMultiplayerLeaderboard(session: {
+  id: string;
+  difficulty: string;
+  is_ranked: boolean;
+}): Promise<void> {
+  if (!session.is_ranked) return;
+
+  const category = toLeaderboardCategory(session.difficulty as "normal" | "hard");
+
   const players = await db
     .selectFrom("game_players")
     .select("user_id")
-    .where("game_id", "=", gameId)
+    .where("game_id", "=", session.id)
     .execute();
 
   // Compute per-player stats
@@ -368,7 +398,7 @@ async function updateMultiplayerLeaderboard(gameId: string): Promise<void> {
           "game_guesses.score_awarded",
           "game_guesses.time_from_start_ms",
         ])
-        .where("game_rounds.game_id", "=", gameId)
+        .where("game_rounds.game_id", "=", session.id)
         .where("game_guesses.user_id", "=", player.user_id)
         .orderBy("game_rounds.round_number", "asc")
         .execute();
@@ -410,6 +440,8 @@ async function updateMultiplayerLeaderboard(gameId: string): Promise<void> {
     playerStats.map(async (stats) =>
       updateLeaderboard({
         userId: stats.userId,
+        gameId: session.id,
+        category,
         roundsWon: stats.roundsWon,
         totalScore: stats.totalScore,
         bestStreak: stats.bestStreak,

@@ -40,6 +40,7 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
 
   const [roundPhase, setRoundPhase] = useState<RoundPhase>("guessing");
   const [roundResult, setRoundResult] = useState<GuessResultResponse | null>(null);
+  const [isNewPersonalBest, setIsNewPersonalBest] = useState(false);
   const [roundStartTime] = useState(getRoundStartTime);
   const [startTimeForRound, setStartTimeForRound] = useState(roundStartTime);
   // Guard against double-submission (guess + time-expired race)
@@ -123,6 +124,7 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
       // Refresh game data to get final state
       await mutate();
       playGameEndSound();
+      setIsNewPersonalBest(result.isNewPersonalBest);
       setRoundPhase("finished");
     } else {
       // Reset for next round
@@ -145,7 +147,9 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
 
   // Game finished — show final results
   if (roundPhase === "finished" || game.status === "finished") {
-    return <GameResult game={game} onPlayAgain={onPlayAgain} />;
+    return (
+      <GameResult game={game} onPlayAgain={onPlayAgain} isNewPersonalBest={isNewPersonalBest} />
+    );
   }
 
   // Between rounds — show result

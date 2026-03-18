@@ -9,6 +9,7 @@ import { logAudit, requireAuth } from "@/lib/auth";
 import { withTransaction } from "@/lib/db/transaction";
 import type { GameRound } from "@/lib/db/types";
 import { buildMediaPool } from "@/lib/games/media-pool";
+import { isRankedGame } from "@/lib/games/ranked-presets";
 import { createGameSchema } from "@/lib/validations/games";
 import type { GameRoundResponse, GameSessionResponse, MediaPoolItem } from "@/types/game-responses";
 
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
 
   const { mode, difficulty, roundCount } = parsed.data;
   const isMultiplayer = mode === "multiplayer";
+  const ranked = isRankedGame(difficulty, roundCount);
 
   // Solo: build media pool now. Multiplayer: defer to /start
   let pool: MediaPoolItem[] | undefined;
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
         round_count: roundCount,
         current_round: 0,
         created_by_user_id: user.id,
+        is_ranked: ranked,
         started_at: isMultiplayer ? null : now,
       })
       .returningAll()
@@ -118,6 +121,7 @@ export async function POST(req: NextRequest) {
     roundCount: result.session.round_count,
     currentRound: result.session.current_round,
     createdByUserId: result.session.created_by_user_id,
+    isRanked: result.session.is_ranked,
     startedAt: result.session.started_at?.toISOString() ?? null,
     finishedAt: result.session.finished_at?.toISOString() ?? null,
     createdAt: result.session.created_at.toISOString(),

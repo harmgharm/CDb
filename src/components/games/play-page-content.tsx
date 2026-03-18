@@ -6,13 +6,14 @@
  * State machine: idle → playing → (game handles its own result state)
  */
 
-import { Gamepad2Icon, UsersIcon } from "lucide-react";
+import { Gamepad2Icon, ShieldCheckIcon, ShieldOffIcon, UsersIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { GameLeaderboard } from "@/components/games/game-leaderboard";
 import { SoloGame } from "@/components/games/solo-game";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -24,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCreateGame, useGameMediaOptions } from "@/hooks/use-games";
+import type { GameDifficulty } from "@/lib/db/types";
+import { isRankedGame } from "@/lib/games/ranked-presets";
 import type { GameSessionResponse } from "@/types/game-responses";
 
 type PageState = "idle" | "playing";
@@ -32,10 +35,15 @@ export function PlayPageContent() {
   const router = useRouter();
   const [pageState, setPageState] = useState<PageState>("idle");
   const [activeGame, setActiveGame] = useState<GameSessionResponse | null>(null);
-  const [difficulty, setDifficulty] = useState<"normal" | "hard">("normal");
+  const [difficulty, setDifficulty] = useState<GameDifficulty>("normal");
   const [roundCount, setRoundCount] = useState("5");
   const { createGame, isCreating, error } = useCreateGame();
   const { data: mediaData } = useGameMediaOptions();
+
+  const ranked = useMemo(
+    () => isRankedGame(difficulty, Number(roundCount)),
+    [difficulty, roundCount],
+  );
 
   const handleStartSolo = useCallback(async () => {
     const game = await createGame({
@@ -109,7 +117,7 @@ export function PlayPageContent() {
                 <Select
                   value={difficulty}
                   onValueChange={(value) => {
-                    setDifficulty(value as "normal" | "hard");
+                    setDifficulty(value as GameDifficulty);
                   }}
                 >
                   <SelectTrigger>
@@ -143,6 +151,9 @@ export function PlayPageContent() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Ranked indicator */}
+              <RankedIndicator ranked={ranked} />
 
               {/* Mode tabs */}
               <Tabs defaultValue="solo" className="w-full">
@@ -195,5 +206,37 @@ export function PlayPageContent() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+function RankedIndicator({ ranked }: Readonly<{ ranked: boolean }>) {
+  return (
+    <motion.div
+      key={ranked ? "ranked" : "unranked"}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="flex items-center gap-2"
+    >
+      {ranked ? (
+        <>
+          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+            <ShieldCheckIcon className="mr-1 size-3" />
+            Ranked
+          </Badge>
+          <span className="text-muted-foreground text-xs">Score counts toward the leaderboard</span>
+        </>
+      ) : (
+        <>
+          <Badge variant="secondary">
+            <ShieldOffIcon className="mr-1 size-3" />
+            Unranked
+          </Badge>
+          <span className="text-muted-foreground text-xs">
+            Custom settings — scores won&apos;t appear on the leaderboard
+          </span>
+        </>
+      )}
+    </motion.div>
   );
 }

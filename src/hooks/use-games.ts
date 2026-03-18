@@ -114,6 +114,7 @@ export function useSubmitGuess() {
 interface NextRoundResult {
   readonly advanced: boolean;
   readonly finished: boolean;
+  readonly isNewPersonalBest: boolean;
 }
 
 export function useNextRound() {
@@ -146,9 +147,13 @@ export function useNextRound() {
 
 // ── Leaderboard ──────────────────────────────────────────────────
 
-export function useLeaderboard(page = 1, limit = 20) {
+export function useLeaderboard(
+  category: "normal_ranked" | "hard_ranked" = "normal_ranked",
+  page = 1,
+  limit = 20,
+) {
   return useSWR<LeaderboardResponse>(
-    `/api/games/leaderboard?page=${String(page)}&limit=${String(limit)}`,
+    `/api/games/leaderboard?category=${category}&page=${String(page)}&limit=${String(limit)}`,
   );
 }
 

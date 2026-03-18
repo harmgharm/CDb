@@ -205,6 +205,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     roundCount: session.round_count,
     currentRound: session.current_round,
     createdByUserId: session.created_by_user_id,
+    isRanked: session.is_ranked,
     startedAt: session.started_at?.toISOString() ?? null,
     finishedAt: session.finished_at?.toISOString() ?? null,
     createdAt: session.created_at.toISOString(),

@@ -343,6 +343,7 @@ export interface GameSessionsTable {
   round_count: Generated<number>;
   current_round: Generated<number>;
   created_by_user_id: string;
+  is_ranked: Generated<boolean>;
   started_at: Date | null;
   finished_at: Date | null;
   created_at: Generated<Date>;
@@ -392,13 +393,17 @@ export type NewGameGuess = Insertable<GameGuessesTable>;
 
 // ============================================
 
+export type LeaderboardCategory = "normal_ranked" | "hard_ranked";
+
 export interface GameLeaderboardTable {
   id: Generated<string>;
   user_id: string;
+  category: Generated<LeaderboardCategory>;
+  best_score: Generated<number>;
+  best_score_game_id: string | null;
   games_played: Generated<number>;
   games_won: Generated<number>;
   rounds_won: Generated<number>;
-  total_score: Generated<number>;
   best_streak: Generated<number>;
   avg_guess_time_ms: Generated<number>;
   updated_at: Generated<Date>;

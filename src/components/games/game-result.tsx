@@ -4,9 +4,18 @@
  * GameResult — End-of-game summary with scores and round breakdown
  */
 
-import { ClockIcon, FlameIcon, TargetIcon, TrophyIcon } from "lucide-react";
+import {
+  ClockIcon,
+  FlameIcon,
+  ShieldCheckIcon,
+  ShieldOffIcon,
+  SparklesIcon,
+  TargetIcon,
+  TrophyIcon,
+} from "lucide-react";
 import * as motion from "motion/react-client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { GameSessionResponse } from "@/types/game-responses";
@@ -14,9 +23,10 @@ import type { GameSessionResponse } from "@/types/game-responses";
 interface GameResultProps {
   readonly game: GameSessionResponse;
   readonly onPlayAgain: () => void;
+  readonly isNewPersonalBest?: boolean;
 }
 
-export function GameResult({ game, onPlayAgain }: GameResultProps) {
+export function GameResult({ game, onPlayAgain, isNewPersonalBest = false }: GameResultProps) {
   // Aggregate stats from round guesses
   let correctCount = 0;
   let bestStreak = 0;
@@ -45,7 +55,7 @@ export function GameResult({ game, onPlayAgain }: GameResultProps) {
   const statCards = [
     {
       icon: TrophyIcon,
-      label: "Total Score",
+      label: "Score",
       value: String(game.totalScore),
       color: "text-yellow-500",
     },
@@ -76,7 +86,35 @@ export function GameResult({ game, onPlayAgain }: GameResultProps) {
       transition={{ duration: 0.5, ease: "easeOut" as const }}
       className="flex flex-col items-center gap-8"
     >
-      <h1 className="text-3xl font-bold">Game Over</h1>
+      <div className="flex flex-col items-center gap-2">
+        <h1 className="text-3xl font-bold">Game Over</h1>
+        {/* Ranked / Unranked badge */}
+        {game.isRanked ? (
+          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+            <ShieldCheckIcon className="mr-1 size-3" />
+            Ranked
+          </Badge>
+        ) : (
+          <Badge variant="secondary">
+            <ShieldOffIcon className="mr-1 size-3" />
+            Unranked
+          </Badge>
+        )}
+      </div>
+
+      {/* New personal best celebration */}
+      {isNewPersonalBest && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" as const }}
+          className="flex items-center gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-4 py-2"
+        >
+          <SparklesIcon className="size-5 text-yellow-500" />
+          <span className="text-sm font-semibold text-yellow-500">New Personal Best!</span>
+          <SparklesIcon className="size-5 text-yellow-500" />
+        </motion.div>
+      )}
 
       {/* Stat cards */}
       <div className="grid w-full max-w-lg grid-cols-2 gap-4">

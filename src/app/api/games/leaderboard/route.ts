@@ -1,5 +1,5 @@
 /**
- * GET /api/games/leaderboard — Paginated leaderboard sorted by total score
+ * GET /api/games/leaderboard — Paginated leaderboard sorted by best score per category
  */
 
 import type { NextRequest } from "next/server";
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     return errorResponse("Invalid query parameters", 400);
   }
 
-  const { page, limit } = parsed.data;
-  const result = await getLeaderboard(page, limit);
+  const { page, limit, category } = parsed.data;
+  const result = await getLeaderboard(page, limit, category);
 
   const entries: LeaderboardEntryResponse[] = result.entries.map((entry, index) => ({
     rank: (page - 1) * limit + index + 1,
@@ -31,7 +31,8 @@ export async function GET(req: NextRequest) {
     gamesPlayed: entry.gamesPlayed,
     gamesWon: entry.gamesWon,
     roundsWon: entry.roundsWon,
-    totalScore: entry.totalScore,
+    bestScore: entry.bestScore,
+    bestScoreGameId: entry.bestScoreGameId,
     bestStreak: entry.bestStreak,
     avgGuessTimeMs: entry.avgGuessTimeMs,
   }));
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
     total: result.total,
     page,
     limit,
+    category,
   };
 
   return successResponse(response);

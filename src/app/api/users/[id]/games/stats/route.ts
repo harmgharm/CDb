@@ -1,7 +1,7 @@
 /**
  * GET /api/users/[id]/games/stats — Game performance stats for a user profile
  *
- * Returns leaderboard stats + recent game history.
+ * Returns per-category best scores, global ranks, and recent game history.
  */
 
 import type { NextRequest } from "next/server";
@@ -26,21 +26,66 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return errorResponse("User not found", 404);
   }
 
-  // Get leaderboard entry
-  const leaderboard = await db
+  // Get leaderboard entries for both categories
+  const leaderboardEntries = await db
     .selectFrom("game_leaderboard")
     .select([
+      "category",
+      "best_score",
       "games_played",
       "games_won",
       "rounds_won",
-      "total_score",
       "best_streak",
       "avg_guess_time_ms",
     ])
     .where("user_id", "=", userId)
-    .executeTakeFirst();
+    .execute();
 
-  // Get recent finished games this user participated in (via game_players or solo created_by)
+  const normalEntry = leaderboardEntries.find((entry) => entry.category === "normal_ranked");
+  const hardEntry = leaderboardEntries.find((entry) => entry.category === "hard_ranked");
+
+  // Aggregate stats across categories
+  const gamesPlayed = (normalEntry?.games_played ?? 0) + (hardEntry?.games_played ?? 0);
+  const gamesWon = (normalEntry?.games_won ?? 0) + (hardEntry?.games_won ?? 0);
+  const roundsWon = (normalEntry?.rounds_won ?? 0) + (hardEntry?.rounds_won ?? 0);
+  const bestStreak = Math.max(normalEntry?.best_streak ?? 0, hardEntry?.best_streak ?? 0);
+
+  // Weighted average guess time across categories
+  let avgGuessTimeMs = 0;
+  if (gamesPlayed > 0) {
+    const normalWeight = normalEntry?.games_played ?? 0;
+    const hardWeight = hardEntry?.games_played ?? 0;
+    avgGuessTimeMs = Math.round(
+      ((normalEntry?.avg_guess_time_ms ?? 0) * normalWeight +
+        (hardEntry?.avg_guess_time_ms ?? 0) * hardWeight) /
+        gamesPlayed,
+    );
+  }
+
+  // Compute global ranks per category
+  let globalRankNormal: number | null = null;
+  if (normalEntry !== undefined) {
+    const rankResult = await db
+      .selectFrom("game_leaderboard")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("category", "=", "normal_ranked")
+      .where("best_score", ">", normalEntry.best_score)
+      .executeTakeFirstOrThrow();
+    globalRankNormal = rankResult.count + 1;
+  }
+
+  let globalRankHard: number | null = null;
+  if (hardEntry !== undefined) {
+    const rankResult = await db
+      .selectFrom("game_leaderboard")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("category", "=", "hard_ranked")
+      .where("best_score", ">", hardEntry.best_score)
+      .executeTakeFirstOrThrow();
+    globalRankHard = rankResult.count + 1;
+  }
+
+  // Get recent finished games this user participated in
   const recentGames = await db
     .selectFrom("game_sessions")
     .leftJoin("game_players", (join) =>
@@ -54,6 +99,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       "game_sessions.difficulty",
       "game_sessions.round_count",
       "game_sessions.finished_at",
+      "game_sessions.is_ranked",
     ])
     .where("game_sessions.status", "=", "finished")
     .where((eb) =>
@@ -108,30 +154,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         totalScore,
         correctCount,
         isWinner,
+        isRanked: game.is_ranked,
       };
     }),
   );
 
-  // Compute global rank
-  let globalRank: number | null = null;
-  if (leaderboard !== undefined) {
-    const rankResult = await db
-      .selectFrom("game_leaderboard")
-      .select(({ fn }) => fn.countAll<number>().as("count"))
-      .where("total_score", ">", leaderboard.total_score)
-      .executeTakeFirstOrThrow();
-
-    globalRank = rankResult.count + 1;
-  }
-
   const response: UserGameStatsResponse = {
-    gamesPlayed: leaderboard?.games_played ?? 0,
-    gamesWon: leaderboard?.games_won ?? 0,
-    roundsWon: leaderboard?.rounds_won ?? 0,
-    totalScore: leaderboard?.total_score ?? 0,
-    bestStreak: leaderboard?.best_streak ?? 0,
-    avgGuessTimeMs: leaderboard?.avg_guess_time_ms ?? 0,
-    globalRank,
+    gamesPlayed,
+    gamesWon,
+    roundsWon,
+    bestScoreNormal: normalEntry?.best_score ?? null,
+    bestScoreHard: hardEntry?.best_score ?? null,
+    bestStreak,
+    avgGuessTimeMs,
+    globalRankNormal,
+    globalRankHard,
     recentGames: recentGamesWithStats,
   };
 

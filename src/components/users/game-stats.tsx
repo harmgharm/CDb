@@ -10,6 +10,7 @@ import {
   FlameIcon,
   Gamepad2Icon,
   HashIcon,
+  ShieldCheckIcon,
   TargetIcon,
   TimerIcon,
   TrophyIcon,
@@ -101,6 +102,12 @@ function RecentGameRow({ game, index }: Readonly<{ game: UserRecentGame; index: 
             <Badge variant="outline" className="text-[10px]">
               {DIFFICULTY_LABELS[game.difficulty]}
             </Badge>
+            {game.isRanked && (
+              <Badge className="border-emerald-500/25 bg-emerald-500/15 text-[10px] text-emerald-500 hover:bg-emerald-500/15">
+                <ShieldCheckIcon className="mr-0.5 size-2.5" />
+                Ranked
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground text-xs">
             {String(game.correctCount)}/{String(game.roundCount)} correct ({String(accuracy)}%)
@@ -157,17 +164,29 @@ export function UserGameStats({ userId }: UserGameStatsProps) {
           index={2}
         />
         <HeroStat
-          label="Total Score"
-          value={stats.totalScore}
-          icon={<ZapIcon className="size-5" />}
-          color="bg-blue-500/15 text-blue-500"
+          label="Avg Guess Time"
+          value={formatGuessTime(stats.avgGuessTimeMs)}
+          icon={<TimerIcon className="size-5" />}
+          color="bg-cyan-500/15 text-cyan-500"
           index={3}
         />
       </div>
 
-      {/* Additional stats in collapsible section */}
+      {/* Best scores + ranks */}
+      <StatsSection title="Ranked Best Scores" icon={<ZapIcon className="size-4" />}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <BestScoreCard
+            label="Normal"
+            score={stats.bestScoreNormal}
+            rank={stats.globalRankNormal}
+          />
+          <BestScoreCard label="Hard" score={stats.bestScoreHard} rank={stats.globalRankHard} />
+        </div>
+      </StatsSection>
+
+      {/* Additional stats */}
       <StatsSection title="Game Details" icon={<TargetIcon className="size-4" />}>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15">
               <TargetIcon className="size-4 text-emerald-500" />
@@ -178,23 +197,12 @@ export function UserGameStats({ userId }: UserGameStatsProps) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-cyan-500/15">
-              <TimerIcon className="size-4 text-cyan-500" />
+            <div className="flex size-9 items-center justify-center rounded-lg bg-violet-500/15">
+              <Gamepad2Icon className="size-4 text-violet-500" />
             </div>
             <div>
-              <p className="text-muted-foreground text-xs">Avg Guess Time</p>
-              <p className="text-lg font-bold">{formatGuessTime(stats.avgGuessTimeMs)}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-pink-500/15">
-              <HashIcon className="size-4 text-pink-500" />
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">Global Rank</p>
-              <p className="text-lg font-bold">
-                {stats.globalRank === null ? "—" : `#${String(stats.globalRank)}`}
-              </p>
+              <p className="text-muted-foreground text-xs">Games Won</p>
+              <p className="text-lg font-bold">{String(stats.gamesWon)}</p>
             </div>
           </div>
         </div>
@@ -210,6 +218,33 @@ export function UserGameStats({ userId }: UserGameStatsProps) {
           </div>
         </StatsSection>
       )}
+    </div>
+  );
+}
+
+function BestScoreCard({
+  label,
+  score,
+  rank,
+}: Readonly<{ label: string; score: number | null; rank: number | null }>) {
+  return (
+    <div className="bg-card flex items-center gap-3 rounded-lg border p-3">
+      <div className="flex size-9 items-center justify-center rounded-lg bg-yellow-500/15">
+        <TrophyIcon className="size-4 text-yellow-500" />
+      </div>
+      <div className="flex-1">
+        <p className="text-muted-foreground text-xs">Best ({label})</p>
+        <p className="text-lg font-bold tabular-nums">{score === null ? "—" : String(score)}</p>
+      </div>
+      <div className="text-right">
+        <div className="flex items-center gap-1">
+          <HashIcon className="text-muted-foreground size-3" />
+          <span className="text-sm font-medium tabular-nums">
+            {rank === null ? "—" : String(rank)}
+          </span>
+        </div>
+        <p className="text-muted-foreground text-[10px]">rank</p>
+      </div>
     </div>
   );
 }

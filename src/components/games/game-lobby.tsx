@@ -7,7 +7,16 @@
  */
 
 import { useChannel } from "ably/react";
-import { CheckIcon, ClipboardIcon, Crown, LinkIcon, Loader2Icon, UsersIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ClipboardIcon,
+  Crown,
+  LinkIcon,
+  Loader2Icon,
+  ShieldCheckIcon,
+  ShieldOffIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
@@ -126,6 +135,17 @@ export function GameLobby({
           {String(game.roundCount)} round{game.roundCount === 1 ? "" : "s"}
         </Badge>
         <Badge variant="secondary">{String(players.length)}/10 players</Badge>
+        {game.isRanked ? (
+          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+            <ShieldCheckIcon className="mr-1 size-3" />
+            Ranked
+          </Badge>
+        ) : (
+          <Badge variant="secondary">
+            <ShieldOffIcon className="mr-1 size-3" />
+            Unranked
+          </Badge>
+        )}
       </div>
 
       {/* Player list */}

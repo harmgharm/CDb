@@ -76,6 +76,7 @@ export interface UserRecentGame {
   totalScore: number;
   correctCount: number;
   isWinner: boolean;
+  isRanked: boolean;
 }
 
 /** Game stats from GET /api/users/[id]/games/stats */
@@ -83,9 +84,11 @@ export interface UserGameStatsResponse {
   gamesPlayed: number;
   gamesWon: number;
   roundsWon: number;
-  totalScore: number;
+  bestScoreNormal: number | null;
+  bestScoreHard: number | null;
   bestStreak: number;
   avgGuessTimeMs: number;
-  globalRank: number | null;
+  globalRankNormal: number | null;
+  globalRankHard: number | null;
   recentGames: UserRecentGame[];
 }

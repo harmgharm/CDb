@@ -2,7 +2,14 @@
  * Response types for the Poster Reveal Guessing Game
  */
 
-import type { GameDifficulty, GameMode, GameStatus, GameType, MediaType } from "@/lib/db/types";
+import type {
+  GameDifficulty,
+  GameMode,
+  GameStatus,
+  GameType,
+  LeaderboardCategory,
+  MediaType,
+} from "@/lib/db/types";
 
 // ── Media Pool ───────────────────────────────────────────────────
 
@@ -43,6 +50,7 @@ export interface GameSessionResponse {
   roundCount: number;
   currentRound: number;
   createdByUserId: string;
+  isRanked: boolean;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -52,6 +60,8 @@ export interface GameSessionResponse {
   currentStreak: number;
   /** Only present for multiplayer games */
   players?: GamePlayerResponse[];
+  /** Present on game finish — true if this game set a new personal best for ranked category */
+  isNewPersonalBest?: boolean;
 }
 
 // ── Game Round ───────────────────────────────────────────────────
@@ -114,7 +124,8 @@ export interface LeaderboardEntryResponse {
   gamesPlayed: number;
   gamesWon: number;
   roundsWon: number;
-  totalScore: number;
+  bestScore: number;
+  bestScoreGameId: string | null;
   bestStreak: number;
   avgGuessTimeMs: number;
 }
@@ -124,6 +135,7 @@ export interface LeaderboardResponse {
   total: number;
   page: number;
   limit: number;
+  category: LeaderboardCategory;
 }
 
 // ── Autocomplete ─────────────────────────────────────────────────
