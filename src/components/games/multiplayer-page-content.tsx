@@ -76,6 +76,7 @@ function MultiplayerPageInner({
   const { joinGame, isJoining } = useJoinGame();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const joinAttemptedRef = useRef(false);
+  const [joinAttempted, setJoinAttempted] = useState(false);
 
   const channelName = `game:${gameId}`;
 
@@ -114,28 +115,39 @@ function MultiplayerPageInner({
     [presenceData],
   );
 
-  // Auto-join if user navigates to lobby URL but isn't a player yet
+  // Auto-join if user navigates to lobby URL but isn't a player yet.
+  // This handles two cases:
+  // 1. Game loaded but user isn't in the player list (e.g. shared link, game visible)
+  // 2. GET /api/games/[id] returned 403 because user isn't in game_players yet
   useEffect(() => {
-    if (
-      game === undefined ||
-      user === null ||
-      joinAttemptedRef.current ||
-      game.status !== "lobby"
-    ) {
-      return;
-    }
+    if (user === null || joinAttemptedRef.current) return;
 
-    const isPlayer = game.players?.some((p) => p.userId === user.id) ?? false;
-    if (!isPlayer) {
+    const attemptJoin = () => {
       joinAttemptedRef.current = true;
+      setJoinAttempted(true);
       void (async () => {
         const success = await joinGame(gameId);
         if (success) {
           await mutate();
         }
       })();
+    };
+
+    // Case 1: game loaded successfully but user isn't a player
+    if (game?.status === "lobby") {
+      const isPlayer = game.players?.some((p) => p.userId === user.id) ?? false;
+      if (!isPlayer) {
+        attemptJoin();
+      }
+      return;
     }
-  }, [game, gameId, joinGame, mutate, user]);
+
+    // Case 2: 403 error — user isn't in game_players, so try joining first
+    const errorMessage = gameError instanceof Error ? gameError.message : "";
+    if (errorMessage.includes("not in this game")) {
+      attemptJoin();
+    }
+  }, [game, gameError, gameId, joinGame, mutate, user]);
 
   const handleGameStarted = useCallback(async () => {
     await mutate();
@@ -150,8 +162,20 @@ function MultiplayerPageInner({
     );
   }
 
-  // Error state
+  // Error state — but don't show error while auto-join is being attempted
   if (gameError !== undefined || game === undefined) {
+    const errorMessage = gameError instanceof Error ? gameError.message : "";
+    const isAutoJoinable = errorMessage.includes("not in this game") && !joinAttempted;
+
+    if (isJoining || isAutoJoinable) {
+      return (
+        <div className="flex items-center justify-center gap-2 py-20">
+          <Loader2Icon className="text-muted-foreground size-5 animate-spin" />
+          <span className="text-muted-foreground">Joining game...</span>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-muted-foreground">Game not found or you don&apos;t have access.</p>
