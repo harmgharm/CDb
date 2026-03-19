@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getClientGameConfig } from "@/lib/games/client-config";
 import type { GamePlayerResponse, GameSessionResponse } from "@/types/game-responses";
 
 interface MultiplayerResultProps {
@@ -152,7 +153,7 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
 
       {/* Actions */}
       <div className="flex gap-3">
-        <Link href="/play/poster-reveal">
+        <Link href={getClientGameConfig(game.gameType)?.basePath ?? "/play"}>
           <Button size="lg">Play Again</Button>
         </Link>
         <Link href="/play">
@@ -269,7 +270,9 @@ function RoundBreakdown({
                 #{String(index + 1)}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{round.title ?? "Unknown"}</p>
+                <p className="truncate text-sm font-medium">
+                  {(round.roundData as Record<string, string>).title ?? "Unknown"}
+                </p>
                 {winnerPlayer === undefined ? (
                   <p className="text-muted-foreground text-xs">No correct guesses</p>
                 ) : (

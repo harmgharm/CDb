@@ -12,6 +12,8 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
+import type { GameType } from "@/lib/db/types";
+import { getEngine } from "@/lib/games";
 import { updateLeaderboard } from "@/lib/games/leaderboard";
 import { toLeaderboardCategory } from "@/lib/games/ranked-presets";
 import { COUNTDOWN_DURATION_MS } from "@/lib/games/scoring";
@@ -169,6 +171,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (isMultiplayer) {
     await publishMultiplayerRoundEvents({
       gameId,
+      gameType: session.game_type,
       currentRound,
       currentRoundNumber: session.current_round,
       nextRoundNumber,
@@ -192,7 +195,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
 interface RoundEventOptions {
   gameId: string;
-  currentRound: { id: string; title: string; poster_url: string };
+  gameType: GameType;
+  currentRound: { id: string; round_data: Record<string, unknown> };
   currentRoundNumber: number;
   nextRoundNumber: number;
   isLastRound: boolean;
@@ -203,7 +207,10 @@ interface RoundEventOptions {
  * Publish multiplayer round-ended + round-started Ably events.
  */
 async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promise<void> {
-  const { gameId, currentRound, currentRoundNumber, nextRoundNumber, isLastRound, now } = options;
+  const { gameId, gameType, currentRound, currentRoundNumber, nextRoundNumber, isLastRound, now } =
+    options;
+  const engine = getEngine(gameType);
+  const currentRoundData = currentRound.round_data;
   const roundGuesses = await db
     .selectFrom("game_guesses")
     .innerJoin("users", "users.id", "game_guesses.user_id")
@@ -245,8 +252,7 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
 
   const roundEndedEvent: RoundEndedEvent = {
     roundNumber: currentRoundNumber,
-    correctTitle: currentRound.title,
-    correctPosterUrl: currentRound.poster_url,
+    roundData: engine.buildRoundEndedData(currentRoundData),
     scores,
   };
   publishToGame(gameId, "round-ended", roundEndedEvent);
@@ -264,8 +270,8 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
     const roundStartedEvent: RoundStartedEvent = {
       roundNumber: nextRoundNumber,
       roundId: nextRound.id,
-      posterUrl: nextRound.poster_url,
       startedAt: now.toISOString(),
+      roundData: engine.buildRoundStartedData(nextRound.round_data),
     };
     publishToGame(gameId, "round-started", roundStartedEvent);
   }
@@ -276,7 +282,13 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
  * Returns whether a new personal best was achieved (solo only).
  */
 async function handleGameFinished(
-  session: { id: string; created_by_user_id: string; difficulty: string; is_ranked: boolean },
+  session: {
+    id: string;
+    created_by_user_id: string;
+    difficulty: string;
+    is_ranked: boolean;
+    game_type: GameType;
+  },
   isMultiplayer: boolean,
 ): Promise<boolean> {
   let isNewPersonalBest = false;
@@ -319,6 +331,7 @@ async function updateSoloLeaderboard(session: {
   created_by_user_id: string;
   difficulty: string;
   is_ranked: boolean;
+  game_type: GameType;
 }): Promise<boolean> {
   if (!session.is_ranked) return false;
 
@@ -360,6 +373,7 @@ async function updateSoloLeaderboard(session: {
   return updateLeaderboard({
     userId: session.created_by_user_id,
     gameId: session.id,
+    gameType: session.game_type,
     category,
     roundsWon,
     totalScore,
@@ -376,10 +390,12 @@ async function updateMultiplayerLeaderboard(session: {
   id: string;
   difficulty: string;
   is_ranked: boolean;
+  game_type: GameType;
 }): Promise<void> {
   if (!session.is_ranked) return;
 
   const category = toLeaderboardCategory(session.difficulty as "normal" | "hard");
+  const gameType = session.game_type;
 
   const players = await db
     .selectFrom("game_players")
@@ -441,6 +457,7 @@ async function updateMultiplayerLeaderboard(session: {
       updateLeaderboard({
         userId: stats.userId,
         gameId: session.id,
+        gameType,
         category,
         roundsWon: stats.roundsWon,
         totalScore: stats.totalScore,

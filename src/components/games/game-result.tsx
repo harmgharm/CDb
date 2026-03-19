@@ -24,9 +24,16 @@ interface GameResultProps {
   readonly game: GameSessionResponse;
   readonly onPlayAgain: () => void;
   readonly isNewPersonalBest?: boolean;
+  /** Optional custom renderer for round answers in the breakdown */
+  readonly renderRoundAnswer?: (roundData: Record<string, unknown>) => React.ReactNode;
 }
 
-export function GameResult({ game, onPlayAgain, isNewPersonalBest = false }: GameResultProps) {
+export function GameResult({
+  game,
+  onPlayAgain,
+  isNewPersonalBest = false,
+  renderRoundAnswer,
+}: GameResultProps) {
   // Aggregate stats from round guesses
   let correctCount = 0;
   let bestStreak = 0;
@@ -162,7 +169,11 @@ export function GameResult({ game, onPlayAgain, isNewPersonalBest = false }: Gam
                   #{String(index + 1)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{round.title ?? "Unknown"}</p>
+                  <p className="truncate text-sm font-medium">
+                    {renderRoundAnswer === undefined
+                      ? ((round.roundData as Record<string, string>).title ?? "Unknown")
+                      : renderRoundAnswer(round.roundData)}
+                  </p>
                   {guess !== undefined && (
                     <p className="text-muted-foreground truncate text-xs">
                       Guessed: {guess.guessText}

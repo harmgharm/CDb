@@ -15,17 +15,35 @@ import { toast } from "sonner";
 
 import { GameLobby } from "@/components/games/game-lobby";
 import { InvitePlayersDialog } from "@/components/games/invite-players-dialog";
-import { MultiplayerGame } from "@/components/games/multiplayer-game";
 import { MultiplayerResult } from "@/components/games/multiplayer-result";
+import { MultiplayerGame as PosterRevealMultiplayerGame } from "@/components/games/poster-reveal/multiplayer-game";
+import { MultiplayerGame as RatingGuessMultiplayerGame } from "@/components/games/rating-guess/multiplayer-game";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useGameMediaOptions, useGameState, useJoinGame } from "@/hooks/use-games";
+import type { GameType } from "@/lib/db/types";
+import { getClientGameConfig } from "@/lib/games/client-config";
 import { playPlayerDisconnectedSound } from "@/lib/games/sounds";
+import type { MediaListItem } from "@/types/media-responses";
+
+/** Registry of multiplayer game components by game type */
+const GAME_COMPONENTS: Record<
+  GameType,
+  React.ComponentType<{
+    gameId: string;
+    mediaOptions: MediaListItem[];
+    onlineUserIds: Set<string>;
+  }>
+> = {
+  poster_reveal: PosterRevealMultiplayerGame,
+  rating_guess: RatingGuessMultiplayerGame,
+};
 
 interface MultiplayerPageContentProps {
   readonly gameId: string;
+  readonly gameType: GameType;
 }
 
-export function MultiplayerPageContent({ gameId }: MultiplayerPageContentProps) {
+export function MultiplayerPageContent({ gameId, gameType }: MultiplayerPageContentProps) {
   const { user } = useAuth();
 
   // Don't render Ably hooks until we have auth
@@ -39,12 +57,16 @@ export function MultiplayerPageContent({ gameId }: MultiplayerPageContentProps) 
 
   return (
     <ChannelProvider channelName={`game:${gameId}`}>
-      <MultiplayerPageInner gameId={gameId} />
+      <MultiplayerPageInner gameId={gameId} gameType={gameType} />
     </ChannelProvider>
   );
 }
 
-function MultiplayerPageInner({ gameId }: Readonly<{ gameId: string }>) {
+function MultiplayerPageInner({
+  gameId,
+  gameType,
+}: Readonly<{ gameId: string; gameType: GameType }>) {
+  const gameConfig = getClientGameConfig(gameType);
   const { user } = useAuth();
   const router = useRouter();
   const gameState = useGameState(gameId);
@@ -135,11 +157,11 @@ function MultiplayerPageInner({ gameId }: Readonly<{ gameId: string }>) {
         <p className="text-muted-foreground">Game not found or you don&apos;t have access.</p>
         <button
           onClick={() => {
-            router.push("/play/poster-reveal");
+            router.push(gameConfig?.basePath ?? "/play");
           }}
           className="text-primary text-sm underline"
         >
-          Back to Poster Reveal
+          Back to {gameConfig?.displayName ?? "Games"}
         </button>
       </div>
     );
@@ -161,6 +183,8 @@ function MultiplayerPageInner({ gameId }: Readonly<{ gameId: string }>) {
       <>
         <GameLobby
           game={game}
+          gameDisplayName={gameConfig?.displayName ?? "Game"}
+          gameBasePath={gameConfig?.basePath ?? "/play"}
           onGameStarted={() => {
             void handleGameStarted();
           }}
@@ -179,11 +203,12 @@ function MultiplayerPageInner({ gameId }: Readonly<{ gameId: string }>) {
     );
   }
 
-  // Active game
+  // Active game — delegate to game-type-specific component
   if (game.status === "active") {
+    const GameComponent = GAME_COMPONENTS[gameType];
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
-        <MultiplayerGame
+        <GameComponent
           gameId={gameId}
           mediaOptions={mediaData?.items ?? []}
           onlineUserIds={onlineUserIds}

@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     return errorResponse("Invalid query parameters", 400);
   }
 
-  const { page, limit, category } = parsed.data;
-  const result = await getLeaderboard(page, limit, category);
+  const { gameType, page, limit, category } = parsed.data;
+  const result = await getLeaderboard({ page, limit, category, gameType });
 
   const entries: LeaderboardEntryResponse[] = result.entries.map((entry, index) => ({
     rank: (page - 1) * limit + index + 1,

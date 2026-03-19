@@ -10,8 +10,11 @@ import { SkipForwardIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { GameResult } from "@/components/games/game-result";
-import { GuessInput } from "@/components/games/guess-input";
-import { getRoundStartTime, PosterReveal } from "@/components/games/poster-reveal";
+import { GuessInput } from "@/components/games/poster-reveal/guess-input";
+import {
+  getRoundStartTime,
+  PosterReveal,
+} from "@/components/games/poster-reveal/poster-reveal-visual";
 import { RoundResult } from "@/components/games/round-result";
 import { Button } from "@/components/ui/button";
 import { useGameState, useNextRound, useSubmitGuess } from "@/hooks/use-games";
@@ -97,13 +100,16 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
     });
 
     // Always transition to result — use a fallback if the API call failed
+    const roundData = currentRound.roundData as Record<string, string>;
     const fallbackResult: GuessResultResponse = {
       isCorrect: false,
       scoreAwarded: 0,
       streakBonus: 0,
       currentStreak: 0,
-      correctTitle: currentRound.title ?? "Unknown",
-      correctPosterUrl: currentRound.posterUrl ?? "",
+      resultData: {
+        correctTitle: roundData.title ?? "Unknown",
+        correctPosterUrl: roundData.posterUrl ?? "",
+      },
       roundScore: 0,
     };
 
@@ -172,7 +178,9 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
   }
 
   // Active round — show poster + guess input
-  if (currentRound?.posterUrl == null) {
+  const activePosterUrl = (currentRound?.roundData as Record<string, string> | undefined)
+    ?.posterUrl;
+  if (activePosterUrl == null) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-muted-foreground">Preparing round...</div>
@@ -191,7 +199,7 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
 
       {/* Poster reveal */}
       <PosterReveal
-        posterUrl={currentRound.posterUrl}
+        posterUrl={activePosterUrl}
         onTimeExpired={handleTimeExpired}
         isPaused={roundPhase !== "guessing"}
       />

@@ -36,6 +36,8 @@ import type {
 
 interface GameLobbyProps {
   readonly game: GameSessionResponse;
+  readonly gameDisplayName: string;
+  readonly gameBasePath: string;
   readonly onGameStarted: () => void;
   readonly onOpenInviteDialog: () => void;
   readonly onlineUserIds: Set<string>;
@@ -58,6 +60,8 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 
 export function GameLobby({
   game,
+  gameDisplayName,
+  gameBasePath,
   onGameStarted,
   onOpenInviteDialog,
   onlineUserIds,
@@ -111,20 +115,20 @@ export function GameLobby({
   }, [game.id, onGameStarted, startGame]);
 
   const handleCopyLink = useCallback(async () => {
-    const url = `${globalThis.location.origin}/play/poster-reveal/${game.id}`;
+    const url = `${globalThis.location.origin}${gameBasePath}/${game.id}`;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Lobby link copied!");
     setTimeout(() => {
       setCopied(false);
     }, 2000);
-  }, [game.id]);
+  }, [game.id, gameBasePath]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-2xl font-bold">Poster Reveal Lobby</h1>
+        <h1 className="text-2xl font-bold">{gameDisplayName} Lobby</h1>
         <p className="text-muted-foreground mt-1 text-sm">Waiting for players to join...</p>
       </div>
 

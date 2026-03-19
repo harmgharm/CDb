@@ -6,7 +6,7 @@
  * unranked (custom). Ranked scores are tracked on per-category leaderboards.
  */
 
-import type { GameDifficulty } from "@/lib/db/types";
+import type { GameDifficulty, GameType } from "@/lib/db/types";
 
 export type LeaderboardCategory = "normal_ranked" | "hard_ranked";
 
@@ -18,9 +18,13 @@ export const RANKED_GRACE_DURATION_MS = 5000;
  * Check whether a game's settings qualify as ranked.
  * Currently only round count matters — reveal/grace duration are not
  * yet customizable, but this function is the single source of truth
- * so it's easy to extend later.
+ * so it's easy to extend later per game type.
  */
-export function isRankedGame(_difficulty: GameDifficulty, roundCount: number): boolean {
+export function isRankedGame(
+  _gameType: GameType,
+  _difficulty: GameDifficulty,
+  roundCount: number,
+): boolean {
   return roundCount === RANKED_ROUND_COUNT;
 }
 

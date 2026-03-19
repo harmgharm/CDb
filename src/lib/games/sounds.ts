@@ -125,3 +125,18 @@ export function playSkipSound(): void {
   playTone({ frequency: 523, duration: 0.06, volume: 0.06, type: "triangle" }); // C5
   playTone({ frequency: 392, duration: 0.1, volume: 0.06, type: "triangle", delay: 0.05 }); // G4
 }
+
+/**
+ * Close rating guess (within 1.0) — bright ascending ping (A5 → C6)
+ */
+export function playCloseGuessSound(): void {
+  playTone({ frequency: 880, duration: 0.12, volume: 0.1 }); // A5
+  playTone({ frequency: 1047, duration: 0.15, volume: 0.1, delay: 0.08 }); // C6
+}
+
+/**
+ * Far rating guess (2.0+ off) — low soft thud (A3)
+ */
+export function playFarGuessSound(): void {
+  playTone({ frequency: 220, duration: 0.15, volume: 0.08, type: "triangle" }); // A3
+}

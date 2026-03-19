@@ -6,11 +6,12 @@
  */
 
 import { db } from "@/lib/db";
-import type { LeaderboardCategory } from "@/lib/db/types";
+import type { GameType, LeaderboardCategory } from "@/lib/db/types";
 
 interface GameResult {
   userId: string;
   gameId: string;
+  gameType: GameType;
   category: LeaderboardCategory;
   roundsWon: number;
   totalScore: number;
@@ -38,6 +39,7 @@ export async function updateLeaderboard(result: GameResult): Promise<boolean> {
       "avg_guess_time_ms",
     ])
     .where("user_id", "=", result.userId)
+    .where("game_type", "=", result.gameType)
     .where("category", "=", result.category)
     .executeTakeFirst();
 
@@ -47,6 +49,7 @@ export async function updateLeaderboard(result: GameResult): Promise<boolean> {
       .insertInto("game_leaderboard")
       .values({
         user_id: result.userId,
+        game_type: result.gameType,
         category: result.category,
         best_score: result.totalScore,
         best_score_game_id: result.gameId,
@@ -79,6 +82,7 @@ export async function updateLeaderboard(result: GameResult): Promise<boolean> {
       updated_at: new Date(),
     })
     .where("user_id", "=", result.userId)
+    .where("game_type", "=", result.gameType)
     .where("category", "=", result.category)
     .execute();
 
@@ -88,11 +92,12 @@ export async function updateLeaderboard(result: GameResult): Promise<boolean> {
 /**
  * Get paginated leaderboard sorted by best score (ties broken by faster avg time).
  */
-export async function getLeaderboard(
-  page: number,
-  limit: number,
-  category: LeaderboardCategory = "normal_ranked",
-): Promise<{
+export async function getLeaderboard(options: {
+  page: number;
+  limit: number;
+  category?: LeaderboardCategory;
+  gameType?: GameType;
+}): Promise<{
   entries: {
     userId: string;
     username: string;
@@ -108,6 +113,7 @@ export async function getLeaderboard(
   }[];
   total: number;
 }> {
+  const { page, limit, category = "normal_ranked", gameType = "poster_reveal" } = options;
   const offset = (page - 1) * limit;
 
   const [entries, countResult] = await Promise.all([
@@ -127,6 +133,7 @@ export async function getLeaderboard(
         "game_leaderboard.best_streak as bestStreak",
         "game_leaderboard.avg_guess_time_ms as avgGuessTimeMs",
       ])
+      .where("game_leaderboard.game_type", "=", gameType)
       .where("game_leaderboard.category", "=", category)
       .orderBy("game_leaderboard.best_score", "desc")
       .orderBy("game_leaderboard.avg_guess_time_ms", "asc")
@@ -136,6 +143,7 @@ export async function getLeaderboard(
     db
       .selectFrom("game_leaderboard")
       .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("game_type", "=", gameType)
       .where("category", "=", category)
       .executeTakeFirstOrThrow(),
   ]);

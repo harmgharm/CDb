@@ -17,6 +17,7 @@ import type { MediaListResponse } from "@/types/media-responses";
 // ── Create Game ──────────────────────────────────────────────────
 
 interface CreateGameParams {
+  readonly gameType?: "poster_reveal" | "rating_guess";
   readonly mode?: "solo" | "multiplayer";
   readonly difficulty: "normal" | "hard";
   readonly roundCount: number;
@@ -66,9 +67,10 @@ export function useGameState(gameId: string | null) {
 interface SubmitGuessParams {
   readonly gameId: string;
   readonly roundId: string;
-  readonly guessText: string;
+  readonly guessText?: string;
   readonly mediaId?: string;
   readonly timeFromStartMs: number;
+  readonly guessData?: Record<string, unknown>;
 }
 
 export function useSubmitGuess() {
@@ -88,6 +90,7 @@ export function useSubmitGuess() {
             guessText: params.guessText,
             mediaId: params.mediaId,
             timeFromStartMs: params.timeFromStartMs,
+            guessData: params.guessData,
           }),
         });
         const json = (await response.json()) as ApiResponse<GuessResultResponse>;
@@ -148,12 +151,16 @@ export function useNextRound() {
 // ── Leaderboard ──────────────────────────────────────────────────
 
 export function useLeaderboard(
-  category: "normal_ranked" | "hard_ranked" = "normal_ranked",
-  page = 1,
-  limit = 20,
+  options: {
+    category?: "normal_ranked" | "hard_ranked";
+    page?: number;
+    limit?: number;
+    gameType?: "poster_reveal" | "rating_guess";
+  } = {},
 ) {
+  const { category = "normal_ranked", page = 1, limit = 20, gameType = "poster_reveal" } = options;
   return useSWR<LeaderboardResponse>(
-    `/api/games/leaderboard?category=${category}&page=${String(page)}&limit=${String(limit)}`,
+    `/api/games/leaderboard?gameType=${gameType}&category=${category}&page=${String(page)}&limit=${String(limit)}`,
   );
 }
 

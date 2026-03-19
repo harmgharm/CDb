@@ -25,7 +25,7 @@ export type NotificationType =
 export type GameMode = "solo" | "multiplayer";
 export type GameDifficulty = "normal" | "hard";
 export type GameStatus = "lobby" | "active" | "finished";
-export type GameType = "poster_reveal";
+export type GameType = "poster_reveal" | "rating_guess";
 
 export type AuditAction =
   | "user.created"
@@ -359,11 +359,7 @@ export interface GameRoundsTable {
   id: Generated<string>;
   game_id: string;
   round_number: number;
-  media_id: string | null;
-  tmdb_id: number | null;
-  mal_id: number | null;
-  poster_url: string;
-  title: string;
+  round_data: JsonColumn<Record<string, unknown>>;
   started_at: Date | null;
   ended_at: Date | null;
   first_correct_at: Date | null;
@@ -380,8 +376,9 @@ export interface GameGuessesTable {
   id: Generated<string>;
   round_id: string;
   user_id: string;
-  guess_text: string;
+  guess_text: string | null;
   matched_media_id: string | null;
+  guess_data: JsonColumn<Record<string, unknown>> | null;
   is_correct: boolean;
   time_from_start_ms: number;
   score_awarded: Generated<number>;
@@ -398,6 +395,7 @@ export type LeaderboardCategory = "normal_ranked" | "hard_ranked";
 export interface GameLeaderboardTable {
   id: Generated<string>;
   user_id: string;
+  game_type: Generated<GameType>;
   category: Generated<LeaderboardCategory>;
   best_score: Generated<number>;
   best_score_game_id: string | null;

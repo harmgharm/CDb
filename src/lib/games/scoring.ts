@@ -7,7 +7,7 @@
  * Wrong guesses score 0pts. Streak bonus rewards consecutive correct rounds.
  */
 
-const TOTAL_WINDOW_MS = 15_000;
+const DEFAULT_TOTAL_WINDOW_MS = 15_000;
 const MAX_SCORE = 1000;
 const MIN_SCORE = 100;
 const SCORE_RANGE = MAX_SCORE - MIN_SCORE;
@@ -22,12 +22,17 @@ export const COUNTDOWN_DURATION_MS = 5000;
 /**
  * Calculate score for a correct guess based on response time.
  * Returns 0 for times beyond the window.
+ *
+ * @param totalWindowMs - Max time window in ms (defaults to 15000). Each game engine provides its own.
  */
-export function calculateRoundScore(timeFromStartMs: number): number {
+export function calculateRoundScore(
+  timeFromStartMs: number,
+  totalWindowMs: number = DEFAULT_TOTAL_WINDOW_MS,
+): number {
   if (timeFromStartMs < 0) return MAX_SCORE;
-  if (timeFromStartMs > TOTAL_WINDOW_MS) return 0;
+  if (timeFromStartMs > totalWindowMs) return 0;
 
-  const fraction = timeFromStartMs / TOTAL_WINDOW_MS;
+  const fraction = timeFromStartMs / totalWindowMs;
   return Math.max(MIN_SCORE, MAX_SCORE - Math.floor(fraction * SCORE_RANGE));
 }
 

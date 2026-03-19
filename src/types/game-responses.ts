@@ -1,5 +1,5 @@
 /**
- * Response types for the Poster Reveal Guessing Game
+ * Response types for the game system
  */
 
 import type {
@@ -69,13 +69,8 @@ export interface GameSessionResponse {
 export interface GameRoundResponse {
   id: string;
   roundNumber: number;
-  /** NULL for rounds that haven't started yet (anti-cheat) */
-  posterUrl: string | null;
-  /** NULL for rounds that haven't ended yet (anti-cheat) */
-  title: string | null;
-  mediaId: string | null;
-  tmdbId: number | null;
-  malId: number | null;
+  /** Game-specific round payload (masked by phase for anti-cheat) */
+  roundData: Record<string, unknown>;
   startedAt: string | null;
   endedAt: string | null;
   /** When the first correct guess was submitted (for countdown timer) */
@@ -104,9 +99,9 @@ export interface GuessResultResponse {
   scoreAwarded: number;
   streakBonus: number;
   currentStreak: number;
-  correctTitle: string;
-  correctPosterUrl: string;
   roundScore: number;
+  /** Game-specific result data from the engine */
+  resultData: Record<string, unknown>;
   /** Multiplayer only — true if this was the first correct guess in the round */
   isFirstCorrect?: boolean;
   /** Multiplayer only — bonus for being first correct guesser */
@@ -164,8 +159,9 @@ export interface PlayerLeftEvent {
 export interface GameStartedEvent {
   currentRound: number;
   roundId: string;
-  posterUrl: string;
   startedAt: string;
+  /** Game-specific data for the first round */
+  roundData: Record<string, unknown>;
 }
 
 export interface PlayerGuessedEvent {
@@ -186,8 +182,8 @@ export interface RoundCountdownEvent {
 
 export interface RoundEndedEvent {
   roundNumber: number;
-  correctTitle: string;
-  correctPosterUrl: string;
+  /** Game-specific data for the ended round (e.g. correct answer) */
+  roundData: Record<string, unknown>;
   /** Per-player scores for this round */
   scores: {
     userId: string;
@@ -202,8 +198,9 @@ export interface RoundEndedEvent {
 export interface RoundStartedEvent {
   roundNumber: number;
   roundId: string;
-  posterUrl: string;
   startedAt: string;
+  /** Game-specific data for the new round */
+  roundData: Record<string, unknown>;
 }
 
 export interface GameEndedEvent {

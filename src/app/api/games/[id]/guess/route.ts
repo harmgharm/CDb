@@ -12,7 +12,8 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { GameRound, GameSession } from "@/lib/db/types";
-import { isCorrectGuess } from "@/lib/games/matching";
+import type { GameEngine } from "@/lib/games";
+import { getEngine } from "@/lib/games";
 import {
   calculateRoundScore,
   calculateStreakBonus,
@@ -26,32 +27,6 @@ import type {
   PlayerGuessedEvent,
   RoundCountdownEvent,
 } from "@/types/game-responses";
-
-/**
- * Check if the guessed media ID matches the round's answer by direct ID or external IDs.
- */
-async function checkMediaIdMatch(mediaId: string, round: GameRound): Promise<boolean> {
-  if (round.media_id !== null && mediaId === round.media_id) {
-    return true;
-  }
-
-  const selectedMedia = await db
-    .selectFrom("media")
-    .select(["tmdb_id", "mal_id"])
-    .where("id", "=", mediaId)
-    .executeTakeFirst();
-
-  if (selectedMedia === undefined) return false;
-
-  const tmdbMatch =
-    round.tmdb_id !== null &&
-    selectedMedia.tmdb_id !== null &&
-    round.tmdb_id === selectedMedia.tmdb_id;
-  const malMatch =
-    round.mal_id !== null && selectedMedia.mal_id !== null && round.mal_id === selectedMedia.mal_id;
-
-  return tmdbMatch || malMatch;
-}
 
 /**
  * Calculate the current streak from previous guesses (most recent consecutive correct).
@@ -89,7 +64,6 @@ function validateGameState(session: GameSession, round: GameRound): string | nul
 
 /**
  * Authorize the user for the given game session.
- * Returns an error response string if unauthorized, null if OK.
  */
 async function authorizePlayer(
   session: GameSession,
@@ -120,14 +94,13 @@ interface MultiplayerGuessEffectsOptions {
 }
 
 /**
- * Handle multiplayer-specific side effects after a guess is saved:
- * first-correct tracking, countdown events, player-guessed broadcast.
+ * Handle multiplayer-specific side effects after a guess is saved.
  */
 async function handleMultiplayerGuessEffects(
   options: MultiplayerGuessEffectsOptions,
 ): Promise<void> {
   const { gameId, roundId, userId, username, correct, totalAward, isFirstCorrect } = options;
-  // Set first_correct_at if this is the first correct guess
+
   if (correct && isFirstCorrect) {
     const now = new Date();
     await db
@@ -144,7 +117,6 @@ async function handleMultiplayerGuessEffects(
     publishToGame(gameId, "round-countdown", countdownEvent);
   }
 
-  // Broadcast player-guessed
   const guessedEvent: PlayerGuessedEvent = {
     userId,
     username,
@@ -178,21 +150,6 @@ async function handleMultiplayerGuessEffects(
   }
 }
 
-/**
- * Determine if a guess is correct by media ID match or fuzzy text match.
- */
-async function determineCorrectness(
-  guessText: string,
-  mediaId: string | undefined,
-  round: GameRound,
-): Promise<boolean> {
-  if (mediaId !== undefined) {
-    const idMatch = await checkMediaIdMatch(mediaId, round);
-    if (idMatch) return true;
-  }
-  return isCorrectGuess(guessText, round.title);
-}
-
 interface GuessScoring {
   roundScore: number;
   streakBonus: number;
@@ -209,14 +166,27 @@ interface GuessScoringOptions {
   userId: string;
   isMultiplayer: boolean;
   round: GameRound;
+  engine: GameEngine;
+  guessData: Record<string, unknown> | undefined;
 }
 
 /**
  * Compute all scoring components for a guess.
  */
 async function computeGuessScoring(options: GuessScoringOptions): Promise<GuessScoring> {
-  const { correct, timeFromStartMs, gameId, userId, isMultiplayer, round } = options;
-  const roundScore = correct ? calculateRoundScore(timeFromStartMs) : 0;
+  const { correct, timeFromStartMs, gameId, userId, isMultiplayer, round, engine, guessData } =
+    options;
+
+  let roundScore: number;
+  if (engine.calculateScore === undefined) {
+    roundScore = correct ? calculateRoundScore(timeFromStartMs, engine.totalWindowMs) : 0;
+  } else {
+    roundScore = engine.calculateScore({
+      guessData,
+      roundData: round.round_data,
+      timeFromStartMs,
+    });
+  }
 
   const previousGuesses = await db
     .selectFrom("game_guesses")
@@ -252,7 +222,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return errorResponse("Invalid input", 400);
   }
 
-  const { roundId, guessText, mediaId, timeFromStartMs } = parsed.data;
+  const { roundId, guessText, mediaId, timeFromStartMs, guessData } = parsed.data;
 
   const session = await db
     .selectFrom("game_sessions")
@@ -262,6 +232,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (session === undefined) return errorResponse("Game not found", 404);
 
+  const engine = getEngine(session.game_type);
   const isMultiplayer = session.mode === "multiplayer";
 
   // Authorization
@@ -297,8 +268,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return errorResponse("You already guessed correctly this round", 400);
   }
 
-  // Determine correctness
-  const correct = await determineCorrectness(guessText, mediaId, round);
+  // Determine correctness via engine
+  const roundData = round.round_data;
+  const correctnessResult = await engine.checkCorrectness({
+    guessText: guessText ?? null,
+    guessMediaId: mediaId ?? null,
+    guessData,
+    roundData,
+  });
+  const correct = correctnessResult.isCorrect;
 
   // Calculate scoring
   const { roundScore, streakBonus, currentStreak, isFirstCorrect, firstCorrectBonus, totalAward } =
@@ -309,6 +287,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       userId: user.id,
       isMultiplayer,
       round,
+      engine,
+      guessData,
     });
 
   // Save guess
@@ -317,8 +297,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .values({
       round_id: roundId,
       user_id: user.id,
-      guess_text: guessText,
+      guess_text: guessText ?? null,
       matched_media_id: mediaId ?? null,
+      guess_data:
+        Object.keys(correctnessResult.details).length > 0
+          ? JSON.stringify(correctnessResult.details)
+          : null,
       is_correct: correct,
       time_from_start_ms: timeFromStartMs,
       score_awarded: totalAward,
@@ -339,14 +323,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
+  // Build game-specific result data via engine
+  const resultData = engine.buildGuessResultData(roundData, correctnessResult.details);
+
   const response: GuessResultResponse = {
     isCorrect: correct,
     scoreAwarded: totalAward,
     streakBonus,
     currentStreak,
-    correctTitle: round.title,
-    correctPosterUrl: round.poster_url,
     roundScore,
+    resultData,
     ...(isMultiplayer ? { isFirstCorrect, firstCorrectBonus } : {}),
   };
 

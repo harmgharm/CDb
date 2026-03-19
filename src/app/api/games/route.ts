@@ -7,11 +7,11 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { withTransaction } from "@/lib/db/transaction";
-import type { GameRound } from "@/lib/db/types";
-import { buildMediaPool } from "@/lib/games/media-pool";
+import { getEngine } from "@/lib/games";
+import type { RoundPoolItem } from "@/lib/games/engine";
 import { isRankedGame } from "@/lib/games/ranked-presets";
 import { createGameSchema } from "@/lib/validations/games";
-import type { GameRoundResponse, GameSessionResponse, MediaPoolItem } from "@/types/game-responses";
+import type { GameRoundResponse, GameSessionResponse } from "@/types/game-responses";
 
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
@@ -22,17 +22,18 @@ export async function POST(req: NextRequest) {
     return errorResponse("Invalid input", 400);
   }
 
-  const { mode, difficulty, roundCount } = parsed.data;
+  const { gameType, mode, difficulty, roundCount } = parsed.data;
+  const engine = getEngine(gameType);
   const isMultiplayer = mode === "multiplayer";
-  const ranked = isRankedGame(difficulty, roundCount);
+  const ranked = isRankedGame(gameType, difficulty, roundCount);
 
-  // Solo: build media pool now. Multiplayer: defer to /start
-  let pool: MediaPoolItem[] | undefined;
+  // Solo: build pool now. Multiplayer: defer to /start
+  let pool: RoundPoolItem[] | undefined;
   if (!isMultiplayer) {
     try {
-      pool = await buildMediaPool(difficulty, roundCount);
+      pool = await engine.buildPool(difficulty, roundCount);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to build media pool";
+      const message = error instanceof Error ? error.message : "Failed to build game pool";
       return errorResponse(message, 400);
     }
   }
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     const session = await trx
       .insertInto("game_sessions")
       .values({
-        game_type: "poster_reveal",
+        game_type: gameType,
         mode,
         difficulty,
         status: isMultiplayer ? "lobby" : "active",
@@ -70,16 +71,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Solo: create all rounds upfront
-    let rounds: GameRound[] = [];
+    let rounds: {
+      id: string;
+      round_number: number;
+      round_data: Record<string, unknown>;
+      started_at: Date | null;
+      ended_at: Date | null;
+      first_correct_at: Date | null;
+    }[] = [];
     if (!isMultiplayer && pool !== undefined) {
       const roundValues = pool.map((item, index) => ({
         game_id: session.id,
         round_number: index,
-        media_id: item.id,
-        tmdb_id: item.tmdbId,
-        mal_id: item.malId,
-        poster_url: item.posterUrl,
-        title: item.title,
+        round_data: JSON.stringify(item.roundData),
         started_at: index === 0 ? now : null,
       }));
 
@@ -94,23 +98,25 @@ export async function POST(req: NextRequest) {
     action: "game.created",
     entityType: "game_session",
     entityId: result.session.id,
-    metadata: { difficulty, roundCount, mode },
+    metadata: { gameType, difficulty, roundCount, mode },
   });
 
-  // Build response
-  const roundResponses: GameRoundResponse[] = result.rounds.map((round) => ({
-    id: round.id,
-    roundNumber: round.round_number,
-    posterUrl: round.round_number === 0 ? round.poster_url : null,
-    title: null,
-    mediaId: round.round_number === 0 ? round.media_id : null,
-    tmdbId: round.round_number === 0 ? round.tmdb_id : null,
-    malId: round.round_number === 0 ? round.mal_id : null,
-    startedAt: round.started_at?.toISOString() ?? null,
-    endedAt: round.ended_at?.toISOString() ?? null,
-    firstCorrectAt: null,
-    guesses: [],
-  }));
+  // Build response — use engine masking for round data
+  const roundResponses: GameRoundResponse[] = result.rounds.map((round) => {
+    const phase = round.started_at === null ? "not_started" : "active";
+    const roundData = round.round_data;
+    const masked = engine.maskRoundData(roundData, phase);
+
+    return {
+      id: round.id,
+      roundNumber: round.round_number,
+      roundData: masked,
+      startedAt: round.started_at?.toISOString() ?? null,
+      endedAt: round.ended_at?.toISOString() ?? null,
+      firstCorrectAt: null,
+      guesses: [],
+    };
+  });
 
   const response: GameSessionResponse = {
     id: result.session.id,

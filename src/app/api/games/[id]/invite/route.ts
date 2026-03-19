@@ -9,6 +9,7 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getEngine } from "@/lib/games";
 import { createNotification } from "@/lib/notifications/create";
 import { invitePlayersSchema } from "@/lib/validations/games";
 
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return successResponse({ invited: 0 }, "All selected users are already in the game");
   }
 
+  const engine = getEngine(session.game_type);
   const hostName = user.display_name ?? user.username;
 
   // Create notifications for each invited user
@@ -68,9 +70,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       createNotification({
         userId,
         type: "game.invited",
-        title: "Game Invite: Poster Reveal",
-        body: `${hostName} invited you to play Poster Reveal!`,
-        link: `/play/poster-reveal/${gameId}`,
+        title: `Game Invite: ${engine.displayName}`,
+        body: `${hostName} invited you to play ${engine.displayName}!`,
+        link: `${engine.basePath}/${gameId}`,
         metadata: { gameId, hostUserId: user.id, hostName },
       }),
     ),

@@ -9,6 +9,7 @@ import * as motion from "motion/react-client";
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
+import type { PosterRevealResultData } from "@/types/game-engine-data";
 import type { GuessResultResponse } from "@/types/game-responses";
 
 interface RoundResultProps {
@@ -18,6 +19,10 @@ interface RoundResultProps {
   readonly onNextRound: () => void;
   readonly isAdvancing: boolean;
   readonly isLastRound: boolean;
+  /** Game-specific answer display (replaces default poster thumbnail) */
+  readonly answerDisplay?: React.ReactNode;
+  /** Game-specific header (replaces default "Correct!" / "Wrong!") */
+  readonly resultHeader?: React.ReactNode;
 }
 
 export function RoundResult({
@@ -27,6 +32,8 @@ export function RoundResult({
   onNextRound,
   isAdvancing,
   isLastRound,
+  answerDisplay,
+  resultHeader,
 }: RoundResultProps) {
   return (
     <motion.div
@@ -36,34 +43,21 @@ export function RoundResult({
       className="flex flex-col items-center gap-6"
     >
       {/* Correct / Wrong indicator */}
-      <div className="flex flex-col items-center gap-2">
-        {result.isCorrect ? (
-          <CheckCircleIcon className="size-12 text-green-500" />
-        ) : (
-          <XCircleIcon className="size-12 text-red-500" />
-        )}
-        <h2 className="text-2xl font-bold">{result.isCorrect ? "Correct!" : "Wrong!"}</h2>
-      </div>
+      {resultHeader ?? (
+        <div className="flex flex-col items-center gap-2">
+          {result.isCorrect ? (
+            <CheckCircleIcon className="size-12 text-green-500" />
+          ) : (
+            <XCircleIcon className="size-12 text-red-500" />
+          )}
+          <h2 className="text-2xl font-bold">{result.isCorrect ? "Correct!" : "Wrong!"}</h2>
+        </div>
+      )}
 
       {/* Answer reveal */}
-      <div className="flex items-center gap-4">
-        <div className="relative aspect-[2/3] w-20 overflow-hidden rounded-md shadow-lg">
-          <Image
-            src={result.correctPosterUrl}
-            alt={result.correctTitle}
-            fill
-            className="object-cover"
-            sizes="80px"
-            unoptimized
-          />
-        </div>
-        <div>
-          <p className="text-lg font-semibold">{result.correctTitle}</p>
-          <p className="text-muted-foreground text-sm">
-            Round {String(roundNumber + 1)} of {String(totalRounds)}
-          </p>
-        </div>
-      </div>
+      {answerDisplay ?? (
+        <DefaultAnswerDisplay result={result} roundNumber={roundNumber} totalRounds={totalRounds} />
+      )}
 
       {/* Score breakdown */}
       {result.isCorrect && (
@@ -96,5 +90,38 @@ export function RoundResult({
         {isLastRound ? "View Results" : "Next Round"}
       </Button>
     </motion.div>
+  );
+}
+
+function DefaultAnswerDisplay({
+  result,
+  roundNumber,
+  totalRounds,
+}: Readonly<{ result: GuessResultResponse; roundNumber: number; totalRounds: number }>) {
+  const data = result.resultData as unknown as PosterRevealResultData;
+  const posterUrl = data.correctPosterUrl;
+  const title = data.correctTitle;
+
+  return (
+    <div className="flex items-center gap-4">
+      {posterUrl.length > 0 && (
+        <div className="relative aspect-[2/3] w-20 overflow-hidden rounded-md shadow-lg">
+          <Image
+            src={posterUrl}
+            alt={title}
+            fill
+            className="object-cover"
+            sizes="80px"
+            unoptimized
+          />
+        </div>
+      )}
+      <div>
+        <p className="text-lg font-semibold">{title}</p>
+        <p className="text-muted-foreground text-sm">
+          Round {String(roundNumber + 1)} of {String(totalRounds)}
+        </p>
+      </div>
+    </div>
   );
 }

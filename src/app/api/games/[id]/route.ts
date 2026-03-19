@@ -11,12 +11,19 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getEngine } from "@/lib/games";
 import type {
   GameGuessResponse,
   GamePlayerResponse,
   GameRoundResponse,
   GameSessionResponse,
 } from "@/types/game-responses";
+
+function getRoundPhase(isStarted: boolean, isEnded: boolean): "not_started" | "active" | "ended" {
+  if (isEnded) return "ended";
+  if (isStarted) return "active";
+  return "not_started";
+}
 
 interface AuthorizeViewOptions {
   isMultiplayer: boolean;
@@ -81,6 +88,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return errorResponse("Game not found", 404);
   }
 
+  const engine = getEngine(session.game_type);
   const isMultiplayer = session.mode === "multiplayer";
 
   const authError = await authorizeView({
@@ -132,7 +140,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       id: guess.id,
       userId: guess.user_id,
       ...(isMultiplayer ? { username: guess.username } : {}),
-      guessText: guess.guess_text,
+      guessText: guess.guess_text ?? "",
       isCorrect: guess.is_correct,
       timeFromStartMs: guess.time_from_start_ms,
       scoreAwarded: guess.score_awarded,
@@ -147,15 +155,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const roundResponses: GameRoundResponse[] = rounds.map((round) => {
     const isStarted = round.started_at !== null;
     const isEnded = round.ended_at !== null;
+    const phase = getRoundPhase(isStarted, isEnded);
+    const roundData = round.round_data;
+    const masked = engine.maskRoundData(roundData, phase);
 
     return {
       id: round.id,
       roundNumber: round.round_number,
-      posterUrl: isStarted ? round.poster_url : null,
-      title: isEnded ? round.title : null,
-      mediaId: isStarted ? round.media_id : null,
-      tmdbId: isStarted ? round.tmdb_id : null,
-      malId: isStarted ? round.mal_id : null,
+      roundData: masked,
       startedAt: round.started_at?.toISOString() ?? null,
       endedAt: round.ended_at?.toISOString() ?? null,
       firstCorrectAt: round.first_correct_at?.toISOString() ?? null,

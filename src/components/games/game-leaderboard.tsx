@@ -14,10 +14,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLeaderboard } from "@/hooks/use-games";
-import type { LeaderboardCategory } from "@/lib/db/types";
+import type { GameType, LeaderboardCategory } from "@/lib/db/types";
 import type { LeaderboardResponse } from "@/types/game-responses";
 
-export function GameLeaderboard() {
+interface GameLeaderboardProps {
+  readonly gameType?: GameType;
+}
+
+export function GameLeaderboard({ gameType = "poster_reveal" }: GameLeaderboardProps) {
   const [category, setCategory] = useState<LeaderboardCategory>("normal_ranked");
 
   return (
@@ -45,10 +49,10 @@ export function GameLeaderboard() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="normal_ranked">
-              <LeaderboardList category="normal_ranked" />
+              <LeaderboardList category="normal_ranked" gameType={gameType} />
             </TabsContent>
             <TabsContent value="hard_ranked">
-              <LeaderboardList category="hard_ranked" />
+              <LeaderboardList category="hard_ranked" gameType={gameType} />
             </TabsContent>
           </Tabs>
         </div>
@@ -57,8 +61,11 @@ export function GameLeaderboard() {
   );
 }
 
-function LeaderboardList({ category }: Readonly<{ category: LeaderboardCategory }>) {
-  const { data, isLoading } = useLeaderboard(category);
+function LeaderboardList({
+  category,
+  gameType,
+}: Readonly<{ category: LeaderboardCategory; gameType: GameType }>) {
+  const { data, isLoading } = useLeaderboard({ category, gameType });
   const { user } = useAuth();
 
   if (isLoading) {

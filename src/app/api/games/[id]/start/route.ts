@@ -1,7 +1,7 @@
 /**
  * POST /api/games/[id]/start — Host starts a multiplayer game
  *
- * Builds the media pool, creates rounds, transitions lobby → active,
+ * Builds the game pool via engine, creates rounds, transitions lobby → active,
  * and publishes game-started via Ably.
  */
 
@@ -11,7 +11,7 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
-import { buildMediaPool } from "@/lib/games/media-pool";
+import { getEngine } from "@/lib/games";
 import { publishToGame } from "@/lib/notifications/ably";
 import type {
   GameRoundResponse,
@@ -66,12 +66,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return errorResponse(`Need at least ${String(MIN_PLAYERS)} players to start`, 400);
   }
 
-  // Build media pool
+  // Build pool via engine
+  const engine = getEngine(session.game_type);
   let pool;
   try {
-    pool = await buildMediaPool(session.difficulty, session.round_count);
+    pool = await engine.buildPool(session.difficulty, session.round_count);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to build media pool";
+    const message = error instanceof Error ? error.message : "Failed to build game pool";
     return errorResponse(message, 400);
   }
 
@@ -93,11 +94,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const roundValues = pool.map((item, index) => ({
       game_id: gameId,
       round_number: index,
-      media_id: item.id,
-      tmdb_id: item.tmdbId,
-      mal_id: item.malId,
-      poster_url: item.posterUrl,
-      title: item.title,
+      round_data: JSON.stringify(item.roundData),
       started_at: index === 0 ? now : null,
     }));
 
@@ -117,29 +114,32 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // Publish game-started to all players via Ably
   const firstRound = result.rounds[0];
   if (firstRound !== undefined) {
+    const firstRoundData = firstRound.round_data;
     const gameStartedEvent: GameStartedEvent = {
       currentRound: 0,
       roundId: firstRound.id,
-      posterUrl: firstRound.poster_url,
       startedAt: now.toISOString(),
+      roundData: engine.buildGameStartedData(firstRoundData),
     };
     publishToGame(gameId, "game-started", gameStartedEvent);
   }
 
   // Build response with player data
-  const roundResponses: GameRoundResponse[] = result.rounds.map((round) => ({
-    id: round.id,
-    roundNumber: round.round_number,
-    posterUrl: round.round_number === 0 ? round.poster_url : null,
-    title: null,
-    mediaId: round.round_number === 0 ? round.media_id : null,
-    tmdbId: round.round_number === 0 ? round.tmdb_id : null,
-    malId: round.round_number === 0 ? round.mal_id : null,
-    startedAt: round.started_at?.toISOString() ?? null,
-    endedAt: round.ended_at?.toISOString() ?? null,
-    firstCorrectAt: null,
-    guesses: [],
-  }));
+  const roundResponses: GameRoundResponse[] = result.rounds.map((round) => {
+    const phase = round.started_at === null ? "not_started" : "active";
+    const roundData = round.round_data;
+    const masked = engine.maskRoundData(roundData, phase);
+
+    return {
+      id: round.id,
+      roundNumber: round.round_number,
+      roundData: masked,
+      startedAt: round.started_at?.toISOString() ?? null,
+      endedAt: round.ended_at?.toISOString() ?? null,
+      firstCorrectAt: null,
+      guesses: [],
+    };
+  });
 
   const response: GameSessionResponse = {
     id: result.session.id,

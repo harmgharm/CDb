@@ -12,13 +12,16 @@ import { useChannel } from "ably/react";
 import { SkipForwardIcon, TimerIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { GuessInput } from "@/components/games/guess-input";
 import { LiveScoreboard } from "@/components/games/live-scoreboard";
 import {
   PlayerGuessIndicators,
   usePlayerGuessIndicators,
 } from "@/components/games/player-guess-indicator";
-import { getRoundStartTime, PosterReveal } from "@/components/games/poster-reveal";
+import { GuessInput } from "@/components/games/poster-reveal/guess-input";
+import {
+  getRoundStartTime,
+  PosterReveal,
+} from "@/components/games/poster-reveal/poster-reveal-visual";
 import { RoundResult } from "@/components/games/round-result";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -235,13 +238,16 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     setCountdownEndsAt(null);
 
     if (roundResult === null) {
+      const endedData = event.roundData as Record<string, string>;
       setRoundResult({
         isCorrect: false,
         scoreAwarded: 0,
         streakBonus: 0,
         currentStreak: 0,
-        correctTitle: event.correctTitle,
-        correctPosterUrl: event.correctPosterUrl,
+        resultData: {
+          correctTitle: endedData.title ?? "",
+          correctPosterUrl: endedData.posterUrl ?? "",
+        },
         roundScore: 0,
       });
     }
@@ -320,7 +326,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     );
   }
 
-  if (currentRound?.posterUrl == null) {
+  const multiPosterUrl = (currentRound?.roundData as Record<string, string> | undefined)?.posterUrl;
+  if (multiPosterUrl == null) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-muted-foreground">Preparing round...</div>
@@ -350,7 +357,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
         )}
 
         <PosterReveal
-          posterUrl={currentRound.posterUrl}
+          posterUrl={multiPosterUrl}
           onTimeExpired={handleTimeExpired}
           isPaused={hasGuessedCorrectly}
         />

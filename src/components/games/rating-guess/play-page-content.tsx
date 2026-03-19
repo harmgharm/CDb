@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * PlayPageContent — Main orchestrator for the /play/poster-reveal page
+ * PlayPageContent — Main orchestrator for the /play/rating-guess page
  *
  * State machine: idle → playing → (game handles its own result state)
  */
 
-import { Gamepad2Icon, ShieldCheckIcon, ShieldOffIcon, UsersIcon } from "lucide-react";
+import { Gamepad2Icon, ShieldCheckIcon, ShieldOffIcon, StarIcon, UsersIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { GameLeaderboard } from "@/components/games/game-leaderboard";
-import { SoloGame } from "@/components/games/solo-game";
+import { SoloGame } from "@/components/games/rating-guess/solo-game";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCreateGame, useGameMediaOptions } from "@/hooks/use-games";
+import { useCreateGame } from "@/hooks/use-games";
 import type { GameDifficulty } from "@/lib/db/types";
 import { isRankedGame } from "@/lib/games/ranked-presets";
 import type { GameSessionResponse } from "@/types/game-responses";
@@ -38,15 +38,15 @@ export function PlayPageContent() {
   const [difficulty, setDifficulty] = useState<GameDifficulty>("normal");
   const [roundCount, setRoundCount] = useState("5");
   const { createGame, isCreating, error } = useCreateGame();
-  const { data: mediaData } = useGameMediaOptions();
 
   const ranked = useMemo(
-    () => isRankedGame(difficulty, Number(roundCount)),
+    () => isRankedGame("rating_guess", difficulty, Number(roundCount)),
     [difficulty, roundCount],
   );
 
   const handleStartSolo = useCallback(async () => {
     const game = await createGame({
+      gameType: "rating_guess",
       mode: "solo",
       difficulty,
       roundCount: Number(roundCount),
@@ -60,13 +60,14 @@ export function PlayPageContent() {
 
   const handleStartMultiplayer = useCallback(async () => {
     const game = await createGame({
+      gameType: "rating_guess",
       mode: "multiplayer",
       difficulty,
       roundCount: Number(roundCount),
     });
 
     if (game !== null) {
-      router.push(`/play/poster-reveal/${game.id}`);
+      router.push(`/play/rating-guess/${game.id}`);
     }
   }, [createGame, difficulty, roundCount, router]);
 
@@ -78,11 +79,7 @@ export function PlayPageContent() {
   if (pageState === "playing" && activeGame !== null) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-8">
-        <SoloGame
-          gameId={activeGame.id}
-          mediaOptions={mediaData?.items ?? []}
-          onPlayAgain={handlePlayAgain}
-        />
+        <SoloGame gameId={activeGame.id} onPlayAgain={handlePlayAgain} />
       </div>
     );
   }
@@ -96,11 +93,11 @@ export function PlayPageContent() {
       >
         {/* Header */}
         <div className="mb-8 text-center">
-          <Gamepad2Icon className="text-primary mx-auto mb-3 size-12" />
-          <h1 className="text-3xl font-bold">Poster Reveal</h1>
+          <StarIcon className="text-primary mx-auto mb-3 size-12" />
+          <h1 className="text-3xl font-bold">Rating Guesser</h1>
           <p className="text-muted-foreground mt-2">
-            A blurred poster slowly reveals itself. Guess the movie, show, or anime before time runs
-            out!
+            See a movie, show, or anime and guess its rating. The closer your guess, the more points
+            you earn!
           </p>
         </div>
 
@@ -124,14 +121,14 @@ export function PlayPageContent() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="normal">Normal — From your database</SelectItem>
-                    <SelectItem value="hard">Hard — Mixed with popular titles</SelectItem>
+                    <SelectItem value="normal">Normal — Your group&apos;s ratings</SelectItem>
+                    <SelectItem value="hard">Hard — Public ratings (TMDB &amp; MAL)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-muted-foreground text-xs">
                   {difficulty === "normal"
-                    ? "Posters from movies/shows your group has watched"
-                    : "Mixed pool including popular titles from TMDB"}
+                    ? "Guess the average rating your group gave to movies/shows you've watched"
+                    : "Guess public ratings for popular titles from TMDB and MyAnimeList"}
                 </p>
               </div>
 
@@ -181,8 +178,8 @@ export function PlayPageContent() {
                 </TabsContent>
                 <TabsContent value="multiplayer" className="mt-4 space-y-3">
                   <p className="text-muted-foreground text-xs">
-                    Create a lobby and invite friends to compete. First correct guess each round
-                    earns a bonus!
+                    Create a lobby and invite friends to compete. The closest guess each round earns
+                    a first-correct bonus!
                   </p>
                   <Button
                     onClick={() => {
@@ -202,7 +199,7 @@ export function PlayPageContent() {
           </Card>
 
           {/* Leaderboard */}
-          <GameLeaderboard />
+          <GameLeaderboard gameType="rating_guess" />
         </div>
       </motion.div>
     </div>
