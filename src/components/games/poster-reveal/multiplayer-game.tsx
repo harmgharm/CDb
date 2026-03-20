@@ -43,6 +43,9 @@ import type {
 } from "@/types/game-responses";
 import type { MediaListItem } from "@/types/media-responses";
 
+/** How long the round result screen stays visible before transitioning (ms) */
+const ROUND_RESULT_DISPLAY_MS = 5000;
+
 type RoundPhase = "guessing" | "countdown" | "result" | "finished";
 
 interface MultiplayerGameProps {
@@ -67,9 +70,18 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     Map<string, { scoreAdded: number; roundsWonAdded: number }>
   >(new Map());
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [wrongGuessFlash, setWrongGuessFlash] = useState(false);
+  const [roundScores, setRoundScores] = useState<RoundEndedEvent["scores"] | null>(null);
   const submittedRef = useRef(false);
   const advancingRef = useRef(false);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wrongFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether the poster reveal timer has expired — used to handle the race
+  // condition where a wrong guess is in-flight when the timer fires.
+  const timeExpiredRef = useRef(false);
+  const roundStartDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timestamp when the result screen was shown — used to compute remaining delay for game-ended
+  const resultShownAtRef = useRef(0);
 
   const channelName = `game:${gameId}`;
   const isHost = user?.id === game?.createdByUserId;
@@ -104,6 +116,32 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     }
   }, [gameId, nextRound]);
 
+  const handleSkip = useCallback(async () => {
+    if (currentRound === null || game === undefined || submittedRef.current) return;
+    submittedRef.current = true;
+    playSkipSound();
+
+    const timeFromStartMs = Date.now() - startTimeForRound;
+
+    await submitGuess({
+      gameId,
+      roundId: currentRound.id,
+      guessText: "(skipped)",
+      timeFromStartMs,
+    });
+  }, [currentRound, game, gameId, startTimeForRound, submitGuess]);
+
+  const showWrongFlash = useCallback(() => {
+    setWrongGuessFlash(true);
+    if (wrongFlashTimerRef.current !== null) {
+      clearTimeout(wrongFlashTimerRef.current);
+    }
+    wrongFlashTimerRef.current = setTimeout(() => {
+      setWrongGuessFlash(false);
+      wrongFlashTimerRef.current = null;
+    }, 1500);
+  }, []);
+
   const handleGuess = useCallback(
     async (title: string, mediaId?: string) => {
       if (currentRound === null || game === undefined || isSubmitting || submittedRef.current)
@@ -122,45 +160,51 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
 
       if (result === null) {
         submittedRef.current = false;
-      } else {
-        if (result.isCorrect) {
-          if (result.isFirstCorrect === true) {
-            playFirstCorrectSound();
-          } else {
-            playCorrectSound();
-          }
+        return;
+      }
+
+      if (result.isCorrect) {
+        if (result.isFirstCorrect === true) {
+          playFirstCorrectSound();
         } else {
-          playWrongSound();
+          playCorrectSound();
         }
-        setRoundResult(result);
-        if (!result.isCorrect) {
-          submittedRef.current = false;
+      } else {
+        playWrongSound();
+        showWrongFlash();
+      }
+
+      setRoundResult(result);
+
+      if (!result.isCorrect) {
+        submittedRef.current = false;
+        // If the poster reveal timer already expired while this guess was in-flight,
+        // auto-skip now to prevent the round from freezing.
+        if (timeExpiredRef.current) {
+          void handleSkip();
         }
       }
     },
-    [currentRound, game, gameId, isSubmitting, startTimeForRound, submitGuess],
+    [
+      currentRound,
+      game,
+      gameId,
+      handleSkip,
+      isSubmitting,
+      showWrongFlash,
+      startTimeForRound,
+      submitGuess,
+    ],
   );
 
-  const handleSkip = useCallback(async () => {
-    if (currentRound === null || game === undefined || submittedRef.current) return;
-    submittedRef.current = true;
-    playSkipSound();
-
-    const timeFromStartMs = Date.now() - startTimeForRound;
-
-    await submitGuess({
-      gameId,
-      roundId: currentRound.id,
-      guessText: "(skipped)",
-      timeFromStartMs,
-    });
-  }, [currentRound, game, gameId, startTimeForRound, submitGuess]);
-
   const handleTimeExpired = useCallback(() => {
+    timeExpiredRef.current = true;
     if (!submittedRef.current) {
       playSkipSound();
       void handleSkip();
     }
+    // If submittedRef.current is true (guess in-flight), the handleGuess callback
+    // will check timeExpiredRef and auto-skip once the response arrives.
   }, [handleSkip]);
 
   const handleNextRound = useCallback(async () => {
@@ -252,39 +296,82 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       });
     }
 
+    setWrongGuessFlash(false);
+    setRoundScores(event.scores);
+    resultShownAtRef.current = Date.now();
     setRoundPhase("result");
     clearIndicators();
   });
 
   useChannel({ channelName }, "round-started", () => {
-    void mutate();
-    playRoundStartSound();
-    setRoundResult(null);
-    setStartTimeForRound(getRoundStartTime());
-    setPlayerOverrides(new Map());
-    submittedRef.current = false;
-    advancingRef.current = false;
-    setIsAdvancing(false);
-    setRoundPhase("guessing");
-    clearIndicators();
+    // Buffer the round transition so the result screen stays visible
+    if (roundStartDelayRef.current !== null) {
+      clearTimeout(roundStartDelayRef.current);
+    }
+    roundStartDelayRef.current = setTimeout(() => {
+      roundStartDelayRef.current = null;
+      resultShownAtRef.current = 0;
+      void mutate();
+      playRoundStartSound();
+      setRoundResult(null);
+      setRoundScores(null);
+      setStartTimeForRound(getRoundStartTime());
+      setPlayerOverrides(new Map());
+      submittedRef.current = false;
+      advancingRef.current = false;
+      timeExpiredRef.current = false;
+      setIsAdvancing(false);
+      setRoundPhase("guessing");
+      setWrongGuessFlash(false);
+      clearIndicators();
+    }, ROUND_RESULT_DISPLAY_MS);
   });
 
   useChannel({ channelName }, "game-ended", () => {
-    void mutate();
-    playGameEndSound();
-    setRoundPhase("finished");
-    clearIndicators();
-    if (countdownTimerRef.current !== null) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
+    const processGameEnded = () => {
+      resultShownAtRef.current = 0;
+      void mutate();
+      playGameEndSound();
+      setRoundPhase("finished");
+      clearIndicators();
+      if (countdownTimerRef.current !== null) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      if (roundStartDelayRef.current !== null) {
+        clearTimeout(roundStartDelayRef.current);
+        roundStartDelayRef.current = null;
+      }
+    };
+
+    // If showing a result screen, delay so players can see last round scores
+    if (resultShownAtRef.current > 0) {
+      const elapsed = Date.now() - resultShownAtRef.current;
+      const remaining = Math.max(0, ROUND_RESULT_DISPLAY_MS - elapsed);
+
+      if (remaining > 0) {
+        if (roundStartDelayRef.current !== null) {
+          clearTimeout(roundStartDelayRef.current);
+        }
+        roundStartDelayRef.current = setTimeout(processGameEnded, remaining);
+        return;
+      }
     }
+
+    processGameEnded();
   });
 
-  // Clean up timer on unmount
+  // Clean up timers on unmount
   useEffect(() => {
     return () => {
       if (countdownTimerRef.current !== null) {
         clearInterval(countdownTimerRef.current);
+      }
+      if (wrongFlashTimerRef.current !== null) {
+        clearTimeout(wrongFlashTimerRef.current);
+      }
+      if (roundStartDelayRef.current !== null) {
+        clearTimeout(roundStartDelayRef.current);
       }
     };
   }, []);
@@ -317,6 +404,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
             }}
             isAdvancing={isAdvancing}
             isLastRound={game.currentRound + 1 >= game.roundCount}
+            isMultiplayer
+            roundScores={roundScores ?? undefined}
           />
         </div>
         <div className="hidden lg:block">
@@ -366,6 +455,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
           <CorrectGuessBanner score={correctScore} />
         ) : (
           <>
+            {wrongGuessFlash && <WrongGuessBanner />}
+
             <GuessInput
               key={game.currentRound}
               mediaOptions={mediaOptions}
@@ -415,6 +506,14 @@ function CorrectGuessBanner({ score }: Readonly<{ score: number }>) {
     <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-6 py-3 text-center">
       <p className="font-medium text-emerald-500">Correct! +{String(score)} pts</p>
       <p className="text-muted-foreground mt-1 text-xs">Waiting for other players...</p>
+    </div>
+  );
+}
+
+function WrongGuessBanner() {
+  return (
+    <div className="animate-shake rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-3 text-center">
+      <p className="font-medium text-red-500">Wrong! Try again</p>
     </div>
   );
 }

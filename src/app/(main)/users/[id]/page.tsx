@@ -2,9 +2,13 @@
 
 import {
   ArrowLeftIcon,
+  BarChart3Icon,
+  BookmarkIcon,
   CalendarIcon,
   ClapperboardIcon,
   CrownIcon,
+  Gamepad2Icon,
+  LayoutDashboardIcon,
   ShieldCheckIcon,
   ShieldIcon,
   StarIcon,
@@ -19,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserGameStats } from "@/components/users/game-stats";
 import { RatingDistribution } from "@/components/users/rating-distribution";
 import { RecentPicks } from "@/components/users/recent-picks";
@@ -201,32 +206,59 @@ export default function UserProfilePage() {
         ))}
       </div>
 
-      {/* Rating distribution (full width) */}
-      {statsLoading ? (
-        <Skeleton className="h-64 rounded-lg" />
-      ) : (
-        stats !== undefined &&
-        stats.ratingDistribution.length > 0 && (
-          <RatingDistribution distribution={stats.ratingDistribution} />
-        )
-      )}
+      {/* Tabbed content */}
+      <Tabs defaultValue="overview">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="overview">
+            <LayoutDashboardIcon className="size-4" />
+            <span className="hidden sm:inline">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="stats">
+            <BarChart3Icon className="size-4" />
+            <span className="hidden sm:inline">Stats</span>
+          </TabsTrigger>
+          <TabsTrigger value="games">
+            <Gamepad2Icon className="size-4" />
+            <span className="hidden sm:inline">Games</span>
+          </TabsTrigger>
+          <TabsTrigger value="watchlist">
+            <BookmarkIcon className="size-4" />
+            <span className="hidden sm:inline">Watchlist</span>
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Detailed stats (categorized sections) */}
-      <UserDetailedStats userId={params.id} />
+        <TabsContent value="overview" className="space-y-6">
+          {/* Rating distribution */}
+          {statsLoading ? (
+            <Skeleton className="h-64 rounded-lg" />
+          ) : (
+            stats !== undefined &&
+            stats.ratingDistribution.length > 0 && (
+              <RatingDistribution distribution={stats.ratingDistribution} />
+            )
+          )}
 
-      {/* Game stats */}
-      <UserGameStats userId={params.id} />
+          {/* Recent picks */}
+          {statsLoading ? (
+            <Skeleton className="h-48 rounded-lg" />
+          ) : (
+            stats !== undefined &&
+            stats.recentPicks.length > 0 && <RecentPicks picks={stats.recentPicks} />
+          )}
+        </TabsContent>
 
-      {/* Recent picks */}
-      {statsLoading ? (
-        <Skeleton className="h-48 rounded-lg" />
-      ) : (
-        stats !== undefined &&
-        stats.recentPicks.length > 0 && <RecentPicks picks={stats.recentPicks} />
-      )}
+        <TabsContent value="stats">
+          <UserDetailedStats userId={params.id} />
+        </TabsContent>
 
-      {/* Watchlist */}
-      <WatchlistSection userId={params.id} isOwnProfile={isOwnProfile} />
+        <TabsContent value="games">
+          <UserGameStats userId={params.id} />
+        </TabsContent>
+
+        <TabsContent value="watchlist">
+          <WatchlistSection userId={params.id} isOwnProfile={isOwnProfile} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

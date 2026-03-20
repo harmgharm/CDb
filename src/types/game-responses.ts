@@ -216,3 +216,16 @@ export interface GameEndedEvent {
     avgGuessTimeMs: number;
   }[];
 }
+
+export interface LobbyClosed {
+  reason: "host_left";
+}
+
+export interface RematchCreatedEvent {
+  newGameId: string;
+  createdBy: {
+    userId: string;
+    username: string;
+    displayName: string | null;
+  };
+}

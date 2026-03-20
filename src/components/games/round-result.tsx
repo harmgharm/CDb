@@ -4,13 +4,14 @@
  * RoundResult — Shown between rounds with score and answer details
  */
 
-import { CheckCircleIcon, FlameIcon, XCircleIcon } from "lucide-react";
+import { CheckCircleIcon, FlameIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { PosterRevealResultData } from "@/types/game-engine-data";
-import type { GuessResultResponse } from "@/types/game-responses";
+import type { GuessResultResponse, RoundEndedEvent } from "@/types/game-responses";
 
 interface RoundResultProps {
   readonly result: GuessResultResponse;
@@ -23,6 +24,10 @@ interface RoundResultProps {
   readonly answerDisplay?: React.ReactNode;
   /** Game-specific header (replaces default "Correct!" / "Wrong!") */
   readonly resultHeader?: React.ReactNode;
+  /** Whether this is a multiplayer game (hides Next Round button) */
+  readonly isMultiplayer?: boolean;
+  /** Per-player round scores from round-ended event (multiplayer) */
+  readonly roundScores?: RoundEndedEvent["scores"];
 }
 
 export function RoundResult({
@@ -34,6 +39,8 @@ export function RoundResult({
   isLastRound,
   answerDisplay,
   resultHeader,
+  isMultiplayer,
+  roundScores,
 }: RoundResultProps) {
   return (
     <motion.div
@@ -85,10 +92,19 @@ export function RoundResult({
         </div>
       )}
 
-      {/* Next round button */}
-      <Button onClick={onNextRound} disabled={isAdvancing} size="lg" className="mt-2">
-        {isLastRound ? "View Results" : "Next Round"}
-      </Button>
+      {/* Round scores (multiplayer) */}
+      {roundScores !== undefined && roundScores.length > 0 && (
+        <RoundScoresDisplay scores={roundScores} />
+      )}
+
+      {/* Next round button (solo) or auto-advance countdown (multiplayer) */}
+      {isMultiplayer === true ? (
+        <AutoAdvanceMessage isLastRound={isLastRound} />
+      ) : (
+        <Button onClick={onNextRound} disabled={isAdvancing} size="lg" className="mt-2">
+          {isLastRound ? "View Results" : "Next Round"}
+        </Button>
+      )}
     </motion.div>
   );
 }
@@ -123,5 +139,86 @@ function DefaultAnswerDisplay({
         </p>
       </div>
     </div>
+  );
+}
+
+const AUTO_ADVANCE_SECONDS = 5;
+
+function AutoAdvanceMessage({ isLastRound }: Readonly<{ isLastRound: boolean }>) {
+  const [remaining, setRemaining] = useState(AUTO_ADVANCE_SECONDS);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRemaining((previous) => {
+        if (previous <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
+      <p className="text-muted-foreground text-sm">
+        <AutoAdvanceLabel remaining={remaining} isLastRound={isLastRound} />
+      </p>
+    </div>
+  );
+}
+
+function AutoAdvanceLabel({
+  remaining,
+  isLastRound,
+}: Readonly<{ remaining: number; isLastRound: boolean }>) {
+  if (remaining === 0) {
+    return isLastRound ? "Loading results..." : "Starting...";
+  }
+  if (isLastRound) {
+    return `Showing results in ${String(remaining)}s...`;
+  }
+  return `Next round in ${String(remaining)}s...`;
+}
+
+function RoundScoresDisplay({ scores }: Readonly<{ scores: RoundEndedEvent["scores"] }>) {
+  const sorted = scores.toSorted((a, b) => b.scoreAwarded - a.scoreAwarded);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3, duration: 0.3, ease: "easeOut" as const }}
+      className="w-full max-w-sm"
+    >
+      <p className="text-muted-foreground mb-2 text-center text-xs font-medium tracking-wider uppercase">
+        Round Scores
+      </p>
+      <div className="space-y-1.5">
+        {sorted.map((score) => (
+          <div key={score.userId} className="flex items-center gap-2 text-sm">
+            {score.isCorrect ? (
+              <CheckCircleIcon className="size-3.5 shrink-0 text-green-500" />
+            ) : (
+              <XCircleIcon className="size-3.5 shrink-0 text-red-500" />
+            )}
+            <span className="min-w-0 flex-1 truncate">{score.username}</span>
+            {score.isFirstCorrect && (
+              <span className="text-[10px] font-medium text-yellow-500">1st</span>
+            )}
+            <span className="font-medium tabular-nums">+{String(score.scoreAwarded)}</span>
+            {score.timeFromStartMs !== null && score.isCorrect && (
+              <span className="text-muted-foreground w-10 text-right text-xs tabular-nums">
+                {(score.timeFromStartMs / 1000).toFixed(1)}s
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </motion.div>
   );
 }

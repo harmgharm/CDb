@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,8 +11,6 @@ import type { ApiResponse } from "@/lib/api/response";
 import type { SafeUser } from "@/types/auth";
 
 export default function SignupPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +44,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/home");
+      globalThis.location.href = "/home";
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

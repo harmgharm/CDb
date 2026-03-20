@@ -197,7 +197,7 @@ async function fetchAnimeRecommendations(
 
 // ── Cache helpers ────────────────────────────────────────────────────
 
-async function getCachedRecommendations(
+export async function getCachedRecommendations(
   sourceType: string,
   tmdbId: number | null,
   malId: number | null,
@@ -225,7 +225,7 @@ async function getCachedRecommendations(
   return recs;
 }
 
-async function cacheRecommendations(options: {
+export async function cacheRecommendations(options: {
   sourceType: string;
   tmdbId: number | null;
   malId: number | null;

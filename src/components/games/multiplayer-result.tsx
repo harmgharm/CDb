@@ -2,11 +2,16 @@
 
 /**
  * MultiplayerResult — Final standings and stats for a multiplayer game
+ *
+ * "Play Again" creates a rematch lobby with the same settings.
+ * Other players receive a "rematch-created" event and can join the new lobby.
  */
 
+import { useChannel } from "ably/react";
 import {
   ClockIcon,
   FlameIcon,
+  Loader2Icon,
   ShieldCheckIcon,
   ShieldOffIcon,
   TargetIcon,
@@ -14,14 +19,22 @@ import {
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useRematch } from "@/hooks/use-games";
 import { getClientGameConfig } from "@/lib/games/client-config";
-import type { GamePlayerResponse, GameSessionResponse } from "@/types/game-responses";
+import type {
+  GamePlayerResponse,
+  GameSessionResponse,
+  RematchCreatedEvent,
+} from "@/types/game-responses";
 
 interface MultiplayerResultProps {
   readonly game: GameSessionResponse;
@@ -45,12 +58,43 @@ const MEDAL_STYLES: Record<number, { bg: string; text: string; label: string }> 
 
 export function MultiplayerResult({ game }: MultiplayerResultProps) {
   const { user } = useAuth();
+  const router = useRouter();
+  const gameConfig = getClientGameConfig(game.gameType);
+  const basePath = gameConfig?.basePath ?? "/play";
+  const { createRematch, isCreating } = useRematch();
+  const [rematchGameId, setRematchGameId] = useState<string | null>(null);
+  const [rematchCreator, setRematchCreator] = useState<string | null>(null);
 
   const standings = (game.players ?? []).toSorted((a, b) => b.totalScore - a.totalScore);
 
   // Current user stats
   const myStats = standings.find((s) => s.userId === user?.id) ?? null;
   const myRank = standings.findIndex((s) => s.userId === user?.id) + 1;
+
+  // Listen for rematch-created event from other players
+  useChannel({ channelName: `game:${game.id}` }, "rematch-created", (message) => {
+    const event = message.data as RematchCreatedEvent;
+    // Ignore our own rematch events
+    if (event.createdBy.userId === user?.id) return;
+    setRematchGameId(event.newGameId);
+    const name = event.createdBy.displayName ?? event.createdBy.username;
+    setRematchCreator(name);
+    toast.info(`${name} wants to play again!`);
+  });
+
+  const handlePlayAgain = useCallback(async () => {
+    // If a rematch already exists (created by someone else), join it
+    if (rematchGameId !== null) {
+      router.push(`${basePath}/${rematchGameId}`);
+      return;
+    }
+
+    // Create a new rematch
+    const newGameId = await createRematch(game.id);
+    if (newGameId !== null) {
+      router.push(`${basePath}/${newGameId}`);
+    }
+  }, [basePath, createRematch, game.id, rematchGameId, router]);
 
   return (
     <motion.div
@@ -151,11 +195,30 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
       {/* Round breakdown */}
       <RoundBreakdown game={game} standings={standings} />
 
+      {/* Rematch banner — shown when another player created a rematch */}
+      {rematchGameId !== null && rematchCreator !== null && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" as const }}
+          className="border-primary/50 bg-primary/5 w-full rounded-lg border p-4 text-center"
+        >
+          <p className="text-sm font-medium">{rematchCreator} started a new lobby!</p>
+        </motion.div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-3">
-        <Link href={getClientGameConfig(game.gameType)?.basePath ?? "/play"}>
-          <Button size="lg">Play Again</Button>
-        </Link>
+        <Button
+          size="lg"
+          onClick={() => {
+            void handlePlayAgain();
+          }}
+          disabled={isCreating}
+        >
+          {isCreating && <Loader2Icon className="mr-2 size-4 animate-spin" />}
+          <PlayAgainLabel isCreating={isCreating} hasRematch={rematchGameId !== null} />
+        </Button>
         <Link href="/play">
           <Button variant="outline" size="lg">
             Back to Games
@@ -164,6 +227,15 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
       </div>
     </motion.div>
   );
+}
+
+function PlayAgainLabel({
+  isCreating,
+  hasRematch,
+}: Readonly<{ isCreating: boolean; hasRematch: boolean }>) {
+  if (isCreating) return "Creating Lobby...";
+  if (hasRematch) return "Join Rematch";
+  return "Play Again";
 }
 
 function WinnerBanner({

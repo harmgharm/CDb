@@ -250,6 +250,8 @@ async function fetchAnimeGenreResultsForGenre(
   const malGenreId = getMalGenreId(genreScore.genre);
   if (malGenreId === null) return [];
 
+  const maxPerGenre = 12;
+
   try {
     const response = await discoverAnime({
       genres: malGenreId.toString(),
@@ -261,6 +263,7 @@ async function fetchAnimeGenreResultsForGenre(
 
     const results: RecommendationItem[] = [];
     for (const anime of response.data) {
+      if (results.length >= maxPerGenre) break;
       if (isAlreadyWatched(watched, { malId: anime.mal_id })) continue;
 
       results.push(

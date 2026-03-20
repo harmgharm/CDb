@@ -144,6 +144,26 @@ export async function getTvRecommendations(
   });
 }
 
+export async function getMovieSimilar(
+  tmdbId: number,
+  page = 1,
+): Promise<TmdbSearchResponse<TmdbMovieSearchResult>> {
+  return tmdbFetch(`/movie/${tmdbId.toString()}/similar`, {
+    page: page.toString(),
+    language: "en-US",
+  });
+}
+
+export async function getTvSimilar(
+  tmdbId: number,
+  page = 1,
+): Promise<TmdbSearchResponse<TmdbTvSearchResult>> {
+  return tmdbFetch(`/tv/${tmdbId.toString()}/similar`, {
+    page: page.toString(),
+    language: "en-US",
+  });
+}
+
 export async function discoverMovies(
   params: Record<string, string>,
 ): Promise<TmdbSearchResponse<TmdbMovieSearchResult>> {

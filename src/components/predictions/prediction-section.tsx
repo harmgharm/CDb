@@ -16,7 +16,11 @@ import { PredictionSkeleton } from "./prediction-skeleton";
 
 const DEBOUNCE_MS = 400;
 
-export function PredictionSection() {
+/**
+ * Inner content for the prediction feature — search, results, and result card.
+ * Used inside the tabbed tools card on the recommendations page.
+ */
+export function PredictionContent() {
   const [query, setQuery] = useState("");
   const { results, isSearching, search, clearResults } = useMediaSearch();
   const { result, isPredicting, predictionError, predict, reset } = usePrediction();
@@ -69,6 +73,83 @@ export function PredictionSection() {
     query.trim().length > 0 && results.length > 0 && result === null && !isPredicting;
 
   return (
+    <div className="space-y-4">
+      {/* Search input (hidden when showing result) */}
+      {result === null && !isPredicting && (
+        <div className="relative">
+          <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Input
+            placeholder="Search for a movie, show, or anime..."
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            className="pl-9"
+          />
+          {isSearching && (
+            <Loader2Icon className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin" />
+          )}
+        </div>
+      )}
+
+      {/* Search results */}
+      {showSearchResults && (
+        <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border p-2">
+          {results.map((item) => (
+            <PredictionSearchItem
+              key={`${item.source}-${String(item.externalId)}`}
+              item={item}
+              onClick={() => {
+                handleSelect(item);
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* No results */}
+      {query.trim().length > 0 &&
+        !isSearching &&
+        results.length === 0 &&
+        result === null &&
+        !isPredicting && (
+          <p className="text-muted-foreground py-4 text-center text-sm">
+            No results found. Try a different search term.
+          </p>
+        )}
+
+      {/* Loading skeleton */}
+      {isPredicting && <PredictionSkeleton />}
+
+      {/* Error */}
+      {predictionError !== null && (
+        <div className="text-destructive py-4 text-center text-sm">
+          {predictionError}
+          <Button variant="ghost" size="sm" onClick={handleReset} className="ml-2">
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {/* Prediction result */}
+      {result !== null && (
+        <div className="space-y-4">
+          <PredictionResultCard prediction={result} />
+          <div className="flex justify-center">
+            <Button variant="outline" size="sm" onClick={handleReset}>
+              <RotateCcwIcon className="mr-2 size-3.5" />
+              Predict Another
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Standalone prediction card — wraps PredictionContent in its own Card. */
+export function PredictionSection() {
+  return (
     <Card className="border-indigo-500/20 bg-gradient-to-br from-indigo-500/5 to-transparent">
       <CardHeader>
         <div className="flex items-center gap-2">
@@ -79,77 +160,8 @@ export function PredictionSection() {
           Search for any title to see your predicted rating based on your taste profile
         </CardDescription>
       </CardHeader>
-
-      <CardContent className="space-y-4">
-        {/* Search input (hidden when showing result) */}
-        {result === null && !isPredicting && (
-          <div className="relative">
-            <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              placeholder="Search for a movie, show, or anime..."
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              className="pl-9"
-            />
-            {isSearching && (
-              <Loader2Icon className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin" />
-            )}
-          </div>
-        )}
-
-        {/* Search results */}
-        {showSearchResults && (
-          <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border p-2">
-            {results.map((item) => (
-              <PredictionSearchItem
-                key={`${item.source}-${String(item.externalId)}`}
-                item={item}
-                onClick={() => {
-                  handleSelect(item);
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* No results */}
-        {query.trim().length > 0 &&
-          !isSearching &&
-          results.length === 0 &&
-          result === null &&
-          !isPredicting && (
-            <p className="text-muted-foreground py-4 text-center text-sm">
-              No results found. Try a different search term.
-            </p>
-          )}
-
-        {/* Loading skeleton */}
-        {isPredicting && <PredictionSkeleton />}
-
-        {/* Error */}
-        {predictionError !== null && (
-          <div className="text-destructive py-4 text-center text-sm">
-            {predictionError}
-            <Button variant="ghost" size="sm" onClick={handleReset} className="ml-2">
-              Try again
-            </Button>
-          </div>
-        )}
-
-        {/* Prediction result */}
-        {result !== null && (
-          <div className="space-y-4">
-            <PredictionResultCard prediction={result} />
-            <div className="flex justify-center">
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                <RotateCcwIcon className="mr-2 size-3.5" />
-                Predict Another
-              </Button>
-            </div>
-          </div>
-        )}
+      <CardContent>
+        <PredictionContent />
       </CardContent>
     </Card>
   );

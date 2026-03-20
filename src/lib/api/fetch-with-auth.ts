@@ -4,9 +4,22 @@
  * - On 401, attempts a single token refresh and retries the original request.
  * - Deduplicates concurrent refresh attempts so only one runs at a time,
  *   preventing refresh token reuse detection from invalidating the session.
+ * - When refresh fails, notifies listeners so the auth provider can redirect.
  */
 
 let refreshPromise: Promise<boolean> | null = null;
+const refreshFailListeners = new Set<() => void>();
+
+/**
+ * Register a callback invoked when token refresh fails (session expired).
+ * Returns an unsubscribe function.
+ */
+export function onRefreshFail(listener: () => void): () => void {
+  refreshFailListeners.add(listener);
+  return () => {
+    refreshFailListeners.delete(listener);
+  };
+}
 
 async function attemptTokenRefresh(): Promise<boolean> {
   // If a refresh is already in-flight, piggyback on it
@@ -21,7 +34,15 @@ async function attemptTokenRefresh(): Promise<boolean> {
       refreshPromise = null;
     });
 
-  return refreshPromise;
+  const success = await refreshPromise;
+
+  if (!success) {
+    for (const listener of refreshFailListeners) {
+      listener();
+    }
+  }
+
+  return success;
 }
 
 /**

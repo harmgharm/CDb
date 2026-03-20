@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/home";
 
@@ -48,7 +47,10 @@ function LoginForm() {
         return;
       }
 
-      router.push(callbackUrl);
+      // Full page load (not client-side nav) so the authenticated layout
+      // mounts fresh with the new cookies — avoids stale SWR cache from
+      // the pre-login state causing a silent redirect loop back to /login.
+      globalThis.location.href = callbackUrl;
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

@@ -14,7 +14,7 @@ import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
-import type { RecommendationType } from "@/lib/db/types";
+import type { MediaType, RecommendationType } from "@/lib/db/types";
 import type { RecommendationItem } from "@/lib/recommendations";
 import {
   enrichWithWatchlistData,
@@ -30,6 +30,27 @@ import { recommendationQuerySchema } from "@/lib/validations/recommendations";
 /** If dismissal filtering drops a section below this, auto-backfill with fresh computation */
 const BACKFILL_THRESHOLD = 15;
 
+async function fetchAllTypes(userId: string, refresh: boolean): Promise<RecommendationItem[]> {
+  const ratingCount = await getUserRatingCount(userId);
+  const isPersonalized = ratingCount >= MIN_RATINGS_FOR_PERSONALIZED;
+
+  if (isPersonalized) {
+    const [content, collaborative, tmdb, group] = await Promise.all([
+      getOrComputeRecommendations(userId, "content", refresh),
+      getOrComputeRecommendations(userId, "collaborative", refresh),
+      getOrComputeRecommendations(userId, "tmdb", refresh),
+      getOrComputeRecommendations(userId, "group", refresh),
+    ]);
+    return [...content, ...collaborative, ...tmdb, ...group];
+  }
+
+  const [fallback, group] = await Promise.all([
+    getOrComputeRecommendations(userId, "content", refresh),
+    getOrComputeRecommendations(userId, "group", refresh),
+  ]);
+  return [...fallback, ...group];
+}
+
 export async function GET(req: NextRequest) {
   const user = await requireAuth();
 
@@ -40,55 +61,30 @@ export async function GET(req: NextRequest) {
   }
 
   const { type, limit, refresh, mediaType, genre, decade } = parsed.data;
-  const hasFilters = mediaType !== undefined || genre !== undefined || decade !== undefined;
+  const hasFilters =
+    (mediaType !== undefined && mediaType.length > 0) ||
+    (genre !== undefined && genre.length > 0) ||
+    (decade !== undefined && decade.length > 0);
 
   try {
     let items: RecommendationItem[];
     let computedAt = new Date();
-    let recTypeLabel: RecommendationType | "all" = type ?? "all";
+    const recTypeLabel: RecommendationType | "all" = type ?? "all";
 
     // Pre-fetch dismissed IDs (needed for filtering + backfill)
     const dismissed = await getUserDismissedIds(user.id);
 
     if (hasFilters) {
       // Server-side filtered: bypass cache, compute on-the-fly with TMDB discover params
-      items = await computeFilteredRecommendations(user.id, { mediaType, genre, decade }, limit);
-
-      // Still filter out dismissed items
-      items = items.filter((item) => !isAlreadyWatched(dismissed, item));
-      items = items.slice(0, limit);
+      items = await computeFilteredRecommendations(
+        user.id,
+        { mediaType: mediaType as MediaType[] | undefined, genre, decade },
+        limit,
+      );
     } else if (type === undefined) {
       // All types — check rating count for personalized vs fallback
-      const ratingCount = await getUserRatingCount(user.id);
-      const isPersonalized = ratingCount >= MIN_RATINGS_FOR_PERSONALIZED;
-
-      if (isPersonalized) {
-        // Fetch all 4 types in parallel
-        const [content, collaborative, tmdb, group] = await Promise.all([
-          getOrComputeRecommendations(user.id, "content", refresh),
-          getOrComputeRecommendations(user.id, "collaborative", refresh),
-          getOrComputeRecommendations(user.id, "tmdb", refresh),
-          getOrComputeRecommendations(user.id, "group", refresh),
-        ]);
-
-        items = [...content, ...collaborative, ...tmdb, ...group];
-      } else {
-        // Fallback + group only
-        const [fallback, group] = await Promise.all([
-          getOrComputeRecommendations(user.id, "content", refresh), // Will get fallback internally
-          getOrComputeRecommendations(user.id, "group", refresh),
-        ]);
-
-        items = [...fallback, ...group];
-        recTypeLabel = "all";
-      }
-
-      // Sort merged results by score descending
+      items = await fetchAllTypes(user.id, refresh);
       items = items.toSorted((a, b) => b.score - a.score);
-
-      // Filter out dismissed items
-      items = items.filter((item) => !isAlreadyWatched(dismissed, item));
-      items = items.slice(0, limit);
     } else {
       // Single type requested (no content filters)
       items = await getOrComputeRecommendations(user.id, type, refresh);
@@ -98,11 +94,11 @@ export async function GET(req: NextRequest) {
       if (!refresh && filteredCount < BACKFILL_THRESHOLD) {
         items = await getOrComputeRecommendations(user.id, type, true);
       }
-
-      // Filter out dismissed items
-      items = items.filter((item) => !isAlreadyWatched(dismissed, item));
-      items = items.slice(0, limit);
     }
+
+    // Filter out dismissed items and apply limit
+    items = items.filter((item) => !isAlreadyWatched(dismissed, item));
+    items = items.slice(0, limit);
 
     // Enrich with watchlist data
     items = await enrichWithWatchlistData(items, user.id);

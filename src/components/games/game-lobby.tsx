@@ -17,7 +17,8 @@ import {
   ShieldOffIcon,
   UsersIcon,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -26,7 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useStartGame } from "@/hooks/use-games";
-import { playPlayerJoinedSound, playRoundStartSound } from "@/lib/games/sounds";
+import {
+  playPlayerDisconnectedSound,
+  playPlayerJoinedSound,
+  playRoundStartSound,
+} from "@/lib/games/sounds";
 import type {
   GamePlayerResponse,
   GameSessionResponse,
@@ -41,6 +46,8 @@ interface GameLobbyProps {
   readonly onGameStarted: () => void;
   readonly onOpenInviteDialog: () => void;
   readonly onlineUserIds: Set<string>;
+  /** True when the host disconnected (detected via presence in parent) */
+  readonly hostDisconnected: boolean;
 }
 
 function getInitials(displayName: string | null, username: string): string {
@@ -65,11 +72,16 @@ export function GameLobby({
   onGameStarted,
   onOpenInviteDialog,
   onlineUserIds,
+  hostDisconnected,
 }: GameLobbyProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const { startGame, isStarting, error: startError } = useStartGame();
   const [copied, setCopied] = useState(false);
   const [players, setPlayers] = useState<GamePlayerResponse[]>(game.players ?? []);
+  const [lobbyClosedByEvent, setLobbyClosedByEvent] = useState(false);
+  // Lobby is closed if we received the Ably event OR the parent detected the host disconnected
+  const lobbyClosed = lobbyClosedByEvent || hostDisconnected;
 
   const isHost = user?.id === game.createdByUserId;
   const channelName = `game:${game.id}`;
@@ -107,6 +119,29 @@ export function GameLobby({
     onGameStarted();
   });
 
+  // Host left cleanly → server published lobby-closed event
+  useChannel({ channelName }, "lobby-closed", () => {
+    setLobbyClosedByEvent(true);
+    playPlayerDisconnectedSound();
+    toast.error("The host closed the lobby");
+    setTimeout(() => {
+      router.push(gameBasePath);
+    }, 1500);
+  });
+
+  // Host disconnect detected via presence in parent — redirect after a delay.
+  // Toast and sound are fired by the parent's presence listener callback.
+  // No setState here — lobbyClosed is derived from the prop.
+  useEffect(() => {
+    if (!hostDisconnected || lobbyClosedByEvent) return;
+    const timer = setTimeout(() => {
+      router.push(gameBasePath);
+    }, 1500);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [hostDisconnected, lobbyClosedByEvent, gameBasePath, router]);
+
   const handleStart = useCallback(async () => {
     const result = await startGame(game.id);
     if (result !== null) {
@@ -123,6 +158,15 @@ export function GameLobby({
       setCopied(false);
     }, 2000);
   }, [game.id, gameBasePath]);
+
+  if (lobbyClosed) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20">
+        <p className="text-muted-foreground">The host closed the lobby.</p>
+        <p className="text-muted-foreground text-sm">Redirecting...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">

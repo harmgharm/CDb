@@ -47,6 +47,9 @@ import type {
   RoundEndedEvent,
 } from "@/types/game-responses";
 
+/** How long the round result screen stays visible before transitioning (ms) */
+const ROUND_RESULT_DISPLAY_MS = 5000;
+
 type RoundPhase = "guessing" | "countdown" | "result" | "finished";
 
 interface MultiplayerGameProps {
@@ -71,10 +74,14 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     Map<string, { scoreAdded: number; roundsWonAdded: number }>
   >(new Map());
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [roundScores, setRoundScores] = useState<RoundEndedEvent["scores"] | null>(null);
   const submittedRef = useRef(false);
   const advancingRef = useRef(false);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentRatingRef = useRef(DEFAULT_RATING_VALUE);
+  const roundStartDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timestamp when the result screen was shown — used to compute remaining delay for game-ended
+  const resultShownAtRef = useRef(0);
 
   const channelName = `game:${gameId}`;
   const isHost = user?.id === game?.createdByUserId;
@@ -236,39 +243,76 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       });
     }
 
+    setRoundScores(event.scores);
+    resultShownAtRef.current = Date.now();
     setRoundPhase("result");
     clearIndicators();
   });
 
   useChannel({ channelName }, "round-started", () => {
-    void mutate();
-    playRoundStartSound();
-    setRoundResult(null);
-    setStartTimeForRound(getRoundStartTime());
-    setPlayerOverrides(new Map());
-    submittedRef.current = false;
-    advancingRef.current = false;
-    setIsAdvancing(false);
-    currentRatingRef.current = DEFAULT_RATING_VALUE;
-    setRoundPhase("guessing");
-    clearIndicators();
+    // Buffer the round transition so the result screen stays visible
+    if (roundStartDelayRef.current !== null) {
+      clearTimeout(roundStartDelayRef.current);
+    }
+    roundStartDelayRef.current = setTimeout(() => {
+      roundStartDelayRef.current = null;
+      resultShownAtRef.current = 0;
+      void mutate();
+      playRoundStartSound();
+      setRoundResult(null);
+      setRoundScores(null);
+      setStartTimeForRound(getRoundStartTime());
+      setPlayerOverrides(new Map());
+      submittedRef.current = false;
+      advancingRef.current = false;
+      setIsAdvancing(false);
+      currentRatingRef.current = DEFAULT_RATING_VALUE;
+      setRoundPhase("guessing");
+      clearIndicators();
+    }, ROUND_RESULT_DISPLAY_MS);
   });
 
   useChannel({ channelName }, "game-ended", () => {
-    void mutate();
-    playGameEndSound();
-    setRoundPhase("finished");
-    clearIndicators();
-    if (countdownTimerRef.current !== null) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
+    const processGameEnded = () => {
+      resultShownAtRef.current = 0;
+      void mutate();
+      playGameEndSound();
+      setRoundPhase("finished");
+      clearIndicators();
+      if (countdownTimerRef.current !== null) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      if (roundStartDelayRef.current !== null) {
+        clearTimeout(roundStartDelayRef.current);
+        roundStartDelayRef.current = null;
+      }
+    };
+
+    // If showing a result screen, delay so players can see last round scores
+    if (resultShownAtRef.current > 0) {
+      const elapsed = Date.now() - resultShownAtRef.current;
+      const remaining = Math.max(0, ROUND_RESULT_DISPLAY_MS - elapsed);
+
+      if (remaining > 0) {
+        if (roundStartDelayRef.current !== null) {
+          clearTimeout(roundStartDelayRef.current);
+        }
+        roundStartDelayRef.current = setTimeout(processGameEnded, remaining);
+        return;
+      }
     }
+
+    processGameEnded();
   });
 
   useEffect(() => {
     return () => {
       if (countdownTimerRef.current !== null) {
         clearInterval(countdownTimerRef.current);
+      }
+      if (roundStartDelayRef.current !== null) {
+        clearTimeout(roundStartDelayRef.current);
       }
     };
   }, []);
@@ -305,6 +349,8 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
             }}
             isAdvancing={isAdvancing}
             isLastRound={game.currentRound + 1 >= game.roundCount}
+            isMultiplayer
+            roundScores={roundScores ?? undefined}
             resultHeader={
               <div className="flex flex-col items-center gap-2">
                 <span className="text-4xl">{header.icon}</span>

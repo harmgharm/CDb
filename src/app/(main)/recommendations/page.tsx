@@ -5,20 +5,15 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 
-import { PredictionSection } from "@/components/predictions/prediction-section";
 import { DismissedItemsSheet } from "@/components/recommendations/dismissed-items-sheet";
 import { RecommendationSection } from "@/components/recommendations/recommendation-section";
+import { RecommendationToolsCard } from "@/components/recommendations/recommendation-tools-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import type { SimilarSourceInput } from "@/hooks/use-find-similar";
+import { useFindSimilar } from "@/hooks/use-find-similar";
 import {
   useDismissedRecommendations,
   useDismissRecommendation,
@@ -27,18 +22,23 @@ import {
   useRefreshRecommendations,
   useRefreshSection,
 } from "@/hooks/use-recommendations";
-import type { RecommendationItem } from "@/types/recommendation-responses";
+import type { MediaSearchResult } from "@/types/media";
+import type { RecommendationItem, RecommendationsMeta } from "@/types/recommendation-responses";
 
 const MIN_RATINGS = 5;
-const ALL_VALUE = "__all__";
 const DISPLAY_LIMIT = 20;
 
-type MediaTypeFilter = "movie" | "tv" | "anime" | "";
+type MediaTypeValue = "movie" | "tv" | "anime";
 
 interface RecFilters {
-  mediaType: MediaTypeFilter;
-  genre: string;
-  decade: string;
+  mediaTypes: MediaTypeValue[];
+  genres: string[];
+  decades: string[];
+}
+
+/** Toggle an item in an array — add if absent, remove if present */
+function toggleItem<T>(array: T[], item: T): T[] {
+  return array.includes(item) ? array.filter((element) => element !== item) : [...array, item];
 }
 
 /** Collect unique genres from all recommendation items across all sections */
@@ -132,18 +132,49 @@ function FallbackSection({ onDismiss }: SectionProps) {
   );
 }
 
+/**
+ * Decides between personalized sections, fallback, or a loading skeleton.
+ * Prevents the "Trending in Group" flash that appeared before meta loaded.
+ */
+function MainSections({
+  meta,
+  isPersonalized,
+  onDismiss,
+}: Readonly<{
+  meta: RecommendationsMeta | undefined;
+  isPersonalized: boolean;
+  onDismiss: (item: RecommendationItem) => void;
+}>) {
+  if (meta === undefined) {
+    return (
+      <RecommendationSection
+        title="For You"
+        description="Based on genres and directors you rate highly"
+        items={[]}
+        isLoading={true}
+        emptyMessage=""
+        onDismiss={onDismiss}
+      />
+    );
+  }
+  if (isPersonalized) {
+    return <PersonalizedSections onDismiss={onDismiss} />;
+  }
+  return <FallbackSection onDismiss={onDismiss} />;
+}
+
 function buildFilterDescription(filters: RecFilters): string {
   const parts: string[] = [];
-  if (filters.genre.length > 0) parts.push(filters.genre);
-  if (filters.mediaType.length > 0) {
+  if (filters.genres.length > 0) parts.push(filters.genres.join(", "));
+  if (filters.mediaTypes.length > 0) {
     const typeLabels: Record<string, string> = { movie: "movies", tv: "TV shows", anime: "anime" };
-    parts.push(typeLabels[filters.mediaType] ?? filters.mediaType);
+    parts.push(filters.mediaTypes.map((t) => typeLabels[t] ?? t).join(", "));
   }
-  if (filters.decade.length > 0) {
-    parts.push(filters.decade === "older" ? "pre-1980" : `${filters.decade}s`);
+  if (filters.decades.length > 0) {
+    parts.push(filters.decades.map((d) => (d === "older" ? "pre-1980" : `${d}s`)).join(", "));
   }
   return parts.length > 0
-    ? `Showing ${parts.join(" ")} recommendations`
+    ? `Showing ${parts.join(" \u2022 ")} recommendations`
     : "Filtered recommendations";
 }
 
@@ -158,10 +189,23 @@ export default function RecommendationsPage() {
   const { dismiss } = useDismissRecommendation();
   const { mutate } = useSWRConfig();
   const [filters, setFilters] = useState<RecFilters>({
-    mediaType: "",
-    genre: "",
-    decade: "",
+    mediaTypes: [],
+    genres: [],
+    decades: [],
   });
+
+  // Find Similar state
+  const [selectedSources, setSelectedSources] = useState<MediaSearchResult[]>([]);
+  const {
+    results: similarResults,
+    isLoading: isSimilarLoading,
+    findSimilar,
+    reset: resetSimilar,
+  } = useFindSimilar();
+  const [isSimilarRefreshing, setIsSimilarRefreshing] = useState(false);
+
+  // Store last-used sources for refresh
+  const [lastSources, setLastSources] = useState<SimilarSourceInput[]>([]);
 
   const meta = groupData?.meta;
   const isPersonalized = meta?.isPersonalized ?? false;
@@ -170,16 +214,16 @@ export default function RecommendationsPage() {
   const dismissedCount = dismissedData?.items.length ?? 0;
 
   const hasActiveFilters =
-    filters.mediaType.length > 0 || filters.genre.length > 0 || filters.decade.length > 0;
+    filters.mediaTypes.length > 0 || filters.genres.length > 0 || filters.decades.length > 0;
 
   // Server-side filtered results — only fetched when filters are active
   const serverFilters = useMemo(
     () => ({
-      mediaType: filters.mediaType.length > 0 ? filters.mediaType : undefined,
-      genre: filters.genre.length > 0 ? filters.genre : undefined,
-      decade: filters.decade.length > 0 ? filters.decade : undefined,
+      mediaType: filters.mediaTypes.length > 0 ? filters.mediaTypes : undefined,
+      genre: filters.genres.length > 0 ? filters.genres : undefined,
+      decade: filters.decades.length > 0 ? filters.decades : undefined,
     }),
-    [filters.mediaType, filters.genre, filters.decade],
+    [filters.mediaTypes, filters.genres, filters.decades],
   );
   const { data: filteredData, isLoading: filteredLoading } =
     useFilteredRecommendations(serverFilters);
@@ -221,6 +265,34 @@ export default function RecommendationsPage() {
     [dismiss],
   );
 
+  const handleFindSimilar = useCallback(
+    (sources: SimilarSourceInput[]) => {
+      setLastSources(sources);
+      void findSimilar(sources);
+    },
+    [findSimilar],
+  );
+
+  const handleSimilarRefresh = useCallback(() => {
+    if (lastSources.length === 0) return;
+    setIsSimilarRefreshing(true);
+    void findSimilar(lastSources).then(() => {
+      setIsSimilarRefreshing(false);
+    });
+  }, [lastSources, findSimilar]);
+
+  const handleSourcesChange = useCallback(
+    (sources: MediaSearchResult[]) => {
+      setSelectedSources(sources);
+      // Reset results when sources change
+      if (sources.length === 0) {
+        resetSimilar();
+        setLastSources([]);
+      }
+    },
+    [resetSimilar],
+  );
+
   return (
     <div className="mx-auto max-w-7xl space-y-10">
       {/* Header */}
@@ -240,80 +312,120 @@ export default function RecommendationsPage() {
         </div>
       </div>
 
-      {/* Prediction Section */}
-      <PredictionSection />
+      {/* Tools Card (Predict My Rating + Find Similar) */}
+      <RecommendationToolsCard
+        selectedSources={selectedSources}
+        onSourcesChange={handleSourcesChange}
+        onFindSimilar={handleFindSimilar}
+        isSimilarLoading={isSimilarLoading}
+        hasSimilarResults={similarResults.length > 0}
+      />
+
+      {/* Similar Titles results */}
+      {(similarResults.length > 0 || isSimilarLoading) && (
+        <RecommendationSection
+          title="Similar Titles"
+          description="Titles similar to your selected picks"
+          items={similarResults.slice(0, DISPLAY_LIMIT)}
+          isLoading={isSimilarLoading}
+          emptyMessage="No similar titles found. Try different source titles."
+          onDismiss={handleDismiss}
+          onRefresh={handleSimilarRefresh}
+          isRefreshing={isSimilarRefreshing}
+        />
+      )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={filters.mediaType.length > 0 ? filters.mediaType : ALL_VALUE}
-          onValueChange={(value) => {
-            setFilters((previous) => ({
-              ...previous,
-              mediaType: value === ALL_VALUE ? "" : (value as MediaTypeFilter),
-            }));
-          }}
-        >
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="All types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_VALUE}>All types</SelectItem>
-            <SelectItem value="movie">Movies</SelectItem>
-            <SelectItem value="tv">TV Shows</SelectItem>
-            <SelectItem value="anime">Anime</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="space-y-3">
+        {/* Type */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground w-14 text-xs font-medium">Type</span>
+          {(
+            [
+              { value: "movie", label: "Movies" },
+              { value: "tv", label: "TV Shows" },
+              { value: "anime", label: "Anime" },
+            ] as const
+          ).map(({ value, label }) => (
+            <Badge
+              key={value}
+              variant={filters.mediaTypes.includes(value) ? "default" : "outline"}
+              className="cursor-pointer select-none"
+              onClick={() => {
+                setFilters((previous) => ({
+                  ...previous,
+                  mediaTypes: toggleItem(previous.mediaTypes, value),
+                }));
+              }}
+            >
+              {label}
+              {filters.mediaTypes.includes(value) && <XIcon className="ml-1 size-3" />}
+            </Badge>
+          ))}
+        </div>
 
-        <Select
-          value={filters.genre.length > 0 ? filters.genre : ALL_VALUE}
-          onValueChange={(value) => {
-            setFilters((previous) => ({ ...previous, genre: value === ALL_VALUE ? "" : value }));
-          }}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="All genres" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_VALUE}>All genres</SelectItem>
-            {availableGenres.map((genre) => (
-              <SelectItem key={genre} value={genre}>
-                {genre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Genre */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground w-14 text-xs font-medium">Genre</span>
+          {availableGenres.map((genre) => (
+            <Badge
+              key={genre}
+              variant={filters.genres.includes(genre) ? "default" : "outline"}
+              className="cursor-pointer select-none"
+              onClick={() => {
+                setFilters((previous) => ({
+                  ...previous,
+                  genres: toggleItem(previous.genres, genre),
+                }));
+              }}
+            >
+              {genre}
+              {filters.genres.includes(genre) && <XIcon className="ml-1 size-3" />}
+            </Badge>
+          ))}
+        </div>
 
-        <Select
-          value={filters.decade.length > 0 ? filters.decade : ALL_VALUE}
-          onValueChange={(value) => {
-            setFilters((previous) => ({ ...previous, decade: value === ALL_VALUE ? "" : value }));
-          }}
-        >
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="Any era" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_VALUE}>Any era</SelectItem>
-            <SelectItem value="2020">2020s</SelectItem>
-            <SelectItem value="2010">2010s</SelectItem>
-            <SelectItem value="2000">2000s</SelectItem>
-            <SelectItem value="1990">1990s</SelectItem>
-            <SelectItem value="1980">1980s</SelectItem>
-            <SelectItem value="older">Pre-1980</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Era */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground w-14 text-xs font-medium">Era</span>
+          {(
+            [
+              { value: "2020", label: "2020s" },
+              { value: "2010", label: "2010s" },
+              { value: "2000", label: "2000s" },
+              { value: "1990", label: "1990s" },
+              { value: "1980", label: "1980s" },
+              { value: "older", label: "Pre-1980" },
+            ] as const
+          ).map(({ value, label }) => (
+            <Badge
+              key={value}
+              variant={filters.decades.includes(value) ? "default" : "outline"}
+              className="cursor-pointer select-none"
+              onClick={() => {
+                setFilters((previous) => ({
+                  ...previous,
+                  decades: toggleItem(previous.decades, value),
+                }));
+              }}
+            >
+              {label}
+              {filters.decades.includes(value) && <XIcon className="ml-1 size-3" />}
+            </Badge>
+          ))}
+        </div>
 
+        {/* Clear all */}
         {hasActiveFilters && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setFilters({ mediaType: "", genre: "", decade: "" });
+              setFilters({ mediaTypes: [], genres: [], decades: [] });
             }}
           >
             <XIcon className="mr-1 size-3" />
-            Clear
+            Clear all filters
           </Button>
         )}
       </div>
@@ -354,11 +466,7 @@ export default function RecommendationsPage() {
         ) : (
           /* Unfiltered: show per-type sections */
           <>
-            {isPersonalized ? (
-              <PersonalizedSections onDismiss={handleDismiss} />
-            ) : (
-              <FallbackSection onDismiss={handleDismiss} />
-            )}
+            <MainSections meta={meta} isPersonalized={isPersonalized} onDismiss={handleDismiss} />
 
             {/* Group section (always shown) */}
             <RecommendationSection

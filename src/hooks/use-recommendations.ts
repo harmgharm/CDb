@@ -14,15 +14,18 @@ import type {
 interface RecommendationQueryParams {
   type?: RecommendationType;
   limit?: number;
-  mediaType?: string;
-  genre?: string;
-  decade?: string;
+  mediaType?: string[];
+  genre?: string[];
+  decade?: string[];
 }
 
 function buildRecommendationKey(params: RecommendationQueryParams): string {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && String(value).length > 0) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      if (value.length > 0) searchParams.set(key, value.join(","));
+    } else if (String(value).length > 0) {
       searchParams.set(key, String(value));
     }
   }
@@ -43,9 +46,9 @@ export function useRecommendationsByType(type: RecommendationType) {
  * Returns null key (disabled SWR) when no filters are active.
  */
 export function useFilteredRecommendations(filters: {
-  mediaType?: string;
-  genre?: string;
-  decade?: string;
+  mediaType?: string[];
+  genre?: string[];
+  decade?: string[];
 }) {
   const hasFilters =
     (filters.mediaType !== undefined && filters.mediaType.length > 0) ||

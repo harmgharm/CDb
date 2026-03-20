@@ -228,6 +228,55 @@ export function useStartGame() {
   return { startGame, isStarting, error };
 }
 
+// ── Leave Lobby ─────────────────────────────────────────────────
+
+/**
+ * Fire-and-forget leave lobby call.
+ * Returns a stable function reference that can be called in useEffect cleanup / beforeunload.
+ */
+export function useLeaveLobby() {
+  const leaveLobby = useCallback((gameId: string) => {
+    void fetchWithAuth(`/api/games/${gameId}/leave`, {
+      method: "POST",
+      keepalive: true,
+    }).catch(() => {
+      // Best-effort — ignore errors on cleanup
+    });
+  }, []);
+
+  return { leaveLobby };
+}
+
+// ── Rematch ─────────────────────────────────────────────────────
+
+export function useRematch() {
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createRematch = useCallback(async (gameId: string): Promise<string | null> => {
+    setIsCreating(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth(`/api/games/${gameId}/rematch`, {
+        method: "POST",
+      });
+      const json = (await response.json()) as ApiResponse<{ newGameId: string }>;
+      if (json.error !== null) {
+        setError(json.error);
+        return null;
+      }
+      return json.data.newGameId;
+    } catch {
+      setError("Failed to create rematch");
+      return null;
+    } finally {
+      setIsCreating(false);
+    }
+  }, []);
+
+  return { createRematch, isCreating, error };
+}
+
 // ── Invite Players ───────────────────────────────────────────────
 
 export function useInvitePlayers() {

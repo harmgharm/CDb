@@ -3,7 +3,7 @@
 /**
  * UserGameStats — Game performance section for user profiles
  *
- * Shows poster reveal game stats: hero metrics + recent game history.
+ * Shows per-game-type stats: hero metrics, ranked best scores, and recent game history.
  */
 
 import {
@@ -24,7 +24,9 @@ import { StatsSection } from "@/components/stats/stats-section";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserGameStats } from "@/hooks/use-users";
-import type { UserRecentGame } from "@/types/user-responses";
+import type { GameType } from "@/lib/db/types";
+import { getClientGameConfig } from "@/lib/games/client-config";
+import type { GameTypeStats, UserRecentGame } from "@/types/user-responses";
 
 interface UserGameStatsProps {
   readonly userId: string;
@@ -67,9 +69,18 @@ const MODE_LABELS: Record<string, string> = {
   multiplayer: "Multi",
 };
 
-function RecentGameRow({ game, index }: Readonly<{ game: UserRecentGame; index: number }>) {
+function RecentGameRow({
+  game,
+  index,
+  basePath,
+}: Readonly<{ game: UserRecentGame; index: number; basePath: string }>) {
+  const isRatingGuess = game.gameType === "rating_guess";
+
   const accuracy =
     game.roundCount > 0 ? Math.round((game.correctCount / game.roundCount) * 100) : 0;
+  const accuracyText = isRatingGuess
+    ? `Avg diff: ${String(game.avgDifference ?? 0)}`
+    : `${String(game.correctCount)}/${String(game.roundCount)} correct (${String(accuracy)}%)`;
 
   return (
     <motion.div
@@ -78,9 +89,7 @@ function RecentGameRow({ game, index }: Readonly<{ game: UserRecentGame; index: 
       transition={{ delay: index * 0.05, duration: 0.2 }}
     >
       <Link
-        href={
-          game.mode === "multiplayer" ? `/play/poster-reveal/${game.gameId}` : "/play/poster-reveal"
-        }
+        href={game.mode === "multiplayer" ? `${basePath}/${game.gameId}` : basePath}
         className="bg-card hover:bg-accent/50 flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors"
       >
         {/* Result indicator */}
@@ -110,7 +119,7 @@ function RecentGameRow({ game, index }: Readonly<{ game: UserRecentGame; index: 
             )}
           </div>
           <p className="text-muted-foreground text-xs">
-            {String(game.correctCount)}/{String(game.roundCount)} correct ({String(accuracy)}%)
+            {accuracyText}
             {game.finishedAt !== null && ` · ${formatDate(game.finishedAt)}`}
           </p>
         </div>
@@ -119,14 +128,14 @@ function RecentGameRow({ game, index }: Readonly<{ game: UserRecentGame; index: 
   );
 }
 
-export function UserGameStats({ userId }: UserGameStatsProps) {
-  const { data: stats, isLoading } = useUserGameStats(userId);
-
-  if (isLoading) return <GameStatsSkeleton />;
-
-  if (stats === undefined || stats.gamesPlayed === 0) {
-    return null;
-  }
+function GameTypeStatsSection({
+  gameType,
+  stats,
+}: Readonly<{ gameType: GameType; stats: GameTypeStats }>) {
+  const config = getClientGameConfig(gameType);
+  const displayName = config?.displayName ?? gameType;
+  const basePath = config?.basePath ?? "/play";
+  const Icon = config?.icon ?? Gamepad2Icon;
 
   const winRate =
     stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
@@ -135,8 +144,8 @@ export function UserGameStats({ userId }: UserGameStatsProps) {
     <div className="space-y-4">
       {/* Section header */}
       <div className="flex items-center gap-2">
-        <Gamepad2Icon className="text-muted-foreground size-5" />
-        <h2 className="text-lg font-semibold">Poster Reveal</h2>
+        <Icon className="text-muted-foreground size-5" />
+        <h2 className="text-lg font-semibold">{displayName}</h2>
       </div>
 
       {/* Hero stats row */}
@@ -213,10 +222,36 @@ export function UserGameStats({ userId }: UserGameStatsProps) {
         <StatsSection title="Recent Games" icon={<Gamepad2Icon className="size-4" />}>
           <div className="space-y-2">
             {stats.recentGames.map((game, index) => (
-              <RecentGameRow key={game.gameId} game={game} index={index} />
+              <RecentGameRow key={game.gameId} game={game} index={index} basePath={basePath} />
             ))}
           </div>
         </StatsSection>
+      )}
+    </div>
+  );
+}
+
+export function UserGameStats({ userId }: UserGameStatsProps) {
+  const { data: stats, isLoading } = useUserGameStats(userId);
+
+  if (isLoading) return <GameStatsSkeleton />;
+
+  if (stats === undefined) {
+    return null;
+  }
+
+  const hasAnyGames = stats.posterReveal !== null || stats.ratingGuess !== null;
+  if (!hasAnyGames) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-8">
+      {stats.posterReveal !== null && (
+        <GameTypeStatsSection gameType="poster_reveal" stats={stats.posterReveal} />
+      )}
+      {stats.ratingGuess !== null && (
+        <GameTypeStatsSection gameType="rating_guess" stats={stats.ratingGuess} />
       )}
     </div>
   );

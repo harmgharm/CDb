@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
 import useSWR from "swr";
 
+import { onRefreshFail } from "@/lib/api/fetch-with-auth";
 import type { SafeUser } from "@/types/auth";
 
 interface AuthContextValue {
@@ -22,7 +23,9 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     isLoading,
     error: authError,
     mutate,
-  } = useSWR<SafeUser, Error>("/api/auth/me");
+  } = useSWR<SafeUser, Error>("/api/auth/me", {
+    refreshInterval: 5 * 60 * 1000, // Check session every 5 minutes
+  });
 
   // Redirect to login when auth fails (token expired and refresh failed)
   useEffect(() => {
@@ -30,6 +33,14 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       router.push("/login");
     }
   }, [authError, isLoading, router]);
+
+  // When any API call's token refresh fails, revalidate /api/auth/me immediately
+  // so the authError effect above fires and redirects to login.
+  useEffect(() => {
+    return onRefreshFail(() => {
+      void mutate();
+    });
+  }, [mutate]);
 
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });

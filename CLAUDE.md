@@ -1,141 +1,61 @@
 # CinemaDatabase (CDB)
 
-A personal movie, anime, and TV show tracking app for a group of friends who watch together. Track
-what you've watched, who picked it, individual ratings, and view stats across users and media.
+A movie, anime, and TV show tracking app for a group of friends. Log watch sessions, rate media,
+view stats, get personalized recommendations, and play media-themed games together.
 
 ## Tech Stack
 
-| Layer         | Technology                               | Version       |
-| ------------- | ---------------------------------------- | ------------- |
-| Framework     | Next.js (App Router, Turbopack)          | 16.1.x        |
-| Language      | TypeScript (strict mode)                 | 5.x           |
-| Database      | Neon Postgres (serverless)               | —             |
-| DB Client     | Kysely + kysely-neon                     | 0.28.x        |
-| Auth          | Custom (JWT + Argon2 + httpOnly cookies) | —             |
-| Styling       | Tailwind CSS + shadcn/ui (new-york)      | 4.2.x         |
-| Animations    | Motion (Framer Motion) + GSAP            | 12.x / 3.14.x |
-| External APIs | TMDB (movies/TV) + Jikan (anime/MAL)     | —             |
-| Testing       | Vitest + React Testing Library           | 4.x           |
-| Linting       | ESLint (flat config) + Prettier          | 9.x           |
-| Git Hooks     | Husky + lint-staged                      | latest        |
-| Hosting       | Vercel + Neon                            | —             |
+| Layer         | Technology                                    |
+| ------------- | --------------------------------------------- |
+| Framework     | Next.js 16 (App Router, Turbopack)            |
+| Language      | TypeScript (strict mode)                      |
+| Database      | Neon Postgres (serverless, WebSocket)         |
+| DB Client     | Kysely + @neondatabase/serverless Pool        |
+| Auth          | Custom JWT (jose) + Argon2 + httpOnly cookies |
+| Validation    | Zod 4                                         |
+| Styling       | Tailwind CSS 4 + shadcn/ui (new-york)         |
+| Data Fetching | SWR                                           |
+| Animations    | Motion (Framer Motion) + GSAP                 |
+| Real-time     | Ably (pub/sub, presence, token auth)          |
+| External APIs | TMDB (movies/TV) + Jikan (anime/MAL)          |
+| Testing       | Vitest + React Testing Library                |
+| Linting       | ESLint 9 (flat config) + Prettier             |
+| Git Hooks     | Husky + lint-staged                           |
+| Hosting       | Vercel + Neon                                 |
 
-## Project Structure
+## Commands
 
-```
-cdb/
-├── src/
-│   ├── app/                    # Next.js App Router pages & layouts
-│   │   ├── (auth)/             # Auth route group (login, signup, invite)
-│   │   ├── (main)/             # Authenticated route group
-│   │   │   ├── home/           # Overview / dashboard
-│   │   │   ├── database/       # Media browser (movies, TV, anime)
-│   │   │   ├── users/          # User profiles & individual stats
-│   │   │   └── admin/          # Admin panel (audit log, manage users, CRUD)
-│   │   ├── api/                # API routes
-│   │   ├── layout.tsx          # Root layout
-│   │   └── page.tsx            # Landing / redirect
-│   ├── components/
-│   │   ├── ui/                 # shadcn/ui components
-│   │   └── ...                 # Feature-specific components
-│   ├── lib/
-│   │   ├── db/                 # Kysely client, types, migrations
-│   │   │   ├── index.ts        # DB client singleton
-│   │   │   ├── types.ts        # Database interface (Kysely typed schema)
-│   │   │   └── migrations/     # SQL migration files
-│   │   ├── auth/               # JWT helpers, middleware, argon2 utils
-│   │   ├── api/                # TMDB + Jikan API clients
-│   │   └── utils/              # Shared utilities
-│   ├── hooks/                  # Custom React hooks
-│   ├── types/                  # Shared TypeScript types
-│   └── styles/                 # Global styles
-├── public/                     # Static assets
-├── tests/                      # Test files (mirrors src/ structure)
-├── eslint.config.mjs           # ESLint 10 flat config
-├── prettier.config.mjs         # Prettier config
-├── vitest.config.ts            # Vitest config
-├── tailwind.config.ts          # Tailwind config (if needed beyond CSS)
-├── next.config.ts              # Next.js config
-├── tsconfig.json               # TypeScript config
-└── package.json
+```bash
+pnpm dev                    # Start dev server (Turbopack)
+pnpm build                  # Production build
+pnpm start                  # Start production server
+pnpm lint                   # ESLint check
+pnpm lint:fix               # ESLint auto-fix
+pnpm format                 # Prettier format
+pnpm format:check           # Prettier check
+pnpm typecheck              # TypeScript type checking
+pnpm test                   # Run Vitest
+pnpm test:watch             # Run Vitest in watch mode
+pnpm db:migrate             # Run database migrations
+pnpm db:migrate:down        # Rollback last migration
+pnpm db:migrate:status      # Show migration status
+ADMIN_PASSWORD=xxx pnpm db:seed:admin  # Seed admin user
+pnpm db:migrate:test        # Run migrations on test DB
+pnpm test:e2e               # Run Playwright E2E tests
+pnpm test:e2e:ui            # Run E2E tests with UI
 ```
 
-## Database Schema (Conceptual)
+## Environment Variables
 
-### Core Tables
-
-- **users** — id, username, display_name, email, password_hash, role (admin/member), avatar_url,
-  created_at, updated_at
-- **media** — id, title, type (movie/tv/anime), tmdb_id, mal_id, poster_url, backdrop_url, synopsis,
-  genres, release_year, episode_count, runtime_minutes, created_at
-- **watch_sessions** — id, media_id, date_watched, time_watched_at, picked_by_user_id, notes,
-  created_at
-- **session_attendees** — id, session_id, user_id (who was present)
-- **ratings** — id, session_id, user_id, score (1-10), review (optional short text), created_at
-- **invite_codes** — id, code, created_by_user_id, used_by_user_id, expires_at, created_at
-- **audit_log** — id, user_id, action, entity_type, entity_id, metadata (jsonb), created_at
-
-### Key Relationships
-
-- A **watch session** links a media item to a specific viewing event
-- Each session has multiple **attendees** (who watched)
-- Each attendee can leave a **rating** per session
-- One attendee per session is the **picker** (who chose the media)
-- **Invite codes** are generated by admins for controlled signup
-
-## Auth Strategy
-
-- **Argon2** for password hashing (via `argon2` npm package)
-- **JWT** stored in httpOnly, secure, sameSite cookies
-- Access token (short-lived, ~15min) + refresh token (longer, ~7 days)
-- Middleware checks JWT on protected routes
-- **Invite-only signup**: admin generates invite codes, new users must provide a valid code
-- **Roles**: `admin` (full CRUD, user management, audit log) and `member` (view, rate, pick)
-
-## API Integrations
-
-### TMDB (The Movie Database)
-
-- Search movies and TV shows by title
-- Fetch metadata: poster, backdrop, synopsis, genres, release year, runtime
-- Rate-limited: respect TMDB's 40 req/10sec limit
-
-### Jikan (MyAnimeList API)
-
-- Search anime by title
-- Fetch metadata: poster, synopsis, genres, episodes, score
-- Unofficial MAL API — no auth required, rate-limited (3 req/sec)
-
-## App Tabs / Pages
-
-### Home (Dashboard)
-
-- Total movies/shows/anime watched
-- Total watch sessions
-- Group stats (most active picker, highest avg rating, etc.)
-- Recent activity feed
-- Fun stats (longest movie, most divisive rating, etc.)
-
-### Database (Media Browser)
-
-- Filterable/searchable list of all watched media
-- Filter by type (movie/TV/anime), genre, year, rating range
-- Sort by date watched, rating, title
-- Click into detail view: full metadata, all sessions, ratings breakdown
-
-### Users (Profiles)
-
-- List of all group members
-- Individual profile: watch count, avg rating, favorite genres, pick history
-- Rating distribution chart
-- Head-to-head comparison between users
-
-### Admin
-
-- **Audit log**: all actions (who did what, when)
-- **User management**: invite codes, role changes, remove users
-- **Media CRUD**: add/edit/delete media entries and sessions
-- **Login/signup/logout** flows
+```env
+DATABASE_URL=               # Neon Postgres connection string
+JWT_SECRET=                 # JWT signing secret (min 32 chars)
+JWT_REFRESH_SECRET=         # Refresh token secret (min 32 chars)
+TMDB_API_KEY=               # TMDB API v3 key (required)
+TMDB_ACCESS_TOKEN=          # TMDB API v4 read access token (optional)
+ABLY_API_KEY=               # Ably API key (real-time features)
+NEXT_PUBLIC_APP_URL=        # Public app URL (defaults to http://localhost:3000)
+```
 
 ## Development Conventions
 
@@ -143,80 +63,52 @@ cdb/
 
 - TypeScript strict mode — no `any` unless absolutely necessary
 - Prefer `const` over `let`, never `var`
-- Use named exports (not default exports) except for page/layout files
-- Functional components only, no class components
-- Use server components by default; add `"use client"` only when needed
+- Named exports everywhere except page/layout files (default export)
+- Server components by default; `"use client"` only when needed
+- Double quotes, printWidth 100, trailing commas
 
 ### Naming
 
-- Files/folders: `kebab-case` (e.g., `watch-session.ts`)
-- Components: `PascalCase` (e.g., `WatchSessionCard.tsx`)
+- Files/folders: `kebab-case`
+- Components: `PascalCase`
 - Functions/variables: `camelCase`
 - Database columns: `snake_case`
-- Types/interfaces: `PascalCase`, prefix interfaces with nothing (no `I` prefix)
-- Constants: `UPPER_SNAKE_CASE` for true constants, `camelCase` for derived values
+- Types/interfaces: `PascalCase` (no `I` prefix)
+- Constants: `UPPER_SNAKE_CASE` for true constants
 
 ### Database
 
-- All queries go through Kysely typed client
-- Use migrations for all schema changes — never modify the DB directly
-- Use transactions for multi-step writes
-- Use parameterized queries (Kysely handles this by default)
+- All queries through Kysely typed client (`src/lib/db/`)
+- Schema changes via migrations only — never modify the DB directly
+- Use transactions for multi-step writes (`src/lib/db/transaction.ts`)
+- Kysely `avg()` returns `string`, `countAll()` returns `string | number` — always wrap with
+  `Number()`
+- JSONB genre filtering: `` sql<boolean>`media.genres @> ${JSON.stringify([genre])}::jsonb` ``
 
 ### API Routes
 
-- Use Next.js Route Handlers (`app/api/`)
-- Return consistent JSON shape: `{ data, error, message }`
-- Validate input with zod
-- Auth middleware on all protected routes
-
-### Testing
-
-- Test files live in `tests/` directory mirroring `src/` structure
-- Use `describe` / `it` pattern
-- Test components with React Testing Library
-- Test API logic with unit tests
-- Aim for coverage on critical paths (auth, ratings, session management)
+- Consistent response shape: `{ data, error, message }` via `src/lib/api/response.ts`
+- Validate all input with Zod schemas (`src/lib/validations/`)
+- Server-side auth via `requireAuth()` / `requireAdmin()` from `src/lib/auth/session.ts`
+- Client-side fetching uses `fetchWithAuth` (auto-refreshes on 401)
+- SWR fetcher unwraps the `ApiResponse` shape (extracts `.data`, throws on `.error`)
 
 ### Git
 
 - Branch naming: `feature/description`, `fix/description`, `chore/description`
 - Commit messages: conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`)
-- Pre-commit: lint-staged (ESLint + Prettier)
-- PR required for main branch (once we set up GitHub)
+- Pre-commit: lint-staged runs ESLint + Prettier + typecheck
 
-## Environment Variables
+## Lint Patterns
 
-```env
-# Database
-DATABASE_URL=               # Neon connection string
+The ESLint config is strict (typescript-eslint strict + stylistic, SonarJS, Unicorn). Common
+patterns:
 
-# Auth
-JWT_SECRET=                 # Secret for signing JWTs
-JWT_REFRESH_SECRET=         # Secret for refresh tokens
-
-# External APIs
-TMDB_API_KEY=               # TMDB API v3 key
-TMDB_ACCESS_TOKEN=          # TMDB API v4 read access token
-
-# App
-NEXT_PUBLIC_APP_URL=        # Public URL of the app
-```
-
-## Commands
-
-```bash
-# Development
-npm run dev                 # Start dev server (Turbopack)
-npm run build               # Production build
-npm run start               # Start production server
-npm run lint                # ESLint check
-npm run lint:fix            # ESLint auto-fix
-npm run format              # Prettier format
-npm run format:check        # Prettier check
-npm run typecheck           # TypeScript type checking
-npm run test                # Run Vitest
-npm run test:watch          # Run Vitest in watch mode
-npm run db:migrate          # Run database migrations
-npm run db:migrate:create   # Create new migration file
-```
+- `(await response.json()) as Type` — not `const data: Type = ...` (no-unsafe-assignment)
+- `value.length === 0` / `value.length > 0` — not `!value` for strings (strict-boolean-expressions)
+- `String(val)` in template literals for possibly-undefined values (restrict-template-expressions)
+- `.toSorted()` not `.sort()` (unicorn/no-array-sort)
+- `previous` not `prev` for callback args (unicorn/prevent-abbreviations)
+- `void handleSubmit(event)` for fire-and-forget promises in event handlers (no-floating-promises)
+- Arrow wrappers in `.map()`: `.map((x) => fn(x))` not `.map(fn)` (no-misused-spread)
+- Zod 4 uses top-level APIs: `z.email()`, `z.url()`, `z.uuid()`, `z.treeifyError()`

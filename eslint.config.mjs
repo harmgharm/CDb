@@ -206,9 +206,10 @@ export default defineConfig([
     },
   },
 
-  // Testing Library — React test file rules
+  // Testing Library — React test file rules (exclude e2e — those use Playwright, not testing-library)
   {
     files: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    ignores: ["e2e/**"],
     ...testingLibrary.configs["flat/react"],
     rules: {
       ...testingLibrary.configs["flat/react"].rules,
@@ -232,13 +233,24 @@ export default defineConfig([
       "@typescript-eslint/unbound-method": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
+      "import-x/first": "off", // vi.mock() must precede imports it mocks (Vitest hoists them)
       "sonarjs/cognitive-complexity": ["error", 30],
       "sonarjs/no-hardcoded-passwords": "off",
+      "sonarjs/no-unused-vars": "off", // covered by @typescript-eslint/no-unused-vars
       "unicorn/no-nested-ternary": "off",
       "unicorn/no-useless-undefined": "off",
       "unicorn/numeric-separators-style": "off",
       "unicorn/prevent-abbreviations": "off",
       "max-lines": ["warn", 1000],
+    },
+  },
+
+  // E2E files — relaxed rules for Playwright tests and setup scripts
+  {
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "no-console": "off", // setup/teardown scripts need console output
+      "sonarjs/no-hardcoded-passwords": "off", // test credentials
     },
   },
 ]);

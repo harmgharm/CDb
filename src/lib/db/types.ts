@@ -62,6 +62,8 @@ export type AuditAction =
   | "game.finished"
   | "game.round_won"
   | "game.joined"
+  | "game.left"
+  | "game.lobby_closed"
   | "game.invited";
 
 // ============================================

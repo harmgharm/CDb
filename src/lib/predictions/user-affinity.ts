@@ -21,17 +21,17 @@ interface RatingRow {
   directors: string[] | null;
 }
 
-function toDecade(year: number): number {
+export function toDecade(year: number): number {
   return Math.floor(year / 10) * 10;
 }
 
-function toRuntimeBucket(minutes: number): string {
+export function toRuntimeBucket(minutes: number): string {
   if (minutes < 100) return "short";
   if (minutes <= 150) return "medium";
   return "long";
 }
 
-function addToAffinityMap<K>(map: Map<K, AffinityEntry>, key: K, score: number): void {
+export function addToAffinityMap<K>(map: Map<K, AffinityEntry>, key: K, score: number): void {
   const existing = map.get(key);
   if (existing === undefined) {
     map.set(key, { avg: score, count: 1 });
@@ -42,7 +42,7 @@ function addToAffinityMap<K>(map: Map<K, AffinityEntry>, key: K, score: number):
 }
 
 /** Process a single rating row into all affinity maps. */
-function processRow(
+export function processRow(
   row: RatingRow,
   score: number,
   maps: {

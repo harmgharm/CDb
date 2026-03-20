@@ -8,7 +8,7 @@ const config = {
   // Lint and type-check TypeScript/JavaScript files
   "*.{ts,tsx,js,jsx}": [
     "eslint --fix --max-warnings 0 --no-warn-ignored",
-    () => "npm run typecheck",
+    () => "pnpm run typecheck",
   ],
 };
 

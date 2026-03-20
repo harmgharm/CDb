@@ -19,7 +19,7 @@ import { MultiplayerResult } from "@/components/games/multiplayer-result";
 import { MultiplayerGame as PosterRevealMultiplayerGame } from "@/components/games/poster-reveal/multiplayer-game";
 import { MultiplayerGame as RatingGuessMultiplayerGame } from "@/components/games/rating-guess/multiplayer-game";
 import { useAuth } from "@/components/providers/auth-provider";
-import { useGameMediaOptions, useGameState, useJoinGame } from "@/hooks/use-games";
+import { useGameMediaOptions, useGameState, useJoinGame, useLeaveLobby } from "@/hooks/use-games";
 import type { GameType } from "@/lib/db/types";
 import { getClientGameConfig } from "@/lib/games/client-config";
 import { playPlayerDisconnectedSound } from "@/lib/games/sounds";
@@ -74,9 +74,17 @@ function MultiplayerPageInner({
   const gameError = gameState.error as unknown;
   const { data: mediaData } = useGameMediaOptions();
   const { joinGame, isJoining } = useJoinGame();
+  const { leaveLobby } = useLeaveLobby();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const joinAttemptedRef = useRef(false);
   const [joinAttempted, setJoinAttempted] = useState(false);
+  const [hostDisconnected, setHostDisconnected] = useState(false);
+  // Track game status in a ref so useEffect cleanup and beforeunload can read
+  // the latest value without re-running the effect on every status change.
+  const gameStatusRef = useRef(game?.status);
+  // Track whether the host was ever seen online so we only treat their
+  // *departure* from presence as a disconnect (not initial absence).
+  const hostWasOnlineRef = useRef(false);
 
   const channelName = `game:${gameId}`;
 
@@ -92,12 +100,34 @@ function MultiplayerPageInner({
 
   // Track who is online via presence leave/enter events
   const { presenceData } = usePresenceListener({ channelName }, (update) => {
+    const data = update.data as
+      | { userId?: string; username?: string; displayName?: string | null }
+      | undefined;
+
+    // Track when the host first appears in presence
+    const isJoinAction =
+      update.action === "enter" || update.action === "present" || update.action === "update";
+    if (isJoinAction && data?.userId === game?.createdByUserId) {
+      hostWasOnlineRef.current = true;
+    }
+
     if (update.action === "leave" || update.action === "absent") {
-      const data = update.data as
-        | { userId?: string; username?: string; displayName?: string | null }
-        | undefined;
       // Ignore our own leave events (e.g. during page navigation / remount)
       if (data?.userId === user?.id) return;
+
+      // Host left presence during lobby — covers ungraceful disconnects
+      // (network loss, browser crash) where the leave API never fires.
+      const isHostLeaving =
+        data?.userId === game?.createdByUserId &&
+        game?.status === "lobby" &&
+        hostWasOnlineRef.current;
+      if (isHostLeaving) {
+        setHostDisconnected(true);
+        playPlayerDisconnectedSound();
+        toast.error("The host disconnected");
+        return;
+      }
+
       const name = data?.displayName ?? data?.username ?? "A player";
       toast.info(`${name} disconnected`);
       playPlayerDisconnectedSound();
@@ -124,11 +154,12 @@ function MultiplayerPageInner({
 
     const attemptJoin = () => {
       joinAttemptedRef.current = true;
-      setJoinAttempted(true);
       void (async () => {
         const success = await joinGame(gameId);
         if (success) {
           await mutate();
+        } else {
+          setJoinAttempted(true);
         }
       })();
     };
@@ -148,6 +179,31 @@ function MultiplayerPageInner({
       attemptJoin();
     }
   }, [game, gameError, gameId, joinGame, mutate, user]);
+
+  // Keep status ref in sync so cleanup callbacks read the latest value
+  useEffect(() => {
+    gameStatusRef.current = game?.status;
+  }, [game?.status]);
+
+  // Leave lobby on unmount (SPA navigation) and beforeunload (tab close / hard refresh).
+  // Only fires while in "lobby" — once the game transitions to "active", we stop.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (gameStatusRef.current === "lobby") {
+        // sendBeacon is more reliable than fetch during page teardown
+        navigator.sendBeacon(`/api/games/${gameId}/leave`);
+      }
+    };
+
+    globalThis.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      globalThis.removeEventListener("beforeunload", handleBeforeUnload);
+      if (gameStatusRef.current === "lobby") {
+        leaveLobby(gameId);
+      }
+    };
+  }, [gameId, leaveLobby]);
 
   const handleGameStarted = useCallback(async () => {
     await mutate();
@@ -216,6 +272,7 @@ function MultiplayerPageInner({
             setInviteDialogOpen(true);
           }}
           onlineUserIds={onlineUserIds}
+          hostDisconnected={hostDisconnected}
         />
         <InvitePlayersDialog
           open={inviteDialogOpen}

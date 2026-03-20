@@ -47,6 +47,18 @@ export interface RecommendationsResponse {
   meta: RecommendationsMeta;
 }
 
+export interface SimilarRecommendationsMeta {
+  type: "similar";
+  computedAt: string;
+  sourceCount: number;
+  sources: { title: string; mediaType: MediaType }[];
+}
+
+export interface SimilarRecommendationsResponse {
+  items: RecommendationItem[];
+  meta: SimilarRecommendationsMeta;
+}
+
 export interface DismissedRecommendation {
   id: string;
   mediaId: string | null;

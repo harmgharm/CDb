@@ -13,6 +13,7 @@ const SECTION_ACCENT: Record<string, string> = {
   "Because You Loved...": "border-l-amber-500",
   "Group Pick": "border-l-pink-500",
   "Trending in Group": "border-l-rose-500",
+  "Similar Titles": "border-l-cyan-500",
 };
 
 interface RecommendationSectionProps {

@@ -25,9 +25,9 @@ import type { RecommendationItem, WatchedIds } from "./types";
 import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
 
 export interface RecommendationFilters {
-  mediaType?: MediaType;
-  genre?: string;
-  decade?: string;
+  mediaType?: MediaType[];
+  genre?: string[];
+  decade?: string[];
 }
 
 interface DecadeRange {
@@ -58,28 +58,36 @@ export async function computeFilteredRecommendations(
     await getUserDismissedIds(userId),
   );
 
-  // Determine which genre to use — prefer user-selected filter, fall back to user's top genres
-  const genre = filters.genre ?? (await getUserTopGenre(userId));
-  const dateRange = filters.decade === undefined ? null : decadeToDateRange(filters.decade);
+  // Determine which genres to use — prefer user-selected filter, fall back to user's top genre
+  const genres =
+    filters.genre !== undefined && filters.genre.length > 0
+      ? filters.genre
+      : await getUserTopGenre(userId).then((g) => (g === undefined ? [] : [g]));
+  const dateRanges =
+    filters.decade !== undefined && filters.decade.length > 0
+      ? filters.decade.map((d) => decadeToDateRange(d)).filter((r): r is DecadeRange => r !== null)
+      : [];
   const mediaTypes =
-    filters.mediaType === undefined ? ["movie", "tv", "anime"] : [filters.mediaType];
+    filters.mediaType !== undefined && filters.mediaType.length > 0
+      ? filters.mediaType
+      : (["movie", "tv", "anime"] as const);
 
   const results: RecommendationItem[] = [];
 
   for (const type of mediaTypes) {
     switch (type) {
       case "movie": {
-        const items = await discoverFilteredMovies({ genre, dateRange, watched });
+        const items = await discoverFilteredMovies({ genres, dateRanges, watched });
         results.push(...items);
         break;
       }
       case "tv": {
-        const items = await discoverFilteredTv({ genre, dateRange, watched });
+        const items = await discoverFilteredTv({ genres, dateRanges, watched });
         results.push(...items);
         break;
       }
       case "anime": {
-        const items = await discoverFilteredAnime({ genre, dateRange, watched });
+        const items = await discoverFilteredAnime({ genres, dateRanges, watched });
         results.push(...items);
         break;
       }
@@ -123,44 +131,69 @@ async function getUserTopGenre(userId: string): Promise<string | undefined> {
 }
 
 interface DiscoverOptions {
-  genre: string | undefined;
-  dateRange: DecadeRange | null;
+  genres: string[];
+  dateRanges: DecadeRange[];
   watched: WatchedIds;
 }
 
-async function discoverFilteredMovies(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genre, dateRange, watched } = options;
-  const params: Record<string, string> = {
-    sort_by: "vote_average.desc",
-    "vote_count.gte": "100",
-    page: randomPage(5),
-  };
+function genreLabel(genres: string[]): string {
+  if (genres.length === 0) return "";
+  if (genres.length === 1) return genres[0] ?? "";
+  return `${genres.slice(0, -1).join(", ")} & ${genres.at(-1) ?? ""}`;
+}
 
-  if (genre !== undefined) {
-    const genreId = getMovieGenreId(genre);
-    if (genreId !== null) {
-      params.with_genres = genreId.toString();
-    }
-  }
+interface FetchPagesOptions {
+  baseParams: Record<string, string>;
+  dateRange: DecadeRange | null;
+  watched: WatchedIds;
+  seen: Set<number>;
+  label: string;
+}
 
+/** Fetch 2 pages from TMDB discover for a single date range */
+async function fetchMoviePages(options: FetchPagesOptions): Promise<RecommendationItem[]> {
+  const { baseParams, dateRange, watched, seen, label } = options;
+  const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
   if (dateRange !== null) {
     params["primary_release_date.gte"] = dateRange.gte;
     params["primary_release_date.lte"] = dateRange.lte;
   }
+  const results: RecommendationItem[] = [];
+  for (let offset = 0; offset < 2; offset += 1) {
+    const response = await discoverMovies({
+      ...params,
+      page: String(Number(params.page) + offset),
+    });
+    for (const item of response.results) {
+      if (seen.has(item.id) || isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+      seen.add(item.id);
+      results.push(parseMovieToItem(item, label));
+    }
+    if (response.results.length === 0) break;
+  }
+  return results;
+}
+
+async function discoverFilteredMovies(options: DiscoverOptions): Promise<RecommendationItem[]> {
+  const { genres, dateRanges, watched } = options;
+  const baseParams: Record<string, string> = {
+    sort_by: "vote_average.desc",
+    "vote_count.gte": "100",
+  };
+
+  const genreIds = genres.map((g) => getMovieGenreId(g)).filter((id): id is number => id !== null);
+  if (genreIds.length > 0) {
+    baseParams.with_genres = genreIds.join(",");
+  }
+
+  const label = genreLabel(genres);
+  const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
+  const seen = new Set<number>();
+  const results: RecommendationItem[] = [];
 
   try {
-    // Fetch 2 pages for a bigger pool
-    const results: RecommendationItem[] = [];
-    for (let offset = 0; offset < 2; offset += 1) {
-      const response = await discoverMovies({
-        ...params,
-        page: String(Number(params.page) + offset),
-      });
-      for (const item of response.results) {
-        if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
-        results.push(parseMovieToItem(item, genre));
-      }
-      if (response.results.length === 0) break;
+    for (const dateRange of rangesToQuery) {
+      results.push(...(await fetchMoviePages({ baseParams, dateRange, watched, seen, label })));
     }
     return results;
   } catch {
@@ -168,38 +201,50 @@ async function discoverFilteredMovies(options: DiscoverOptions): Promise<Recomme
   }
 }
 
-async function discoverFilteredTv(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genre, dateRange, watched } = options;
-  const params: Record<string, string> = {
-    sort_by: "vote_average.desc",
-    "vote_count.gte": "100",
-    page: randomPage(5),
-  };
-
-  if (genre !== undefined) {
-    const genreId = getTvGenreId(genre);
-    if (genreId !== null) {
-      params.with_genres = genreId.toString();
-    }
-  }
-
+/** Fetch 2 pages from TMDB TV discover for a single date range */
+async function fetchTvPages(options: FetchPagesOptions): Promise<RecommendationItem[]> {
+  const { baseParams, dateRange, watched, seen, label } = options;
+  const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
   if (dateRange !== null) {
     params["first_air_date.gte"] = dateRange.gte;
     params["first_air_date.lte"] = dateRange.lte;
   }
+  const results: RecommendationItem[] = [];
+  for (let offset = 0; offset < 2; offset += 1) {
+    const response = await discoverTv({
+      ...params,
+      page: String(Number(params.page) + offset),
+    });
+    for (const item of response.results) {
+      if (seen.has(item.id) || isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+      seen.add(item.id);
+      results.push(parseTvToItem(item, label));
+    }
+    if (response.results.length === 0) break;
+  }
+  return results;
+}
+
+async function discoverFilteredTv(options: DiscoverOptions): Promise<RecommendationItem[]> {
+  const { genres, dateRanges, watched } = options;
+  const baseParams: Record<string, string> = {
+    sort_by: "vote_average.desc",
+    "vote_count.gte": "100",
+  };
+
+  const genreIds = genres.map((g) => getTvGenreId(g)).filter((id): id is number => id !== null);
+  if (genreIds.length > 0) {
+    baseParams.with_genres = genreIds.join(",");
+  }
+
+  const label = genreLabel(genres);
+  const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
+  const seen = new Set<number>();
+  const results: RecommendationItem[] = [];
 
   try {
-    const results: RecommendationItem[] = [];
-    for (let offset = 0; offset < 2; offset += 1) {
-      const response = await discoverTv({
-        ...params,
-        page: String(Number(params.page) + offset),
-      });
-      for (const item of response.results) {
-        if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
-        results.push(parseTvToItem(item, genre));
-      }
-      if (response.results.length === 0) break;
+    for (const dateRange of rangesToQuery) {
+      results.push(...(await fetchTvPages({ baseParams, dateRange, watched, seen, label })));
     }
     return results;
   } catch {
@@ -208,52 +253,55 @@ async function discoverFilteredTv(options: DiscoverOptions): Promise<Recommendat
 }
 
 async function discoverFilteredAnime(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genre, dateRange, watched } = options;
-  const params: Record<string, string> = {
+  const { genres, dateRanges, watched } = options;
+  const baseParams: Record<string, string> = {
     order_by: "score",
     sort: "desc",
     min_score: "7",
-    page: randomPage(3),
   };
 
-  if (genre !== undefined) {
-    const malGenreId = getMalGenreId(genre);
-    if (malGenreId !== null) {
-      params.genres = malGenreId.toString();
-    }
+  const genreIds = genres.map((g) => getMalGenreId(g)).filter((id): id is number => id !== null);
+  if (genreIds.length > 0) {
+    baseParams.genres = genreIds.join(",");
   }
 
-  if (dateRange !== null) {
-    // Jikan uses start_date/end_date in YYYY-MM-DD format
-    params.start_date = dateRange.gte;
-    params.end_date = dateRange.lte;
-  }
+  const label = genreLabel(genres);
+  const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
+  const seen = new Set<number>();
+  const results: RecommendationItem[] = [];
 
   try {
-    const response = await discoverAnime(params);
-    const results: RecommendationItem[] = [];
-    for (const anime of response.data) {
-      if (isAlreadyWatched(watched, { malId: anime.mal_id })) continue;
-      results.push({
-        mediaId: null,
-        tmdbId: null,
-        malId: anime.mal_id,
-        title: anime.title_english ?? anime.title,
-        posterUrl: anime.images.jpg.large_image_url,
-        mediaType: "anime",
-        overview: anime.synopsis,
-        releaseYear: anime.year,
-        voteAverage: anime.score,
-        genres: anime.genres.map((g) => g.name),
-        score: (anime.score ?? 7) / 10,
-        recType: "content",
-        reasons: [
-          {
-            tag: "Filtered pick",
-            detail: genre === undefined ? "Highly rated anime" : `Top ${genre} anime`,
-          },
-        ],
-      });
+    for (const dateRange of rangesToQuery) {
+      const params: Record<string, string> = { ...baseParams, page: randomPage(3) };
+      if (dateRange !== null) {
+        params.start_date = dateRange.gte;
+        params.end_date = dateRange.lte;
+      }
+      const response = await discoverAnime(params);
+      for (const anime of response.data) {
+        if (seen.has(anime.mal_id) || isAlreadyWatched(watched, { malId: anime.mal_id })) continue;
+        seen.add(anime.mal_id);
+        results.push({
+          mediaId: null,
+          tmdbId: null,
+          malId: anime.mal_id,
+          title: anime.title_english ?? anime.title,
+          posterUrl: anime.images.jpg.large_image_url,
+          mediaType: "anime",
+          overview: anime.synopsis,
+          releaseYear: anime.year,
+          voteAverage: anime.score,
+          genres: anime.genres.map((g) => g.name),
+          score: (anime.score ?? 7) / 10,
+          recType: "content",
+          reasons: [
+            {
+              tag: "Filtered pick",
+              detail: label.length === 0 ? "Highly rated anime" : `Top ${label} anime`,
+            },
+          ],
+        });
+      }
     }
     return results;
   } catch {
@@ -261,10 +309,7 @@ async function discoverFilteredAnime(options: DiscoverOptions): Promise<Recommen
   }
 }
 
-function parseMovieToItem(
-  item: TmdbMovieSearchResult,
-  genre: string | undefined,
-): RecommendationItem {
+function parseMovieToItem(item: TmdbMovieSearchResult, label: string): RecommendationItem {
   return {
     mediaId: null,
     tmdbId: item.id,
@@ -281,13 +326,13 @@ function parseMovieToItem(
     reasons: [
       {
         tag: "Filtered pick",
-        detail: genre === undefined ? "Highly rated movie" : `Top ${genre} movies`,
+        detail: label.length === 0 ? "Highly rated movie" : `Top ${label} movies`,
       },
     ],
   };
 }
 
-function parseTvToItem(item: TmdbTvSearchResult, genre: string | undefined): RecommendationItem {
+function parseTvToItem(item: TmdbTvSearchResult, label: string): RecommendationItem {
   return {
     mediaId: null,
     tmdbId: item.id,
@@ -304,7 +349,7 @@ function parseTvToItem(item: TmdbTvSearchResult, genre: string | undefined): Rec
     reasons: [
       {
         tag: "Filtered pick",
-        detail: genre === undefined ? "Highly rated TV show" : `Top ${genre} TV shows`,
+        detail: label.length === 0 ? "Highly rated TV show" : `Top ${label} TV shows`,
       },
     ],
   };

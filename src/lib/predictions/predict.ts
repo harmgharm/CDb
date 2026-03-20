@@ -30,7 +30,7 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
   era: 0.1,
 };
 
-function computeConfidence(
+export function computeConfidence(
   availableSignals: number,
   ratingCount: number,
 ): "low" | "medium" | "high" {
@@ -39,7 +39,7 @@ function computeConfidence(
   return "low";
 }
 
-function computeVerdict(score: number): string {
+export function computeVerdict(score: number): string {
   if (score >= 8) return "Highly recommended";
   if (score >= 6.5) return "You'll probably enjoy this";
   if (score >= 5) return "Mixed signals";

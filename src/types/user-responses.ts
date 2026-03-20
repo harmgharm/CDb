@@ -2,7 +2,7 @@
  * Frontend types for user API responses
  */
 
-import type { GameDifficulty, GameMode, MediaType, UserRole } from "@/lib/db/types";
+import type { GameDifficulty, GameMode, GameType, MediaType, UserRole } from "@/lib/db/types";
 
 /** User item from GET /api/users list */
 export interface UserListItem {
@@ -69,6 +69,7 @@ export interface UserDetailedStats {
 /** Recent game entry for user profile */
 export interface UserRecentGame {
   gameId: string;
+  gameType: GameType;
   mode: GameMode;
   difficulty: GameDifficulty;
   roundCount: number;
@@ -77,10 +78,12 @@ export interface UserRecentGame {
   correctCount: number;
   isWinner: boolean;
   isRanked: boolean;
+  /** Rating guesser only: average difference from correct rating */
+  avgDifference?: number;
 }
 
-/** Game stats from GET /api/users/[id]/games/stats */
-export interface UserGameStatsResponse {
+/** Per-game-type stats block */
+export interface GameTypeStats {
   gamesPlayed: number;
   gamesWon: number;
   roundsWon: number;
@@ -91,4 +94,10 @@ export interface UserGameStatsResponse {
   globalRankNormal: number | null;
   globalRankHard: number | null;
   recentGames: UserRecentGame[];
+}
+
+/** Game stats from GET /api/users/[id]/games/stats (per-game-type) */
+export interface UserGameStatsResponse {
+  posterReveal: GameTypeStats | null;
+  ratingGuess: GameTypeStats | null;
 }

@@ -15,6 +15,7 @@ const TAG_STYLES: Record<string, string> = {
   "Watchlist popular": "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20",
   "Trending in group": "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20",
   "Trending pick": "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20",
+  "Similar to": "bg-cyan-500/10 text-cyan-500 hover:bg-cyan-500/20",
 };
 
 const DEFAULT_STYLE = "bg-muted text-muted-foreground hover:bg-muted/80";

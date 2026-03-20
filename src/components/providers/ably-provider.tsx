@@ -109,7 +109,15 @@ function NotificationListener({ channelName }: Readonly<{ channelName: string }>
   const { mutate } = useSWRConfig();
 
   useChannel({ channelName }, "notification", () => {
-    void mutate("/api/notifications/unread-count");
+    // Optimistically bump the unread count so the badge updates instantly,
+    // then revalidate in the background to get the true count from the DB.
+    void mutate(
+      "/api/notifications/unread-count",
+      (current: { count: number } | undefined) => ({
+        count: (current?.count ?? 0) + 1,
+      }),
+      { revalidate: true },
+    );
     void mutate((key: unknown) => typeof key === "string" && key.startsWith("/api/notifications"));
   });
 
