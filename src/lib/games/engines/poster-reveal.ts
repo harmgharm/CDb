@@ -51,6 +51,7 @@ const posterRevealEngine: GameEngine = {
   displayName: "Poster Reveal",
   basePath: "/play/poster-reveal",
   totalWindowMs: TOTAL_WINDOW_MS,
+  hasFirstCorrectBonus: true,
 
   async buildPool(difficulty: GameDifficulty, count: number): Promise<RoundPoolItem[]> {
     const poolItems = await buildMediaPool(difficulty, count);

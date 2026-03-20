@@ -6,7 +6,7 @@
  * Displayed during a multiplayer round when player-guessed events arrive.
  */
 
-import { CheckCircle2Icon, XCircleIcon } from "lucide-react";
+import { SendIcon } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import * as motion from "motion/react-client";
 import { useCallback, useState } from "react";
@@ -63,21 +63,10 @@ export function PlayerGuessIndicators({ indicators }: PlayerGuessIndicatorsProps
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 100, scale: 0.8 }}
             transition={{ duration: 0.3, ease: "easeOut" as const }}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 shadow-lg backdrop-blur-sm ${
-              entry.event.isCorrect
-                ? "border-emerald-500/30 bg-emerald-500/10"
-                : "border-red-500/30 bg-red-500/10"
-            }`}
+            className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 shadow-lg backdrop-blur-sm"
           >
-            {entry.event.isCorrect ? (
-              <CheckCircle2Icon className="size-4 text-emerald-500" />
-            ) : (
-              <XCircleIcon className="size-4 text-red-500" />
-            )}
-            <span className="text-sm font-medium">
-              {entry.event.username}
-              {entry.event.isCorrect ? " guessed correctly!" : " guessed wrong"}
-            </span>
+            <SendIcon className="size-4 text-blue-400" />
+            <span className="text-sm font-medium">{entry.event.username} submitted</span>
             {entry.event.isFirstCorrect && (
               <span className="text-xs font-bold text-yellow-500">FIRST!</span>
             )}

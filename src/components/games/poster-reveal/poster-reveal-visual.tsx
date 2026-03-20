@@ -22,6 +22,7 @@ interface PosterRevealProps {
   readonly onRevealComplete?: () => void;
   readonly onTimeExpired?: () => void;
   readonly isPaused?: boolean;
+  readonly guessedAtProgress?: number;
 }
 
 export function PosterReveal({
@@ -31,6 +32,7 @@ export function PosterReveal({
   onRevealComplete,
   onTimeExpired,
   isPaused = false,
+  guessedAtProgress,
 }: PosterRevealProps) {
   const [elapsedMs, setElapsedMs] = useState(0);
   const animationRef = useRef<number | null>(null);
@@ -134,7 +136,7 @@ export function PosterReveal({
 
       {/* Timer */}
       <div className="flex items-center gap-2 text-sm">
-        <TimerBar progress={elapsedMs / totalDuration} />
+        <TimerBar progress={elapsedMs / totalDuration} guessedAtProgress={guessedAtProgress} />
         <span className="text-muted-foreground tabular-nums">
           {String(elapsedSeconds)}s / {String(totalSeconds)}s
         </span>
@@ -148,17 +150,26 @@ export function PosterReveal({
   );
 }
 
-function TimerBar({ progress }: Readonly<{ progress: number }>) {
+function TimerBar({
+  progress,
+  guessedAtProgress,
+}: Readonly<{ progress: number; guessedAtProgress?: number }>) {
   const percentage = Math.min(progress * 100, 100);
   const colorClass = getTimerColor(percentage);
 
   return (
-    <div className="bg-muted h-2 w-32 overflow-hidden rounded-full sm:w-48">
+    <div className="bg-muted relative h-2 w-32 overflow-hidden rounded-full sm:w-48">
       <motion.div
         className={`h-full rounded-full ${colorClass}`}
         style={{ width: `${String(percentage)}%` }}
         transition={{ duration: 0.1 }}
       />
+      {guessedAtProgress !== undefined && (
+        <div
+          className="absolute top-0 h-full w-0.5 bg-white shadow-sm"
+          style={{ left: `${(guessedAtProgress * 100).toFixed(1)}%` }}
+        />
+      )}
     </div>
   );
 }

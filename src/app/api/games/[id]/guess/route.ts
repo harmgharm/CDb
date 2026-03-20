@@ -201,7 +201,8 @@ async function computeGuessScoring(options: GuessScoringOptions): Promise<GuessS
   let firstCorrectBonus = 0;
 
   if (isMultiplayer && correct) {
-    isFirstCorrect = round.first_correct_at === null;
+    const supportsFirstCorrect = engine.hasFirstCorrectBonus !== false;
+    isFirstCorrect = supportsFirstCorrect && round.first_correct_at === null;
     firstCorrectBonus = isFirstCorrect ? FIRST_CORRECT_BONUS : 0;
   }
 

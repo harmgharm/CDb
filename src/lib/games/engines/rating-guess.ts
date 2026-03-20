@@ -28,6 +28,7 @@ const ratingGuessEngine: GameEngine = {
   displayName: "Rating Guesser",
   basePath: "/play/rating-guess",
   totalWindowMs: TOTAL_WINDOW_MS,
+  hasFirstCorrectBonus: false,
 
   async buildPool(difficulty: GameDifficulty, count: number): Promise<RoundPoolItem[]> {
     const poolItems = await buildRatingPool(difficulty, count);

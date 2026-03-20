@@ -9,7 +9,6 @@
  */
 
 import { useChannel } from "ably/react";
-import { SkipForwardIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LiveScoreboard } from "@/components/games/live-scoreboard";
@@ -29,7 +28,7 @@ import {
 } from "@/components/games/poster-reveal/poster-reveal-visual";
 import { RoundResult } from "@/components/games/round-result";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Button } from "@/components/ui/button";
+import { useAutoSubmitTimer } from "@/hooks/use-auto-submit-timer";
 import { useGameState, useNextRound, useSubmitGuess } from "@/hooks/use-games";
 import {
   playCorrectSound,
@@ -77,6 +76,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const [roundPhase, setRoundPhase] = useState<RoundPhase>("guessing");
   const [roundResult, setRoundResult] = useState<GuessResultResponse | null>(null);
   const [startTimeForRound, setStartTimeForRound] = useState(getRoundStartTime);
+  const [guessedAtProgress, setGuessedAtProgress] = useState<number | undefined>();
   const [playerOverrides, setPlayerOverrides] = useState<
     Map<string, { scoreAdded: number; roundsWonAdded: number }>
   >(new Map());
@@ -101,6 +101,12 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const allFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Game-ended fallback — re-fetches game state if game-ended event never arrives on last round
   const gameEndedFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Auto-submit fallback for rAF-based timer (rAF stops in hidden/background tabs)
+  const { setOnTimeExpired, startAutoSubmitTimer, clearAutoSubmitTimer } = useAutoSubmitTimer(
+    ROUND_TIMER_MS,
+    startTimeForRound,
+    mutate,
+  );
   // Tracks which players have finished (correct guess or skip) via player-guessed events
   const finishedPlayersRef = useRef(new Set<string>());
   // Guards against stale/duplicate round-started events
@@ -159,7 +165,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       clearTimeout(allFinishedTimerRef.current);
       allFinishedTimerRef.current = null;
     }
-  }, []);
+    clearAutoSubmitTimer();
+  }, [clearAutoSubmitTimer]);
 
   const startRoundFallbackTimer = useCallback(() => {
     if (roundFallbackTimerRef.current !== null) {
@@ -186,10 +193,11 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     }, ALL_FINISHED_ADVANCE_MS);
   }, [game?.players?.length, tryAdvance]);
 
-  // Start round fallback timer on mount (for the initial round)
+  // Start fallback timers on mount (for the initial round)
   useEffect(() => {
     if (roundPhase === "guessing") {
       startRoundFallbackTimer();
+      startAutoSubmitTimer();
     }
     // Only run on mount — subsequent rounds handled by round-started handler
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,6 +231,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       // Reset on failure so the fallback timer can retry
       submittedRef.current = false;
     } else {
+      setGuessedAtProgress(Math.min((Date.now() - startTimeForRound) / ROUND_TIMER_MS, 1));
       // Track self as finished for client-side all-finished detection
       if (user?.id !== undefined) {
         finishedPlayersRef.current.add(user.id);
@@ -285,6 +294,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       setRoundResult(result);
 
       if (result.isCorrect) {
+        setGuessedAtProgress(Math.min((Date.now() - startTimeForRound) / ROUND_TIMER_MS, 1));
         // Track self as finished for client-side all-finished detection
         if (user?.id !== undefined) {
           finishedPlayersRef.current.add(user.id);
@@ -322,6 +332,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     // If submittedRef.current is true (guess in-flight), the handleGuess callback
     // will check timeExpiredRef and auto-skip once the response arrives.
   }, [handleSkip]);
+  setOnTimeExpired(handleTimeExpired);
 
   const handleNextRound = useCallback(async () => {
     if (!advancingRef.current) {
@@ -435,11 +446,13 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       advancingRef.current = false;
       timeExpiredRef.current = false;
       setIsAdvancing(false);
+      setGuessedAtProgress(undefined);
       setRoundPhase("guessing");
       setWrongGuessFlash(false);
       clearIndicators();
-      // Start round fallback timer for the new round
+      // Start timers for the new round
       startRoundFallbackTimer();
+      startAutoSubmitTimer();
     }, delay);
   });
 
@@ -568,6 +581,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
           posterUrl={multiPosterUrl}
           onTimeExpired={handleTimeExpired}
           isPaused={hasGuessedCorrectly}
+          guessedAtProgress={guessedAtProgress}
         />
 
         {hasGuessedCorrectly ? (
@@ -585,19 +599,6 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
               disabled={isSubmitting}
               placeholder="Type a title and press Enter..."
             />
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                void handleSkip();
-              }}
-              disabled={isSubmitting}
-              className="text-muted-foreground"
-            >
-              <SkipForwardIcon className="mr-1 size-4" />
-              Skip
-            </Button>
           </>
         )}
       </div>

@@ -20,6 +20,7 @@ interface RatingGuessVisualProps {
   readonly onTimeExpired?: () => void;
   readonly isPaused?: boolean;
   readonly totalDuration?: number;
+  readonly guessedAtProgress?: number;
 }
 
 export function RatingGuessVisual({
@@ -29,6 +30,7 @@ export function RatingGuessVisual({
   onTimeExpired,
   isPaused = false,
   totalDuration = DEFAULT_TOTAL_DURATION_MS,
+  guessedAtProgress,
 }: RatingGuessVisualProps) {
   const [elapsedMs, setElapsedMs] = useState(0);
   const animationRef = useRef<number | null>(null);
@@ -114,7 +116,7 @@ export function RatingGuessVisual({
 
       {/* Countdown timer */}
       <div className="flex items-center gap-2 text-sm">
-        <TimerBar progress={progress} />
+        <TimerBar progress={progress} guessedAtProgress={guessedAtProgress} />
         <span className="text-muted-foreground tabular-nums">{String(remainingSeconds)}s</span>
         <TimerPhase progress={progress} />
       </div>
@@ -122,17 +124,26 @@ export function RatingGuessVisual({
   );
 }
 
-function TimerBar({ progress }: Readonly<{ progress: number }>) {
+function TimerBar({
+  progress,
+  guessedAtProgress,
+}: Readonly<{ progress: number; guessedAtProgress?: number }>) {
   const percentage = Math.min(progress * 100, 100);
   const colorClass = getTimerColor(percentage);
 
   return (
-    <div className="bg-muted h-2 w-32 overflow-hidden rounded-full sm:w-48">
+    <div className="bg-muted relative h-2 w-32 overflow-hidden rounded-full sm:w-48">
       <motion.div
         className={`h-full rounded-full ${colorClass}`}
         style={{ width: `${String(percentage)}%` }}
         transition={{ duration: 0.1 }}
       />
+      {guessedAtProgress !== undefined && (
+        <div
+          className="absolute top-0 h-full w-0.5 bg-white shadow-sm"
+          style={{ left: `${(guessedAtProgress * 100).toFixed(1)}%` }}
+        />
+      )}
     </div>
   );
 }

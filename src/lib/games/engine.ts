@@ -36,6 +36,8 @@ export interface GameEngine {
   readonly basePath: string;
   /** Max time window for scoring (ms) — passed to calculateRoundScore() */
   readonly totalWindowMs: number;
+  /** Whether multiplayer awards a first-correct bonus (+200). Defaults to true. */
+  readonly hasFirstCorrectBonus?: boolean;
 
   /**
    * Override the default time-based scoring with game-specific logic.
