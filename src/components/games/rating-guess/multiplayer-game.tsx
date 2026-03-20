@@ -51,8 +51,10 @@ const ROUND_RESULT_DISPLAY_MS = 5000;
 const ROUND_RESULT_QUICK_MS = 3000;
 /** Total round timer — must match rating-guess-visual DEFAULT_TOTAL_DURATION_MS */
 const ROUND_TIMER_MS = 15_000;
-/** Host fallback: trigger advancement this many ms after the round timer expires */
-const HOST_FALLBACK_BUFFER_MS = 3000;
+/** Fallback: any player triggers advancement this many ms after the round timer expires */
+const ROUND_FALLBACK_BUFFER_MS = 3000;
+/** Post-submission fallback: if allGuessed doesn't fire within this window, try to advance */
+const SUBMIT_FALLBACK_MS = 5000;
 
 type RoundPhase = "guessing" | "result" | "finished";
 
@@ -86,11 +88,12 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
   const resultShownAtRef = useRef(0);
   // Whether all players guessed this round — shorter result display when true
   const allGuessedRef = useRef(false);
-  // Host fallback timer — fires after round timer + buffer to ensure advancement
-  const hostFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Round fallback timer — fires after round timer + buffer to ensure advancement
+  const roundFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Post-submission fallback — fires shortly after guess to cover allGuessed race condition
+  const submitFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const channelName = `game:${gameId}`;
-  const isHost = user?.id === game?.createdByUserId;
 
   const players = useMemo(() => {
     const basePlayers = game?.players ?? [];
@@ -121,6 +124,59 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     }
   }, [gameId, nextRound]);
 
+  const handleNextRound = useCallback(async () => {
+    if (!advancingRef.current) {
+      advancingRef.current = true;
+      setIsAdvancing(true);
+      await handleAdvanceRound();
+    }
+  }, [handleAdvanceRound]);
+
+  // ── Advance fallback timers ─────────────────────────────────
+  // Any player can trigger advancement (server allows it for multiplayer).
+  // Two layers of fallback cover different failure modes:
+  // 1. Round fallback: fires after round timer + buffer (covers auto-submit failures)
+  // 2. Submit fallback: fires 5s after guess submission (covers allGuessed race condition)
+
+  const tryAdvance = useCallback(() => {
+    if (!advancingRef.current) {
+      advancingRef.current = true;
+      setIsAdvancing(true);
+      void handleAdvanceRound();
+    }
+  }, [handleAdvanceRound]);
+
+  const clearFallbackTimers = useCallback(() => {
+    if (roundFallbackTimerRef.current !== null) {
+      clearTimeout(roundFallbackTimerRef.current);
+      roundFallbackTimerRef.current = null;
+    }
+    if (submitFallbackTimerRef.current !== null) {
+      clearTimeout(submitFallbackTimerRef.current);
+      submitFallbackTimerRef.current = null;
+    }
+  }, []);
+
+  const startRoundFallbackTimer = useCallback(() => {
+    if (roundFallbackTimerRef.current !== null) {
+      clearTimeout(roundFallbackTimerRef.current);
+    }
+    roundFallbackTimerRef.current = setTimeout(() => {
+      roundFallbackTimerRef.current = null;
+      tryAdvance();
+    }, ROUND_TIMER_MS + ROUND_FALLBACK_BUFFER_MS);
+  }, [tryAdvance]);
+
+  const startSubmitFallbackTimer = useCallback(() => {
+    if (submitFallbackTimerRef.current !== null) {
+      clearTimeout(submitFallbackTimerRef.current);
+    }
+    submitFallbackTimerRef.current = setTimeout(() => {
+      submitFallbackTimerRef.current = null;
+      tryAdvance();
+    }, SUBMIT_FALLBACK_MS);
+  }, [tryAdvance]);
+
   const handleGuess = useCallback(
     async (rating: number) => {
       if (currentRound === null || game === undefined || isSubmitting || submittedRef.current)
@@ -143,10 +199,19 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
         const resultData = result.resultData as unknown as RatingGuessResultData;
         playGuessSound(resultData.difference, result.isFirstCorrect === true);
         setRoundResult(result);
-        // Rating guess: one submission per round, so stay submitted
+        // Successfully submitted — start fallback in case allGuessed doesn't fire
+        startSubmitFallbackTimer();
       }
     },
-    [currentRound, game, gameId, isSubmitting, startTimeForRound, submitGuess],
+    [
+      currentRound,
+      game,
+      gameId,
+      isSubmitting,
+      startSubmitFallbackTimer,
+      startTimeForRound,
+      submitGuess,
+    ],
   );
 
   const handleTimeExpired = useCallback(() => {
@@ -159,36 +224,10 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     currentRatingRef.current = rating;
   }, []);
 
-  const handleNextRound = useCallback(async () => {
-    if (!advancingRef.current) {
-      advancingRef.current = true;
-      setIsAdvancing(true);
-      await handleAdvanceRound();
-    }
-  }, [handleAdvanceRound]);
-
-  // ── Host fallback timer ─────────────────────────────────────
-  // Safety net: if allGuessed never fires (disconnect, failed auto-submit, missed
-  // Ably event), the host triggers advancement after the round timer + buffer.
-
-  const startHostFallbackTimer = useCallback(() => {
-    if (hostFallbackTimerRef.current !== null) {
-      clearTimeout(hostFallbackTimerRef.current);
-    }
-    hostFallbackTimerRef.current = setTimeout(() => {
-      hostFallbackTimerRef.current = null;
-      if (isHost && !advancingRef.current) {
-        advancingRef.current = true;
-        setIsAdvancing(true);
-        void handleAdvanceRound();
-      }
-    }, ROUND_TIMER_MS + HOST_FALLBACK_BUFFER_MS);
-  }, [isHost, handleAdvanceRound]);
-
-  // Start fallback timer for the initial round on mount
+  // Start round fallback timer on mount (for the initial round)
   useEffect(() => {
-    if (isHost && roundPhase === "guessing") {
-      startHostFallbackTimer();
+    if (roundPhase === "guessing") {
+      startRoundFallbackTimer();
     }
     // Only run on mount — subsequent rounds handled by round-started handler
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,21 +257,16 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
 
     if (event.allGuessed) {
       allGuessedRef.current = true;
-      // Clear fallback timer — normal advancement is happening
-      if (hostFallbackTimerRef.current !== null) {
-        clearTimeout(hostFallbackTimerRef.current);
-        hostFallbackTimerRef.current = null;
-      }
-      if (isHost && !advancingRef.current) {
-        advancingRef.current = true;
-        setIsAdvancing(true);
-        void handleAdvanceRound();
-      }
+      // Don't clear fallback timers — they act as safety net if advance fails.
+      // The round-ended handler clears them on successful transition.
+      tryAdvance();
     }
   });
 
   useChannel({ channelName }, "round-ended", (message) => {
     const event = message.data as RoundEndedEvent;
+    // Round successfully advanced — clear fallback timers
+    clearFallbackTimers();
 
     if (roundResult === null) {
       const endedData = event.roundData;
@@ -282,17 +316,14 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       currentRatingRef.current = DEFAULT_RATING_VALUE;
       setRoundPhase("guessing");
       clearIndicators();
-      // Start fallback timer for the new round
-      startHostFallbackTimer();
+      // Start round fallback timer for the new round
+      startRoundFallbackTimer();
     }, delay);
   });
 
   useChannel({ channelName }, "game-ended", () => {
-    // Clear host fallback timer — game is over
-    if (hostFallbackTimerRef.current !== null) {
-      clearTimeout(hostFallbackTimerRef.current);
-      hostFallbackTimerRef.current = null;
-    }
+    // Game over — clear all fallback timers
+    clearFallbackTimers();
     const displayMs = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
 
     const processGameEnded = () => {
@@ -330,8 +361,11 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       if (roundStartDelayRef.current !== null) {
         clearTimeout(roundStartDelayRef.current);
       }
-      if (hostFallbackTimerRef.current !== null) {
-        clearTimeout(hostFallbackTimerRef.current);
+      if (roundFallbackTimerRef.current !== null) {
+        clearTimeout(roundFallbackTimerRef.current);
+      }
+      if (submitFallbackTimerRef.current !== null) {
+        clearTimeout(submitFallbackTimerRef.current);
       }
     };
   }, []);
