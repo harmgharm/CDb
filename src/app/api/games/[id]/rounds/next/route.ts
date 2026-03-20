@@ -190,14 +190,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  // Game finished — update leaderboard
+  // Game finished — update leaderboard + publish game-ended
+  // Must await for multiplayer too: on Vercel's serverless runtime, fire-and-forget
+  // promises may not complete before the function terminates after the response is sent.
   let isNewPersonalBest = false;
   if (isLastRound) {
-    if (isMultiplayer) {
-      void handleGameFinished(session, isMultiplayer);
-    } else {
-      isNewPersonalBest = await handleGameFinished(session, isMultiplayer);
-    }
+    isNewPersonalBest = await handleGameFinished(session, isMultiplayer);
   }
 
   return successResponse({ advanced: !isLastRound, finished: isLastRound, isNewPersonalBest });

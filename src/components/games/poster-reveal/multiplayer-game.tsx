@@ -93,6 +93,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const roundFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Post-submission fallback — fires shortly after guess to cover allGuessed race condition
   const submitFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Game-ended fallback — re-fetches game state if game-ended event never arrives on last round
+  const gameEndedFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const channelName = `game:${gameId}`;
 
@@ -163,11 +165,15 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     if (submitFallbackTimerRef.current !== null) {
       clearTimeout(submitFallbackTimerRef.current);
     }
+    // Wait until the round timer has expired + buffer before trying to advance.
+    // This avoids premature advance attempts when the other player hasn't submitted yet.
+    const elapsed = Date.now() - startTimeForRound;
+    const delay = Math.max(SUBMIT_FALLBACK_MS, ROUND_TIMER_MS - elapsed + SUBMIT_FALLBACK_MS);
     submitFallbackTimerRef.current = setTimeout(() => {
       submitFallbackTimerRef.current = null;
       tryAdvance();
-    }, SUBMIT_FALLBACK_MS);
-  }, [tryAdvance]);
+    }, delay);
+  }, [startTimeForRound, tryAdvance]);
 
   // Start round fallback timer on mount (for the initial round)
   useEffect(() => {
@@ -349,6 +355,17 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     resultShownAtRef.current = Date.now();
     setRoundPhase("result");
     clearIndicators();
+
+    // On the last round, start a fallback timer in case game-ended never arrives
+    // (e.g. serverless function terminated before publishing the Ably event)
+    const isLastRound = game !== undefined && game.currentRound + 1 >= game.roundCount;
+    if (isLastRound) {
+      gameEndedFallbackTimerRef.current = setTimeout(() => {
+        gameEndedFallbackTimerRef.current = null;
+        // Re-fetch game state — if status is "finished", the render check handles transition
+        void mutate();
+      }, 8000);
+    }
   });
 
   useChannel({ channelName }, "round-started", () => {
@@ -383,6 +400,10 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   useChannel({ channelName }, "game-ended", () => {
     // Game over — clear all fallback timers
     clearFallbackTimers();
+    if (gameEndedFallbackTimerRef.current !== null) {
+      clearTimeout(gameEndedFallbackTimerRef.current);
+      gameEndedFallbackTimerRef.current = null;
+    }
     const displayMs = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
 
     const processGameEnded = () => {
@@ -429,6 +450,9 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       }
       if (submitFallbackTimerRef.current !== null) {
         clearTimeout(submitFallbackTimerRef.current);
+      }
+      if (gameEndedFallbackTimerRef.current !== null) {
+        clearTimeout(gameEndedFallbackTimerRef.current);
       }
     };
   }, []);
