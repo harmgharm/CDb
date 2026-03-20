@@ -16,7 +16,7 @@ import type { GameType } from "@/lib/db/types";
 import { getEngine } from "@/lib/games";
 import { updateLeaderboard } from "@/lib/games/leaderboard";
 import { toLeaderboardCategory } from "@/lib/games/ranked-presets";
-import { publishToGame } from "@/lib/notifications/ably";
+import { publishToGameAsync } from "@/lib/notifications/ably";
 import type { GameEndedEvent, RoundEndedEvent, RoundStartedEvent } from "@/types/game-responses";
 
 interface AuthorizeAdvanceOptions {
@@ -263,7 +263,7 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
     roundData: engine.buildRoundEndedData(currentRoundData),
     scores,
   };
-  publishToGame(gameId, "round-ended", roundEndedEvent);
+  await publishToGameAsync(gameId, "round-ended", roundEndedEvent);
 
   if (isLastRound) return;
 
@@ -281,7 +281,7 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
       startedAt: now.toISOString(),
       roundData: engine.buildRoundStartedData(nextRound.round_data),
     };
-    publishToGame(gameId, "round-started", roundStartedEvent);
+    await publishToGameAsync(gameId, "round-started", roundStartedEvent);
   }
 }
 
@@ -327,7 +327,7 @@ async function handleGameFinished(
     }
     // Always publish game-ended so clients transition even if standings failed
     const gameEndedEvent: GameEndedEvent = { finalStandings: standings };
-    publishToGame(session.id, "game-ended", gameEndedEvent);
+    await publishToGameAsync(session.id, "game-ended", gameEndedEvent);
   }
 
   return isNewPersonalBest;

@@ -171,6 +171,8 @@ export interface PlayerGuessedEvent {
   scoreAwarded: number;
   /** True if this was the first correct guess (triggers countdown) */
   isFirstCorrect: boolean;
+  /** Whether this player has finished the round (correct guess or skip — no more guesses expected) */
+  isFinished: boolean;
 }
 
 export interface RoundCountdownEvent {

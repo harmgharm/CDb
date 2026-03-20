@@ -90,6 +90,8 @@ interface MultiplayerGuessEffectsOptions {
   correct: boolean;
   totalAward: number;
   isFirstCorrect: boolean;
+  /** Whether this player has finished the round (correct guess or skip) */
+  isFinished: boolean;
 }
 
 /**
@@ -98,7 +100,8 @@ interface MultiplayerGuessEffectsOptions {
 async function handleMultiplayerGuessEffects(
   options: MultiplayerGuessEffectsOptions,
 ): Promise<void> {
-  const { gameId, roundId, userId, username, correct, totalAward, isFirstCorrect } = options;
+  const { gameId, roundId, userId, username, correct, totalAward, isFirstCorrect, isFinished } =
+    options;
 
   // Track first correct for scoring bonus (no countdown — all players get the full timer)
   if (correct && isFirstCorrect) {
@@ -116,6 +119,7 @@ async function handleMultiplayerGuessEffects(
     isCorrect: correct,
     scoreAwarded: totalAward,
     isFirstCorrect,
+    isFinished,
   };
   publishToGame(gameId, "player-guessed", guessedEvent);
 
@@ -304,6 +308,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Multiplayer: broadcast events and handle first-correct countdown
   if (isMultiplayer) {
+    const isFinished = correct || guessText === "(skipped)";
     await handleMultiplayerGuessEffects({
       gameId,
       roundId,
@@ -313,6 +318,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       correct,
       totalAward,
       isFirstCorrect,
+      isFinished,
     });
   }
 

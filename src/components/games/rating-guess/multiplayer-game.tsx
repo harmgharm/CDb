@@ -12,6 +12,7 @@ import { useChannel } from "ably/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LiveScoreboard } from "@/components/games/live-scoreboard";
+import { ScoreHeader, SubmittedBanner } from "@/components/games/multiplayer-banners";
 import {
   PlayerGuessIndicators,
   usePlayerGuessIndicators,
@@ -43,6 +44,7 @@ import type {
   PlayerGuessedEvent,
   RoundCountdownEvent,
   RoundEndedEvent,
+  RoundStartedEvent,
 } from "@/types/game-responses";
 
 /** How long the round result screen stays visible before transitioning (ms) */
@@ -53,8 +55,8 @@ const ROUND_RESULT_QUICK_MS = 3000;
 const ROUND_TIMER_MS = 15_000;
 /** Fallback: any player triggers advancement this many ms after the round timer expires */
 const ROUND_FALLBACK_BUFFER_MS = 3000;
-/** Post-submission fallback: if allGuessed doesn't fire within this window, try to advance */
-const SUBMIT_FALLBACK_MS = 5000;
+/** After detecting all players finished client-side, wait before trying to advance */
+const ALL_FINISHED_ADVANCE_MS = 2000;
 
 type RoundPhase = "guessing" | "result" | "finished";
 
@@ -90,10 +92,14 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
   const allGuessedRef = useRef(false);
   // Round fallback timer — fires after round timer + buffer to ensure advancement
   const roundFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Post-submission fallback — fires shortly after guess to cover allGuessed race condition
-  const submitFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Client-side all-finished detection — fires shortly after all players submitted
+  const allFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Game-ended fallback — re-fetches game state if game-ended event never arrives on last round
   const gameEndedFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks which players have finished (correct guess or skip) via player-guessed events
+  const finishedPlayersRef = useRef(new Set<string>());
+  // Guards against stale/duplicate round-started events
+  const handledRoundStartRef = useRef(-1);
 
   const channelName = `game:${gameId}`;
 
@@ -137,8 +143,8 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
   // ── Advance fallback timers ─────────────────────────────────
   // Any player can trigger advancement (server allows it for multiplayer).
   // Two layers of fallback cover different failure modes:
-  // 1. Round fallback: fires after round timer + buffer (covers auto-submit failures)
-  // 2. Submit fallback: fires 5s after guess submission (covers allGuessed race condition)
+  // 1. All-finished detection: client-side tracking via player-guessed events (2s delay)
+  // 2. Round fallback: fires after round timer + buffer (covers auto-submit failures)
 
   const tryAdvance = useCallback(() => {
     if (!advancingRef.current) {
@@ -153,9 +159,9 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       clearTimeout(roundFallbackTimerRef.current);
       roundFallbackTimerRef.current = null;
     }
-    if (submitFallbackTimerRef.current !== null) {
-      clearTimeout(submitFallbackTimerRef.current);
-      submitFallbackTimerRef.current = null;
+    if (allFinishedTimerRef.current !== null) {
+      clearTimeout(allFinishedTimerRef.current);
+      allFinishedTimerRef.current = null;
     }
   }, []);
 
@@ -169,19 +175,20 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     }, ROUND_TIMER_MS + ROUND_FALLBACK_BUFFER_MS);
   }, [tryAdvance]);
 
-  const startSubmitFallbackTimer = useCallback(() => {
-    if (submitFallbackTimerRef.current !== null) {
-      clearTimeout(submitFallbackTimerRef.current);
-    }
-    // Wait until the round timer has expired + buffer before trying to advance.
-    // This avoids premature advance attempts when the other player hasn't submitted yet.
-    const elapsed = Date.now() - startTimeForRound;
-    const delay = Math.max(SUBMIT_FALLBACK_MS, ROUND_TIMER_MS - elapsed + SUBMIT_FALLBACK_MS);
-    submitFallbackTimerRef.current = setTimeout(() => {
-      submitFallbackTimerRef.current = null;
+  /** Check if all players have finished and schedule advancement if so. */
+  const checkAllPlayersFinished = useCallback(() => {
+    const totalPlayers = game?.players?.length ?? 0;
+    if (totalPlayers === 0) return;
+    if (finishedPlayersRef.current.size < totalPlayers) return;
+    // All players done — use shorter result display
+    allGuessedRef.current = true;
+    // Schedule advance after short delay (gives server-side allGuessed a chance to fire first)
+    if (allFinishedTimerRef.current !== null) return; // already scheduled
+    allFinishedTimerRef.current = setTimeout(() => {
+      allFinishedTimerRef.current = null;
       tryAdvance();
-    }, delay);
-  }, [startTimeForRound, tryAdvance]);
+    }, ALL_FINISHED_ADVANCE_MS);
+  }, [game?.players?.length, tryAdvance]);
 
   const handleGuess = useCallback(
     async (rating: number) => {
@@ -205,18 +212,22 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
         const resultData = result.resultData as unknown as RatingGuessResultData;
         playGuessSound(resultData.difference, result.isFirstCorrect === true);
         setRoundResult(result);
-        // Successfully submitted — start fallback in case allGuessed doesn't fire
-        startSubmitFallbackTimer();
+        // Track self as finished for client-side all-finished detection
+        if (user?.id !== undefined) {
+          finishedPlayersRef.current.add(user.id);
+          checkAllPlayersFinished();
+        }
       }
     },
     [
+      checkAllPlayersFinished,
       currentRound,
       game,
       gameId,
       isSubmitting,
-      startSubmitFallbackTimer,
       startTimeForRound,
       submitGuess,
+      user?.id,
     ],
   );
 
@@ -239,12 +250,26 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Initialize handledRoundStartRef once game data loads
+  const gameCurrentRound = game?.currentRound;
+  useEffect(() => {
+    if (gameCurrentRound !== undefined && handledRoundStartRef.current === -1) {
+      handledRoundStartRef.current = gameCurrentRound;
+    }
+  }, [gameCurrentRound]);
+
   // ── Ably event handlers ──────────────────────────────────────
 
   useChannel({ channelName }, "player-guessed", (message) => {
     const event = message.data as PlayerGuessedEvent;
     if (event.userId !== user?.id) {
       addIndicator(event);
+    }
+
+    // Track finished players for client-side all-finished detection
+    if (event.isFinished) {
+      finishedPlayersRef.current.add(event.userId);
+      checkAllPlayersFinished();
     }
 
     setPlayerOverrides((previous) => {
@@ -310,7 +335,12 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     }
   });
 
-  useChannel({ channelName }, "round-started", () => {
+  useChannel({ channelName }, "round-started", (message) => {
+    const event = message.data as RoundStartedEvent;
+    // Guard against stale/duplicate round-started events
+    if (event.roundNumber <= handledRoundStartRef.current) return;
+    handledRoundStartRef.current = event.roundNumber;
+
     // Buffer the round transition so the result screen stays visible.
     // Shorter delay when all players finished (just a glance at scores).
     const delay = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
@@ -321,6 +351,7 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       roundStartDelayRef.current = null;
       resultShownAtRef.current = 0;
       allGuessedRef.current = false;
+      finishedPlayersRef.current = new Set();
       void mutate();
       playRoundStartSound();
       setRoundResult(null);
@@ -385,8 +416,8 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       if (roundFallbackTimerRef.current !== null) {
         clearTimeout(roundFallbackTimerRef.current);
       }
-      if (submitFallbackTimerRef.current !== null) {
-        clearTimeout(submitFallbackTimerRef.current);
+      if (allFinishedTimerRef.current !== null) {
+        clearTimeout(allFinishedTimerRef.current);
       }
       if (gameEndedFallbackTimerRef.current !== null) {
         clearTimeout(gameEndedFallbackTimerRef.current);
@@ -504,29 +535,6 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       </div>
 
       <PlayerGuessIndicators indicators={indicators} />
-    </div>
-  );
-}
-
-function ScoreHeader({ totalScore }: Readonly<{ totalScore: number }>) {
-  return (
-    <div className="text-center">
-      <p className="text-muted-foreground text-xs tracking-wider uppercase">Score</p>
-      <p className="text-3xl font-bold tabular-nums">{String(totalScore)}</p>
-    </div>
-  );
-}
-
-function SubmittedBanner({
-  guessedRating,
-  score,
-}: Readonly<{ guessedRating: number; score: number }>) {
-  return (
-    <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-6 py-3 text-center">
-      <p className="font-medium text-blue-400">
-        Submitted: {guessedRating.toFixed(1)} — +{String(score)} pts
-      </p>
-      <p className="text-muted-foreground mt-1 text-xs">Waiting for other players...</p>
     </div>
   );
 }

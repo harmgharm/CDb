@@ -40,6 +40,27 @@ export function publishToGame(gameId: string, event: string, data: unknown): voi
 }
 
 /**
+ * Publish an event to a game channel and await delivery.
+ *
+ * Use for critical events (round-ended, round-started, game-ended) where
+ * fire-and-forget risks the serverless function terminating before the
+ * publish HTTP request completes.
+ */
+export async function publishToGameAsync(
+  gameId: string,
+  event: string,
+  data: unknown,
+): Promise<void> {
+  const client = getAblyClient();
+  const channel = client.channels.get(`game:${gameId}`);
+  try {
+    await channel.publish(event, data);
+  } catch (error: unknown) {
+    console.error(`Failed to publish ${event} to game:${gameId}:`, error);
+  }
+}
+
+/**
  * Create a signed token request scoped to a user's channel (subscribe-only).
  * Returned to the client via /api/ably/auth so the API key is never exposed.
  */

@@ -14,6 +14,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LiveScoreboard } from "@/components/games/live-scoreboard";
 import {
+  CorrectGuessBanner,
+  ScoreHeader,
+  WrongGuessBanner,
+} from "@/components/games/multiplayer-banners";
+import {
   PlayerGuessIndicators,
   usePlayerGuessIndicators,
 } from "@/components/games/player-guess-indicator";
@@ -39,6 +44,7 @@ import type {
   PlayerGuessedEvent,
   RoundCountdownEvent,
   RoundEndedEvent,
+  RoundStartedEvent,
 } from "@/types/game-responses";
 import type { MediaListItem } from "@/types/media-responses";
 
@@ -50,8 +56,8 @@ const ROUND_RESULT_QUICK_MS = 3000;
 const ROUND_TIMER_MS = 15_000;
 /** Fallback: any player triggers advancement this many ms after the round timer expires */
 const ROUND_FALLBACK_BUFFER_MS = 3000;
-/** Post-submission fallback: if allGuessed doesn't fire within this window, try to advance */
-const SUBMIT_FALLBACK_MS = 5000;
+/** After detecting all players finished client-side, wait before trying to advance */
+const ALL_FINISHED_ADVANCE_MS = 2000;
 
 type RoundPhase = "guessing" | "result" | "finished";
 
@@ -91,10 +97,14 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const allGuessedRef = useRef(false);
   // Round fallback timer — fires after round timer + buffer to ensure advancement
   const roundFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Post-submission fallback — fires shortly after guess to cover allGuessed race condition
-  const submitFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Client-side all-finished detection — fires shortly after all players submitted
+  const allFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Game-ended fallback — re-fetches game state if game-ended event never arrives on last round
   const gameEndedFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks which players have finished (correct guess or skip) via player-guessed events
+  const finishedPlayersRef = useRef(new Set<string>());
+  // Guards against stale/duplicate round-started events
+  const handledRoundStartRef = useRef(-1);
 
   const channelName = `game:${gameId}`;
 
@@ -121,8 +131,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   // ── Advance fallback timers ─────────────────────────────────
   // Any player can trigger advancement (server allows it for multiplayer).
   // Two layers of fallback cover different failure modes:
-  // 1. Round fallback: fires after round timer + buffer (covers auto-submit failures)
-  // 2. Submit fallback: fires 5s after guess submission (covers allGuessed race condition)
+  // 1. All-finished detection: client-side tracking via player-guessed events (2s delay)
+  // 2. Round fallback: fires after round timer + buffer (covers auto-submit failures)
 
   const handleAdvanceRound = useCallback(async () => {
     const result = await nextRound(gameId);
@@ -145,9 +155,9 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       clearTimeout(roundFallbackTimerRef.current);
       roundFallbackTimerRef.current = null;
     }
-    if (submitFallbackTimerRef.current !== null) {
-      clearTimeout(submitFallbackTimerRef.current);
-      submitFallbackTimerRef.current = null;
+    if (allFinishedTimerRef.current !== null) {
+      clearTimeout(allFinishedTimerRef.current);
+      allFinishedTimerRef.current = null;
     }
   }, []);
 
@@ -161,19 +171,20 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     }, ROUND_TIMER_MS + ROUND_FALLBACK_BUFFER_MS);
   }, [tryAdvance]);
 
-  const startSubmitFallbackTimer = useCallback(() => {
-    if (submitFallbackTimerRef.current !== null) {
-      clearTimeout(submitFallbackTimerRef.current);
-    }
-    // Wait until the round timer has expired + buffer before trying to advance.
-    // This avoids premature advance attempts when the other player hasn't submitted yet.
-    const elapsed = Date.now() - startTimeForRound;
-    const delay = Math.max(SUBMIT_FALLBACK_MS, ROUND_TIMER_MS - elapsed + SUBMIT_FALLBACK_MS);
-    submitFallbackTimerRef.current = setTimeout(() => {
-      submitFallbackTimerRef.current = null;
+  /** Check if all players have finished and schedule advancement if so. */
+  const checkAllPlayersFinished = useCallback(() => {
+    const totalPlayers = game?.players?.length ?? 0;
+    if (totalPlayers === 0) return;
+    if (finishedPlayersRef.current.size < totalPlayers) return;
+    // All players done — use shorter result display
+    allGuessedRef.current = true;
+    // Schedule advance after short delay (gives server-side allGuessed a chance to fire first)
+    if (allFinishedTimerRef.current !== null) return; // already scheduled
+    allFinishedTimerRef.current = setTimeout(() => {
+      allFinishedTimerRef.current = null;
       tryAdvance();
-    }, delay);
-  }, [startTimeForRound, tryAdvance]);
+    }, ALL_FINISHED_ADVANCE_MS);
+  }, [game?.players?.length, tryAdvance]);
 
   // Start round fallback timer on mount (for the initial round)
   useEffect(() => {
@@ -183,6 +194,14 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     // Only run on mount — subsequent rounds handled by round-started handler
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Initialize handledRoundStartRef once game data loads
+  const gameCurrentRound = game?.currentRound;
+  useEffect(() => {
+    if (gameCurrentRound !== undefined && handledRoundStartRef.current === -1) {
+      handledRoundStartRef.current = gameCurrentRound;
+    }
+  }, [gameCurrentRound]);
 
   // ── Game actions ──────────────────────────────────────────────
 
@@ -204,10 +223,21 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       // Reset on failure so the fallback timer can retry
       submittedRef.current = false;
     } else {
-      // Successfully submitted — start fallback in case allGuessed doesn't fire
-      startSubmitFallbackTimer();
+      // Track self as finished for client-side all-finished detection
+      if (user?.id !== undefined) {
+        finishedPlayersRef.current.add(user.id);
+        checkAllPlayersFinished();
+      }
     }
-  }, [currentRound, game, gameId, startTimeForRound, startSubmitFallbackTimer, submitGuess]);
+  }, [
+    checkAllPlayersFinished,
+    currentRound,
+    game,
+    gameId,
+    startTimeForRound,
+    submitGuess,
+    user?.id,
+  ]);
 
   const showWrongFlash = useCallback(() => {
     setWrongGuessFlash(true);
@@ -255,8 +285,11 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       setRoundResult(result);
 
       if (result.isCorrect) {
-        // Successfully submitted correct guess — start fallback in case allGuessed doesn't fire
-        startSubmitFallbackTimer();
+        // Track self as finished for client-side all-finished detection
+        if (user?.id !== undefined) {
+          finishedPlayersRef.current.add(user.id);
+          checkAllPlayersFinished();
+        }
       } else {
         submittedRef.current = false;
         // If the poster reveal timer already expired while this guess was in-flight,
@@ -271,11 +304,12 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       game,
       gameId,
       handleSkip,
+      checkAllPlayersFinished,
       isSubmitting,
       showWrongFlash,
-      startSubmitFallbackTimer,
       startTimeForRound,
       submitGuess,
+      user?.id,
     ],
   );
 
@@ -303,6 +337,12 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     const event = message.data as PlayerGuessedEvent;
     if (event.userId !== user?.id) {
       addIndicator(event);
+    }
+
+    // Track finished players for client-side all-finished detection
+    if (event.isFinished) {
+      finishedPlayersRef.current.add(event.userId);
+      checkAllPlayersFinished();
     }
 
     setPlayerOverrides((previous) => {
@@ -368,7 +408,12 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     }
   });
 
-  useChannel({ channelName }, "round-started", () => {
+  useChannel({ channelName }, "round-started", (message) => {
+    const event = message.data as RoundStartedEvent;
+    // Guard against stale/duplicate round-started events
+    if (event.roundNumber <= handledRoundStartRef.current) return;
+    handledRoundStartRef.current = event.roundNumber;
+
     // Buffer the round transition so the result screen stays visible.
     // Shorter delay when all players finished (just a glance at scores).
     const delay = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
@@ -379,6 +424,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       roundStartDelayRef.current = null;
       resultShownAtRef.current = 0;
       allGuessedRef.current = false;
+      finishedPlayersRef.current = new Set();
       void mutate();
       playRoundStartSound();
       setRoundResult(null);
@@ -448,8 +494,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       if (roundFallbackTimerRef.current !== null) {
         clearTimeout(roundFallbackTimerRef.current);
       }
-      if (submitFallbackTimerRef.current !== null) {
-        clearTimeout(submitFallbackTimerRef.current);
+      if (allFinishedTimerRef.current !== null) {
+        clearTimeout(allFinishedTimerRef.current);
       }
       if (gameEndedFallbackTimerRef.current !== null) {
         clearTimeout(gameEndedFallbackTimerRef.current);
@@ -561,32 +607,6 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       </div>
 
       <PlayerGuessIndicators indicators={indicators} />
-    </div>
-  );
-}
-
-function ScoreHeader({ totalScore }: Readonly<{ totalScore: number }>) {
-  return (
-    <div className="text-center">
-      <p className="text-muted-foreground text-xs tracking-wider uppercase">Score</p>
-      <p className="text-3xl font-bold tabular-nums">{String(totalScore)}</p>
-    </div>
-  );
-}
-
-function CorrectGuessBanner({ score }: Readonly<{ score: number }>) {
-  return (
-    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-6 py-3 text-center">
-      <p className="font-medium text-emerald-500">Correct! +{String(score)} pts</p>
-      <p className="text-muted-foreground mt-1 text-xs">Waiting for other players...</p>
-    </div>
-  );
-}
-
-function WrongGuessBanner() {
-  return (
-    <div className="animate-shake rounded-lg border border-red-500/30 bg-red-500/10 px-6 py-3 text-center">
-      <p className="font-medium text-red-500">Wrong! Try again</p>
     </div>
   );
 }
