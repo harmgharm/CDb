@@ -28,6 +28,8 @@ interface RoundResultProps {
   readonly isMultiplayer?: boolean;
   /** Per-player round scores from round-ended event (multiplayer) */
   readonly roundScores?: RoundEndedEvent["scores"];
+  /** Countdown duration in seconds for auto-advance (multiplayer) */
+  readonly autoAdvanceSeconds?: number;
 }
 
 export function RoundResult({
@@ -41,6 +43,7 @@ export function RoundResult({
   resultHeader,
   isMultiplayer,
   roundScores,
+  autoAdvanceSeconds,
 }: RoundResultProps) {
   return (
     <motion.div
@@ -99,7 +102,10 @@ export function RoundResult({
 
       {/* Next round button (solo) or auto-advance countdown (multiplayer) */}
       {isMultiplayer === true ? (
-        <AutoAdvanceMessage isLastRound={isLastRound} />
+        <AutoAdvanceMessage
+          isLastRound={isLastRound}
+          durationSeconds={autoAdvanceSeconds ?? AUTO_ADVANCE_SECONDS}
+        />
       ) : (
         <Button onClick={onNextRound} disabled={isAdvancing} size="lg" className="mt-2">
           {isLastRound ? "View Results" : "Next Round"}
@@ -144,8 +150,11 @@ function DefaultAnswerDisplay({
 
 const AUTO_ADVANCE_SECONDS = 5;
 
-function AutoAdvanceMessage({ isLastRound }: Readonly<{ isLastRound: boolean }>) {
-  const [remaining, setRemaining] = useState(AUTO_ADVANCE_SECONDS);
+function AutoAdvanceMessage({
+  isLastRound,
+  durationSeconds,
+}: Readonly<{ isLastRound: boolean; durationSeconds: number }>) {
+  const [remaining, setRemaining] = useState(durationSeconds);
 
   useEffect(() => {
     const interval = setInterval(() => {

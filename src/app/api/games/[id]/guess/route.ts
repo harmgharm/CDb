@@ -17,7 +17,6 @@ import { getEngine } from "@/lib/games";
 import {
   calculateRoundScore,
   calculateStreakBonus,
-  COUNTDOWN_DURATION_MS,
   FIRST_CORRECT_BONUS,
 } from "@/lib/games/scoring";
 import { publishToGame } from "@/lib/notifications/ably";
@@ -101,20 +100,14 @@ async function handleMultiplayerGuessEffects(
 ): Promise<void> {
   const { gameId, roundId, userId, username, correct, totalAward, isFirstCorrect } = options;
 
+  // Track first correct for scoring bonus (no countdown — all players get the full timer)
   if (correct && isFirstCorrect) {
-    const now = new Date();
     await db
       .updateTable("game_rounds")
-      .set({ first_correct_at: now })
+      .set({ first_correct_at: new Date() })
       .where("id", "=", roundId)
       .where("first_correct_at", "is", null)
       .execute();
-
-    const countdownEvent: RoundCountdownEvent = {
-      endsAt: new Date(now.getTime() + COUNTDOWN_DURATION_MS).toISOString(),
-      allGuessed: false,
-    };
-    publishToGame(gameId, "round-countdown", countdownEvent);
   }
 
   const guessedEvent: PlayerGuessedEvent = {

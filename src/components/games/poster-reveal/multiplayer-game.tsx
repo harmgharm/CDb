@@ -9,7 +9,7 @@
  */
 
 import { useChannel } from "ably/react";
-import { SkipForwardIcon, TimerIcon } from "lucide-react";
+import { SkipForwardIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { LiveScoreboard } from "@/components/games/live-scoreboard";
@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button";
 import { useGameState, useNextRound, useSubmitGuess } from "@/hooks/use-games";
 import {
   playCorrectSound,
-  playCountdownTickSound,
   playFirstCorrectSound,
   playGameEndSound,
   playRoundStartSound,
@@ -45,8 +44,10 @@ import type { MediaListItem } from "@/types/media-responses";
 
 /** How long the round result screen stays visible before transitioning (ms) */
 const ROUND_RESULT_DISPLAY_MS = 5000;
+/** Shorter display when all players finished — enough to glance at scores */
+const ROUND_RESULT_QUICK_MS = 3000;
 
-type RoundPhase = "guessing" | "countdown" | "result" | "finished";
+type RoundPhase = "guessing" | "result" | "finished";
 
 interface MultiplayerGameProps {
   readonly gameId: string;
@@ -64,17 +65,15 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const [roundPhase, setRoundPhase] = useState<RoundPhase>("guessing");
   const [roundResult, setRoundResult] = useState<GuessResultResponse | null>(null);
   const [startTimeForRound, setStartTimeForRound] = useState(getRoundStartTime);
-  const [countdownEndsAt, setCountdownEndsAt] = useState<number | null>(null);
-  const [countdownRemaining, setCountdownRemaining] = useState<number>(0);
   const [playerOverrides, setPlayerOverrides] = useState<
     Map<string, { scoreAdded: number; roundsWonAdded: number }>
   >(new Map());
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [wrongGuessFlash, setWrongGuessFlash] = useState(false);
   const [roundScores, setRoundScores] = useState<RoundEndedEvent["scores"] | null>(null);
+  const [resultDisplaySeconds, setResultDisplaySeconds] = useState(ROUND_RESULT_DISPLAY_MS / 1000);
   const submittedRef = useRef(false);
   const advancingRef = useRef(false);
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wrongFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks whether the poster reveal timer has expired — used to handle the race
   // condition where a wrong guess is in-flight when the timer fires.
@@ -82,6 +81,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const roundStartDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Timestamp when the result screen was shown — used to compute remaining delay for game-ended
   const resultShownAtRef = useRef(0);
+  // Whether all players guessed this round — shorter result display when true
+  const allGuessedRef = useRef(false);
 
   const channelName = `game:${gameId}`;
   const isHost = user?.id === game?.createdByUserId;
@@ -238,48 +239,17 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     const event = message.data as RoundCountdownEvent;
 
     if (event.allGuessed) {
+      allGuessedRef.current = true;
       if (isHost && !advancingRef.current) {
         advancingRef.current = true;
         setIsAdvancing(true);
         void handleAdvanceRound();
       }
-      return;
     }
-
-    const endsAt = new Date(event.endsAt).getTime();
-    setCountdownEndsAt(endsAt);
-    setRoundPhase("countdown");
-    playCountdownTickSound();
-
-    if (countdownTimerRef.current !== null) {
-      clearInterval(countdownTimerRef.current);
-    }
-    countdownTimerRef.current = setInterval(() => {
-      const remaining = Math.max(0, endsAt - Date.now());
-      setCountdownRemaining(remaining);
-
-      if (remaining <= 0) {
-        if (countdownTimerRef.current !== null) {
-          clearInterval(countdownTimerRef.current);
-          countdownTimerRef.current = null;
-        }
-        if (isHost && !advancingRef.current) {
-          advancingRef.current = true;
-          setIsAdvancing(true);
-          void handleAdvanceRound();
-        }
-      }
-    }, 100);
   });
 
   useChannel({ channelName }, "round-ended", (message) => {
     const event = message.data as RoundEndedEvent;
-
-    if (countdownTimerRef.current !== null) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-    setCountdownEndsAt(null);
 
     if (roundResult === null) {
       const endedData = event.roundData as Record<string, string>;
@@ -298,19 +268,25 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
 
     setWrongGuessFlash(false);
     setRoundScores(event.scores);
+    setResultDisplaySeconds(
+      allGuessedRef.current ? ROUND_RESULT_QUICK_MS / 1000 : ROUND_RESULT_DISPLAY_MS / 1000,
+    );
     resultShownAtRef.current = Date.now();
     setRoundPhase("result");
     clearIndicators();
   });
 
   useChannel({ channelName }, "round-started", () => {
-    // Buffer the round transition so the result screen stays visible
+    // Buffer the round transition so the result screen stays visible.
+    // Shorter delay when all players finished (just a glance at scores).
+    const delay = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
     if (roundStartDelayRef.current !== null) {
       clearTimeout(roundStartDelayRef.current);
     }
     roundStartDelayRef.current = setTimeout(() => {
       roundStartDelayRef.current = null;
       resultShownAtRef.current = 0;
+      allGuessedRef.current = false;
       void mutate();
       playRoundStartSound();
       setRoundResult(null);
@@ -324,20 +300,19 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       setRoundPhase("guessing");
       setWrongGuessFlash(false);
       clearIndicators();
-    }, ROUND_RESULT_DISPLAY_MS);
+    }, delay);
   });
 
   useChannel({ channelName }, "game-ended", () => {
+    const displayMs = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
+
     const processGameEnded = () => {
       resultShownAtRef.current = 0;
+      allGuessedRef.current = false;
       void mutate();
       playGameEndSound();
       setRoundPhase("finished");
       clearIndicators();
-      if (countdownTimerRef.current !== null) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
       if (roundStartDelayRef.current !== null) {
         clearTimeout(roundStartDelayRef.current);
         roundStartDelayRef.current = null;
@@ -347,7 +322,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     // If showing a result screen, delay so players can see last round scores
     if (resultShownAtRef.current > 0) {
       const elapsed = Date.now() - resultShownAtRef.current;
-      const remaining = Math.max(0, ROUND_RESULT_DISPLAY_MS - elapsed);
+      const remaining = Math.max(0, displayMs - elapsed);
 
       if (remaining > 0) {
         if (roundStartDelayRef.current !== null) {
@@ -364,9 +339,6 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   // Clean up timers on unmount
   useEffect(() => {
     return () => {
-      if (countdownTimerRef.current !== null) {
-        clearInterval(countdownTimerRef.current);
-      }
       if (wrongFlashTimerRef.current !== null) {
         clearTimeout(wrongFlashTimerRef.current);
       }
@@ -406,6 +378,7 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
             isLastRound={game.currentRound + 1 >= game.roundCount}
             isMultiplayer
             roundScores={roundScores ?? undefined}
+            autoAdvanceSeconds={resultDisplaySeconds}
           />
         </div>
         <div className="hidden lg:block">
@@ -435,15 +408,6 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
         <p className="text-muted-foreground text-sm">
           Round {String(game.currentRound + 1)} of {String(game.roundCount)}
         </p>
-
-        {roundPhase === "countdown" && countdownEndsAt !== null && (
-          <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2">
-            <TimerIcon className="size-4 text-yellow-500" />
-            <span className="text-sm font-medium">
-              Round ending in {(countdownRemaining / 1000).toFixed(1)}s
-            </span>
-          </div>
-        )}
 
         <PosterReveal
           posterUrl={multiPosterUrl}

@@ -16,7 +16,6 @@ import type { GameType } from "@/lib/db/types";
 import { getEngine } from "@/lib/games";
 import { updateLeaderboard } from "@/lib/games/leaderboard";
 import { toLeaderboardCategory } from "@/lib/games/ranked-presets";
-import { COUNTDOWN_DURATION_MS } from "@/lib/games/scoring";
 import { publishToGame } from "@/lib/notifications/ably";
 import type { GameEndedEvent, RoundEndedEvent, RoundStartedEvent } from "@/types/game-responses";
 
@@ -45,13 +44,9 @@ async function authorizeAdvance(options: AuthorizeAdvanceOptions): Promise<strin
 }
 
 /**
- * Validate that the countdown period has elapsed or all players have guessed.
+ * Validate that all players have guessed (or skipped) before allowing round advancement.
  */
-async function validateCountdownElapsed(
-  gameId: string,
-  roundId: string,
-  firstCorrectAt: Date | null,
-): Promise<boolean> {
+async function validateAllPlayersFinished(gameId: string, roundId: string): Promise<boolean> {
   const playerCount = await db
     .selectFrom("game_players")
     .select(({ fn }) => fn.countAll<number>().as("count"))
@@ -66,14 +61,7 @@ async function validateCountdownElapsed(
     .groupBy("user_id")
     .execute();
 
-  if (finishedGuessers.length >= playerCount.count) return true;
-
-  if (firstCorrectAt !== null) {
-    const countdownEnd = firstCorrectAt.getTime() + COUNTDOWN_DURATION_MS;
-    return Date.now() >= countdownEnd - 500;
-  }
-
-  return true;
+  return finishedGuessers.length >= playerCount.count;
 }
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -117,15 +105,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return errorResponse("Current round not found", 500);
   }
 
-  // Multiplayer: validate countdown has elapsed
+  // Multiplayer: validate all players have finished before advancing
   if (isMultiplayer && currentRound.ended_at === null) {
-    const canAdvance = await validateCountdownElapsed(
-      gameId,
-      currentRound.id,
-      currentRound.first_correct_at,
-    );
+    const canAdvance = await validateAllPlayersFinished(gameId, currentRound.id);
     if (!canAdvance) {
-      return errorResponse("Countdown has not finished yet", 400);
+      return errorResponse("Not all players have finished", 400);
     }
   }
 
