@@ -43,10 +43,30 @@ async function authorizeAdvance(options: AuthorizeAdvanceOptions): Promise<strin
   return options.creatorId === options.userId ? null : "Only the game creator can advance rounds";
 }
 
+interface ValidatePlayersOptions {
+  gameId: string;
+  roundId: string;
+  roundStartedAt: Date | null;
+  totalWindowMs: number;
+}
+
 /**
  * Validate that all players have guessed (or skipped) before allowing round advancement.
+ * Falls back to a time-based check: if enough time has elapsed since the round started
+ * (engine timer + buffer), allow advancement regardless — covers disconnects and failed auto-submits.
  */
-async function validateAllPlayersFinished(gameId: string, roundId: string): Promise<boolean> {
+async function validateAllPlayersFinished(options: ValidatePlayersOptions): Promise<boolean> {
+  const { gameId, roundId, roundStartedAt, totalWindowMs } = options;
+
+  // Time-based fallback: if the round timer + buffer has elapsed, allow advancement
+  if (roundStartedAt !== null) {
+    const elapsed = Date.now() - roundStartedAt.getTime();
+    const bufferMs = 10_000; // 10s buffer for network latency / slow auto-submits
+    if (elapsed >= totalWindowMs + bufferMs) {
+      return true;
+    }
+  }
+
   const playerCount = await db
     .selectFrom("game_players")
     .select(({ fn }) => fn.countAll<number>().as("count"))
@@ -107,7 +127,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   // Multiplayer: validate all players have finished before advancing
   if (isMultiplayer && currentRound.ended_at === null) {
-    const canAdvance = await validateAllPlayersFinished(gameId, currentRound.id);
+    const engine = getEngine(session.game_type);
+    const canAdvance = await validateAllPlayersFinished({
+      gameId,
+      roundId: currentRound.id,
+      roundStartedAt: currentRound.started_at,
+      totalWindowMs: engine.totalWindowMs,
+    });
     if (!canAdvance) {
       return errorResponse("Not all players have finished", 400);
     }
@@ -295,13 +321,15 @@ async function handleGameFinished(
   }
 
   if (isMultiplayer) {
+    let standings: Awaited<ReturnType<typeof computeFinalStandings>> = [];
     try {
-      const standings = await computeFinalStandings(session.id);
-      const gameEndedEvent: GameEndedEvent = { finalStandings: standings };
-      publishToGame(session.id, "game-ended", gameEndedEvent);
+      standings = await computeFinalStandings(session.id);
     } catch (error: unknown) {
-      console.error("Failed to publish game-ended:", error);
+      console.error("Failed to compute final standings:", error);
     }
+    // Always publish game-ended so clients transition even if standings failed
+    const gameEndedEvent: GameEndedEvent = { finalStandings: standings };
+    publishToGame(session.id, "game-ended", gameEndedEvent);
   }
 
   return isNewPersonalBest;

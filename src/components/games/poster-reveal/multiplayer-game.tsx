@@ -46,6 +46,10 @@ import type { MediaListItem } from "@/types/media-responses";
 const ROUND_RESULT_DISPLAY_MS = 5000;
 /** Shorter display when all players finished — enough to glance at scores */
 const ROUND_RESULT_QUICK_MS = 3000;
+/** Total round timer (10s reveal + 5s grace) — must match poster-reveal-visual */
+const ROUND_TIMER_MS = 15_000;
+/** Host fallback: trigger advancement this many ms after the round timer expires */
+const HOST_FALLBACK_BUFFER_MS = 3000;
 
 type RoundPhase = "guessing" | "result" | "finished";
 
@@ -83,6 +87,8 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
   const resultShownAtRef = useRef(0);
   // Whether all players guessed this round — shorter result display when true
   const allGuessedRef = useRef(false);
+  // Host fallback timer — fires after round timer + buffer to ensure advancement
+  const hostFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const channelName = `game:${gameId}`;
   const isHost = user?.id === game?.createdByUserId;
@@ -124,12 +130,17 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
 
     const timeFromStartMs = Date.now() - startTimeForRound;
 
-    await submitGuess({
+    const result = await submitGuess({
       gameId,
       roundId: currentRound.id,
       guessText: "(skipped)",
       timeFromStartMs,
     });
+
+    // Reset on failure so the fallback timer can retry
+    if (result === null) {
+      submittedRef.current = false;
+    }
   }, [currentRound, game, gameId, startTimeForRound, submitGuess]);
 
   const showWrongFlash = useCallback(() => {
@@ -216,6 +227,33 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
     }
   }, [handleAdvanceRound]);
 
+  // ── Host fallback timer ─────────────────────────────────────
+  // Safety net: if allGuessed never fires (disconnect, failed auto-submit, missed
+  // Ably event), the host triggers advancement after the round timer + buffer.
+
+  const startHostFallbackTimer = useCallback(() => {
+    if (hostFallbackTimerRef.current !== null) {
+      clearTimeout(hostFallbackTimerRef.current);
+    }
+    hostFallbackTimerRef.current = setTimeout(() => {
+      hostFallbackTimerRef.current = null;
+      if (isHost && !advancingRef.current) {
+        advancingRef.current = true;
+        setIsAdvancing(true);
+        void handleAdvanceRound();
+      }
+    }, ROUND_TIMER_MS + HOST_FALLBACK_BUFFER_MS);
+  }, [isHost, handleAdvanceRound]);
+
+  // Start fallback timer for the initial round on mount
+  useEffect(() => {
+    if (isHost && roundPhase === "guessing") {
+      startHostFallbackTimer();
+    }
+    // Only run on mount — subsequent rounds handled by round-started handler
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Ably event handlers ──────────────────────────────────────
 
   useChannel({ channelName }, "player-guessed", (message) => {
@@ -240,6 +278,11 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
 
     if (event.allGuessed) {
       allGuessedRef.current = true;
+      // Clear fallback timer — normal advancement is happening
+      if (hostFallbackTimerRef.current !== null) {
+        clearTimeout(hostFallbackTimerRef.current);
+        hostFallbackTimerRef.current = null;
+      }
       if (isHost && !advancingRef.current) {
         advancingRef.current = true;
         setIsAdvancing(true);
@@ -300,10 +343,17 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       setRoundPhase("guessing");
       setWrongGuessFlash(false);
       clearIndicators();
+      // Start fallback timer for the new round
+      startHostFallbackTimer();
     }, delay);
   });
 
   useChannel({ channelName }, "game-ended", () => {
+    // Clear host fallback timer — game is over
+    if (hostFallbackTimerRef.current !== null) {
+      clearTimeout(hostFallbackTimerRef.current);
+      hostFallbackTimerRef.current = null;
+    }
     const displayMs = allGuessedRef.current ? ROUND_RESULT_QUICK_MS : ROUND_RESULT_DISPLAY_MS;
 
     const processGameEnded = () => {
@@ -344,6 +394,9 @@ export function MultiplayerGame({ gameId, mediaOptions, onlineUserIds }: Multipl
       }
       if (roundStartDelayRef.current !== null) {
         clearTimeout(roundStartDelayRef.current);
+      }
+      if (hostFallbackTimerRef.current !== null) {
+        clearTimeout(hostFallbackTimerRef.current);
       }
     };
   }, []);
