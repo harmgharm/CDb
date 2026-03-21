@@ -25,6 +25,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     mutate,
   } = useSWR<SafeUser, Error>("/api/auth/me", {
     refreshInterval: 5 * 60 * 1000, // Check session every 5 minutes
+    revalidateOnFocus: true, // Re-check auth when tab regains focus (e.g. user returns after idle)
+    revalidateOnReconnect: true, // Re-check auth when network reconnects
   });
 
   // Redirect to login when auth fails (token expired and refresh failed)
