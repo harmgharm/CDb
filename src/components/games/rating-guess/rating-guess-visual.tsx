@@ -11,7 +11,7 @@ import * as motion from "motion/react-client";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-const DEFAULT_TOTAL_DURATION_MS = 15_000;
+const DEFAULT_TOTAL_DURATION_MS = 10_000;
 
 interface RatingGuessVisualProps {
   readonly posterUrl: string;

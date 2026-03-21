@@ -122,6 +122,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
             "game_guesses.user_id",
             "users.username",
             "game_guesses.guess_text",
+            "game_guesses.guess_data",
             "game_guesses.is_correct",
             "game_guesses.time_from_start_ms",
             "game_guesses.score_awarded",
@@ -132,21 +133,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           .execute()
       : [];
 
-  // Group guesses by round
-  const guessesByRound = new Map<string, GameGuessResponse[]>();
+  // Group raw guesses by round (guess_data included conditionally when building responses)
+  const rawGuessesByRound = new Map<string, typeof guesses>();
   for (const guess of guesses) {
-    const roundGuesses = guessesByRound.get(guess.round_id) ?? [];
-    roundGuesses.push({
-      id: guess.id,
-      userId: guess.user_id,
-      ...(isMultiplayer ? { username: guess.username } : {}),
-      guessText: guess.guess_text ?? "",
-      isCorrect: guess.is_correct,
-      timeFromStartMs: guess.time_from_start_ms,
-      scoreAwarded: guess.score_awarded,
-      createdAt: guess.created_at.toISOString(),
-    });
-    guessesByRound.set(guess.round_id, roundGuesses);
+    const roundGuesses = rawGuessesByRound.get(guess.round_id) ?? [];
+    roundGuesses.push(guess);
+    rawGuessesByRound.set(guess.round_id, roundGuesses);
   }
 
   // Calculate current user's total score and streak
@@ -159,6 +151,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const roundData = round.round_data;
     const masked = engine.maskRoundData(roundData, phase);
 
+    const rawGuesses = rawGuessesByRound.get(round.id) ?? [];
+    const mappedGuesses: GameGuessResponse[] = rawGuesses.map((guess) => ({
+      id: guess.id,
+      userId: guess.user_id,
+      ...(isMultiplayer ? { username: guess.username } : {}),
+      guessText: guess.guess_text ?? "",
+      isCorrect: guess.is_correct,
+      timeFromStartMs: guess.time_from_start_ms,
+      scoreAwarded: guess.score_awarded,
+      createdAt: guess.created_at.toISOString(),
+      // Only include guess_data for ended rounds (anti-cheat: hides guessed ratings during active)
+      ...(isEnded && guess.guess_data !== null ? { guessData: guess.guess_data } : {}),
+    }));
+
     return {
       id: round.id,
       roundNumber: round.round_number,
@@ -166,7 +172,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       startedAt: round.started_at?.toISOString() ?? null,
       endedAt: round.ended_at?.toISOString() ?? null,
       firstCorrectAt: round.first_correct_at?.toISOString() ?? null,
-      guesses: guessesByRound.get(round.id) ?? [],
+      guesses: mappedGuesses,
     };
   });
 
@@ -213,6 +219,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     currentRound: session.current_round,
     createdByUserId: session.created_by_user_id,
     isRanked: session.is_ranked,
+    timeLimitSeconds: session.time_limit_seconds,
     startedAt: session.started_at?.toISOString() ?? null,
     finishedAt: session.finished_at?.toISOString() ?? null,
     createdAt: session.created_at.toISOString(),

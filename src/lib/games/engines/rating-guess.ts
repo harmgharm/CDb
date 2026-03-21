@@ -16,7 +16,7 @@ import type {
   RatingGuessRoundData,
 } from "@/types/game-engine-data";
 
-const TOTAL_WINDOW_MS = 15_000;
+const TOTAL_WINDOW_MS = 10_000;
 
 /** Accuracy-based score: 1000 at exact, 0 at 3.0+ difference */
 function calculateAccuracyScore(difference: number): number {

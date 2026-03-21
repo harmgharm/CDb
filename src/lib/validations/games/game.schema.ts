@@ -9,6 +9,8 @@ export const createGameSchema = z.object({
   mode: z.enum(["solo", "multiplayer"]).default("solo"),
   difficulty: z.enum(["normal", "hard"]),
   roundCount: z.coerce.number().int().min(1).max(20).default(5),
+  /** Custom round timer in seconds (1-15). Omit to use engine default. */
+  timeLimitSeconds: z.coerce.number().int().min(1).max(15).optional(),
 });
 
 export type CreateGameInput = z.infer<typeof createGameSchema>;

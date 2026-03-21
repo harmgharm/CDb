@@ -37,6 +37,7 @@ export function PlayPageContent() {
   const [activeGame, setActiveGame] = useState<GameSessionResponse | null>(null);
   const [difficulty, setDifficulty] = useState<GameDifficulty>("normal");
   const [roundCount, setRoundCount] = useState("5");
+  const [timeLimit, setTimeLimit] = useState("10");
   const { createGame, isCreating, error } = useCreateGame();
 
   const ranked = useMemo(
@@ -50,13 +51,14 @@ export function PlayPageContent() {
       mode: "solo",
       difficulty,
       roundCount: Number(roundCount),
+      timeLimitSeconds: Number(timeLimit),
     });
 
     if (game !== null) {
       setActiveGame(game);
       setPageState("playing");
     }
-  }, [createGame, difficulty, roundCount]);
+  }, [createGame, difficulty, roundCount, timeLimit]);
 
   const handleStartMultiplayer = useCallback(async () => {
     const game = await createGame({
@@ -64,12 +66,13 @@ export function PlayPageContent() {
       mode: "multiplayer",
       difficulty,
       roundCount: Number(roundCount),
+      timeLimitSeconds: Number(timeLimit),
     });
 
     if (game !== null) {
       router.push(`/play/rating-guess/${game.id}`);
     }
-  }, [createGame, difficulty, roundCount, router]);
+  }, [createGame, difficulty, roundCount, timeLimit, router]);
 
   const handlePlayAgain = useCallback(() => {
     setActiveGame(null);
@@ -145,6 +148,23 @@ export function PlayPageContent() {
                     <SelectItem value="10">10 rounds</SelectItem>
                     <SelectItem value="15">15 rounds</SelectItem>
                     <SelectItem value="20">20 rounds</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Time limit */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Time Limit</label>
+                <Select value={timeLimit} onValueChange={setTimeLimit}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 seconds</SelectItem>
+                    <SelectItem value="7">7 seconds</SelectItem>
+                    <SelectItem value="10">10 seconds</SelectItem>
+                    <SelectItem value="12">12 seconds</SelectItem>
+                    <SelectItem value="15">15 seconds</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

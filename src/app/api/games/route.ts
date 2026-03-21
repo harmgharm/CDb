@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return errorResponse("Invalid input", 400);
   }
 
-  const { gameType, mode, difficulty, roundCount } = parsed.data;
+  const { gameType, mode, difficulty, roundCount, timeLimitSeconds } = parsed.data;
   const engine = getEngine(gameType);
   const isMultiplayer = mode === "multiplayer";
   const ranked = isRankedGame(gameType, difficulty, roundCount);
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         current_round: 0,
         created_by_user_id: user.id,
         is_ranked: ranked,
+        time_limit_seconds: timeLimitSeconds ?? null,
         started_at: isMultiplayer ? null : now,
       })
       .returningAll()
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
     currentRound: result.session.current_round,
     createdByUserId: result.session.created_by_user_id,
     isRanked: result.session.is_ranked,
+    timeLimitSeconds: result.session.time_limit_seconds,
     startedAt: result.session.started_at?.toISOString() ?? null,
     finishedAt: result.session.finished_at?.toISOString() ?? null,
     createdAt: result.session.created_at.toISOString(),

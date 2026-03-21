@@ -21,6 +21,7 @@ interface CreateGameParams {
   readonly mode?: "solo" | "multiplayer";
   readonly difficulty: "normal" | "hard";
   readonly roundCount: number;
+  readonly timeLimitSeconds?: number;
 }
 
 export function useCreateGame() {

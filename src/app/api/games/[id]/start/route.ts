@@ -151,6 +151,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     currentRound: result.session.current_round,
     createdByUserId: result.session.created_by_user_id,
     isRanked: result.session.is_ranked,
+    timeLimitSeconds: result.session.time_limit_seconds,
     startedAt: result.session.started_at?.toISOString() ?? null,
     finishedAt: result.session.finished_at?.toISOString() ?? null,
     createdAt: result.session.created_at.toISOString(),

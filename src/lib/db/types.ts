@@ -346,6 +346,8 @@ export interface GameSessionsTable {
   current_round: Generated<number>;
   created_by_user_id: string;
   is_ranked: Generated<boolean>;
+  /** Custom round timer in seconds (1-15). NULL = use engine default. */
+  time_limit_seconds: number | null;
   started_at: Date | null;
   finished_at: Date | null;
   created_at: Generated<Date>;

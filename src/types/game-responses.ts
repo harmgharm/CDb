@@ -51,6 +51,8 @@ export interface GameSessionResponse {
   currentRound: number;
   createdByUserId: string;
   isRanked: boolean;
+  /** Custom round timer in seconds (1-15). Null = engine default. */
+  timeLimitSeconds: number | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -90,6 +92,8 @@ export interface GameGuessResponse {
   timeFromStartMs: number;
   scoreAwarded: number;
   createdAt: string;
+  /** Game-specific guess data (e.g. guessedRating for rating-guess). Only included for ended rounds. */
+  guessData?: Record<string, unknown>;
 }
 
 // ── Guess Submission Result ──────────────────────────────────────

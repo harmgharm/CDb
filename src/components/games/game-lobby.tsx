@@ -182,6 +182,9 @@ export function GameLobby({
         <Badge variant="secondary">
           {String(game.roundCount)} round{game.roundCount === 1 ? "" : "s"}
         </Badge>
+        {game.timeLimitSeconds !== null && (
+          <Badge variant="secondary">{String(game.timeLimitSeconds)}s timer</Badge>
+        )}
         <Badge variant="secondary">{String(players.length)}/10 players</Badge>
         {game.isRanked ? (
           <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">

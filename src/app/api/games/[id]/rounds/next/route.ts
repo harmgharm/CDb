@@ -128,11 +128,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // Multiplayer: validate all players have finished before advancing
   if (isMultiplayer && currentRound.ended_at === null) {
     const engine = getEngine(session.game_type);
+    const totalWindowMs =
+      session.time_limit_seconds === null
+        ? engine.totalWindowMs
+        : session.time_limit_seconds * 1000;
     const canAdvance = await validateAllPlayersFinished({
       gameId,
       roundId: currentRound.id,
       roundStartedAt: currentRound.started_at,
-      totalWindowMs: engine.totalWindowMs,
+      totalWindowMs,
     });
     if (!canAdvance) {
       return errorResponse("Not all players have finished", 400);

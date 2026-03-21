@@ -56,6 +56,12 @@ export function SoloGame({ gameId, onPlayAgain }: SoloGameProps) {
     return game.rounds.find((round) => round.roundNumber === game.currentRound) ?? null;
   }, [game]);
 
+  // Derive round timer from game settings (custom time limit or visual default)
+  const roundTimerMs =
+    game?.timeLimitSeconds !== undefined && game.timeLimitSeconds !== null
+      ? game.timeLimitSeconds * 1000
+      : undefined;
+
   const handleGuess = useCallback(
     async (rating: number) => {
       if (currentRound === null || game === undefined || isSubmitting || submittedRef.current)
@@ -203,6 +209,7 @@ export function SoloGame({ gameId, onPlayAgain }: SoloGameProps) {
         posterUrl={roundData.posterUrl}
         title={roundData.title}
         ratingCount={roundData.ratingCount}
+        totalDuration={roundTimerMs}
         onTimeExpired={handleTimeExpired}
         isPaused={roundPhase !== "guessing"}
       />

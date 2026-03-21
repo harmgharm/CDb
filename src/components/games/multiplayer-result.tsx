@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
+import { RoundBreakdownRow } from "@/components/games/round-breakdown-row";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -322,44 +323,37 @@ function RoundBreakdown({
   game,
   standings,
 }: Readonly<{ game: GameSessionResponse; standings: GamePlayerResponse[] }>) {
+  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
+
+  const toggleRound = useCallback((roundNumber: number) => {
+    setOpenRounds((previous) => {
+      const next = new Set(previous);
+      if (next.has(roundNumber)) {
+        next.delete(roundNumber);
+      } else {
+        next.add(roundNumber);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <div className="w-full">
       <h2 className="mb-3 text-lg font-semibold">Round Breakdown</h2>
       <div className="space-y-2">
-        {game.rounds.map((round, index) => {
-          // Find the winner for this round (highest score)
-          const roundGuesses = round.guesses
-            .filter((guess) => guess.isCorrect)
-            .toSorted((a, b) => b.scoreAwarded - a.scoreAwarded);
-          const roundWinner = roundGuesses[0];
-          const winnerPlayer = roundWinner
-            ? standings.find((s) => s.userId === roundWinner.userId)
-            : undefined;
-
-          return (
-            <div key={round.id} className="bg-card flex items-center gap-3 rounded-lg border p-3">
-              <span className="text-muted-foreground w-8 text-center text-sm font-medium">
-                #{String(index + 1)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {(round.roundData as Record<string, string>).title ?? "Unknown"}
-                </p>
-                {winnerPlayer === undefined ? (
-                  <p className="text-muted-foreground text-xs">No correct guesses</p>
-                ) : (
-                  <p className="text-muted-foreground text-xs">
-                    Won by {winnerPlayer.displayName ?? winnerPlayer.username}
-                    {roundWinner !== undefined && ` (+${String(roundWinner.scoreAwarded)})`}
-                  </p>
-                )}
-              </div>
-              <div className="text-xs">
-                {String(roundGuesses.length)}/{String(standings.length)} correct
-              </div>
-            </div>
-          );
-        })}
+        {game.rounds.map((round, index) => (
+          <RoundBreakdownRow
+            key={round.id}
+            round={round}
+            index={index}
+            standings={standings}
+            gameType={game.gameType}
+            isOpen={openRounds.has(index)}
+            onToggle={() => {
+              toggleRound(index);
+            }}
+          />
+        ))}
       </div>
     </div>
   );

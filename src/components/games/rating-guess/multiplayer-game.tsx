@@ -52,8 +52,8 @@ import type {
 const ROUND_RESULT_DISPLAY_MS = 5000;
 /** Shorter display when all players finished — enough to glance at scores */
 const ROUND_RESULT_QUICK_MS = 3000;
-/** Total round timer — must match rating-guess-visual DEFAULT_TOTAL_DURATION_MS */
-const ROUND_TIMER_MS = 15_000;
+/** Default round timer for rating guess (ms) */
+const DEFAULT_ROUND_TIMER_MS = 10_000;
 /** Fallback: any player triggers advancement this many ms after the round timer expires */
 const ROUND_FALLBACK_BUFFER_MS = 3000;
 /** After detecting all players finished client-side, wait before trying to advance */
@@ -98,9 +98,14 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
   const allFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Game-ended fallback — re-fetches game state if game-ended event never arrives on last round
   const gameEndedFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Derive round timer from game settings (custom time limit or engine default)
+  const roundTimerMs =
+    game?.timeLimitSeconds !== undefined && game.timeLimitSeconds !== null
+      ? game.timeLimitSeconds * 1000
+      : DEFAULT_ROUND_TIMER_MS;
   // Auto-submit fallback for rAF-based timer (rAF stops in hidden/background tabs)
   const { setOnTimeExpired, startAutoSubmitTimer, clearAutoSubmitTimer } = useAutoSubmitTimer(
-    ROUND_TIMER_MS,
+    roundTimerMs,
     startTimeForRound,
     mutate,
   );
@@ -181,8 +186,8 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     roundFallbackTimerRef.current = setTimeout(() => {
       roundFallbackTimerRef.current = null;
       tryAdvance();
-    }, ROUND_TIMER_MS + ROUND_FALLBACK_BUFFER_MS);
-  }, [tryAdvance]);
+    }, roundTimerMs + ROUND_FALLBACK_BUFFER_MS);
+  }, [tryAdvance, roundTimerMs]);
 
   /** Check if all players have finished and schedule advancement if so. */
   const checkAllPlayersFinished = useCallback(() => {
@@ -221,7 +226,7 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
         const resultData = result.resultData as unknown as RatingGuessResultData;
         playGuessSound(resultData.difference, result.isFirstCorrect === true);
         setRoundResult(result);
-        setGuessedAtProgress(Math.min((Date.now() - startTimeForRound) / ROUND_TIMER_MS, 1));
+        setGuessedAtProgress(Math.min((Date.now() - startTimeForRound) / roundTimerMs, 1));
         // Track self as finished for client-side all-finished detection
         if (user?.id !== undefined) {
           finishedPlayersRef.current.add(user.id);
@@ -235,6 +240,7 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
       game,
       gameId,
       isSubmitting,
+      roundTimerMs,
       startTimeForRound,
       submitGuess,
       user?.id,
@@ -521,6 +527,7 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
           posterUrl={roundData.posterUrl}
           title={roundData.title}
           ratingCount={roundData.ratingCount}
+          totalDuration={roundTimerMs}
           onTimeExpired={handleTimeExpired}
           guessedAtProgress={guessedAtProgress}
         />

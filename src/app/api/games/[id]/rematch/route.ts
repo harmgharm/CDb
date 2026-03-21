@@ -64,6 +64,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       current_round: 0,
       created_by_user_id: user.id,
       is_ranked: ranked,
+      time_limit_seconds: original.time_limit_seconds,
       started_at: null,
     })
     .returningAll()
