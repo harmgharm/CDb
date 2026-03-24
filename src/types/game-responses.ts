@@ -198,6 +198,8 @@ export interface RoundEndedEvent {
     isCorrect: boolean;
     isFirstCorrect: boolean;
     timeFromStartMs: number | null;
+    /** Game-specific guess data (e.g. guessedRating for rating guesser) */
+    guessData: Record<string, unknown> | null;
   }[];
 }
 

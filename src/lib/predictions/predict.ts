@@ -141,6 +141,7 @@ export async function predictRating(
     directors: media.directors,
     overview: media.overview,
     voteAverage: media.voteAverage,
+    trailerUrl: media.trailerUrl,
   };
 }
 

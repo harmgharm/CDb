@@ -51,13 +51,20 @@ import type {
 /** How long the round result screen stays visible before transitioning (ms) */
 const ROUND_RESULT_DISPLAY_MS = 5000;
 /** Shorter display when all players finished — enough to glance at scores */
-const ROUND_RESULT_QUICK_MS = 3000;
+const ROUND_RESULT_QUICK_MS = 4000;
 /** Default round timer for rating guess (ms) */
 const DEFAULT_ROUND_TIMER_MS = 10_000;
 /** Fallback: any player triggers advancement this many ms after the round timer expires */
 const ROUND_FALLBACK_BUFFER_MS = 3000;
 /** After detecting all players finished client-side, wait before trying to advance */
 const ALL_FINISHED_ADVANCE_MS = 2000;
+
+function renderRatingGuessLabel(guessData: Record<string, unknown> | null): React.ReactNode {
+  if (guessData === null) return null;
+  const rating = guessData.guessedRating;
+  if (typeof rating !== "number") return null;
+  return rating.toFixed(1);
+}
 
 type RoundPhase = "guessing" | "result" | "finished";
 
@@ -467,7 +474,11 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
     return (
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <div className="flex flex-col items-center gap-4">
-          <ScoreHeader totalScore={game.totalScore + roundResult.scoreAwarded} />
+          <ScoreHeader
+            totalScore={game.totalScore + roundResult.scoreAwarded}
+            baseScore={roundResult.roundScore}
+            streakBonus={roundResult.streakBonus}
+          />
           <RoundResult
             result={roundResult}
             roundNumber={game.currentRound}
@@ -480,6 +491,9 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
             isMultiplayer
             roundScores={roundScores ?? undefined}
             autoAdvanceSeconds={resultDisplaySeconds}
+            hideScoreBreakdown
+            showFirstCorrect={false}
+            renderGuessLabel={renderRatingGuessLabel}
             resultHeader={
               <div className="flex flex-col items-center gap-2">
                 <span className="text-4xl">{header.icon}</span>

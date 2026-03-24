@@ -10,6 +10,7 @@ import { getIp } from "@/lib/api/get-ip";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import {
   createRefreshToken,
+  logAudit,
   loginLimiter,
   setAuthCookies,
   signAccessToken,
@@ -50,6 +51,13 @@ export async function POST(req: NextRequest) {
   // Verify password
   const valid = await verifyPassword(user.password_hash, password);
   if (!valid) {
+    void logAudit({
+      userId: user.id,
+      action: "user.login_failed",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { ip, identifier },
+    });
     return errorResponse("Invalid credentials", 401);
   }
 

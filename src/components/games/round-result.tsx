@@ -30,6 +30,12 @@ interface RoundResultProps {
   readonly roundScores?: RoundEndedEvent["scores"];
   /** Countdown duration in seconds for auto-advance (multiplayer) */
   readonly autoAdvanceSeconds?: number;
+  /** Hide the built-in score breakdown (caller renders it elsewhere) */
+  readonly hideScoreBreakdown?: boolean;
+  /** Whether to show "1st" badge on first-correct player in round scores */
+  readonly showFirstCorrect?: boolean;
+  /** Render a game-specific guess label for each player row (e.g. guessed rating) */
+  readonly renderGuessLabel?: (guessData: Record<string, unknown> | null) => React.ReactNode;
 }
 
 export function RoundResult({
@@ -44,6 +50,9 @@ export function RoundResult({
   isMultiplayer,
   roundScores,
   autoAdvanceSeconds,
+  hideScoreBreakdown,
+  showFirstCorrect = true,
+  renderGuessLabel,
 }: RoundResultProps) {
   return (
     <motion.div
@@ -69,8 +78,8 @@ export function RoundResult({
         <DefaultAnswerDisplay result={result} roundNumber={roundNumber} totalRounds={totalRounds} />
       )}
 
-      {/* Score breakdown */}
-      {result.isCorrect && (
+      {/* Score breakdown (can be hidden when caller renders it elsewhere) */}
+      {hideScoreBreakdown !== true && result.isCorrect && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -97,7 +106,11 @@ export function RoundResult({
 
       {/* Round scores (multiplayer) */}
       {roundScores !== undefined && roundScores.length > 0 && (
-        <RoundScoresDisplay scores={roundScores} />
+        <RoundScoresDisplay
+          scores={roundScores}
+          showFirstCorrect={showFirstCorrect}
+          renderGuessLabel={renderGuessLabel}
+        />
       )}
 
       {/* Next round button (solo) or auto-advance countdown (multiplayer) */}
@@ -194,7 +207,17 @@ function AutoAdvanceLabel({
   return `Next round in ${String(remaining)}s...`;
 }
 
-function RoundScoresDisplay({ scores }: Readonly<{ scores: RoundEndedEvent["scores"] }>) {
+interface RoundScoresDisplayProps {
+  readonly scores: RoundEndedEvent["scores"];
+  readonly showFirstCorrect: boolean;
+  readonly renderGuessLabel?: (guessData: Record<string, unknown> | null) => React.ReactNode;
+}
+
+function RoundScoresDisplay({
+  scores,
+  showFirstCorrect,
+  renderGuessLabel,
+}: RoundScoresDisplayProps) {
   const sorted = scores.toSorted((a, b) => b.scoreAwarded - a.scoreAwarded);
 
   return (
@@ -216,7 +239,12 @@ function RoundScoresDisplay({ scores }: Readonly<{ scores: RoundEndedEvent["scor
               <XCircleIcon className="size-3.5 shrink-0 text-red-500" />
             )}
             <span className="min-w-0 flex-1 truncate">{score.username}</span>
-            {score.isFirstCorrect && (
+            {renderGuessLabel !== undefined && (
+              <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                {renderGuessLabel(score.guessData)}
+              </span>
+            )}
+            {showFirstCorrect && score.isFirstCorrect && (
               <span className="text-[10px] font-medium text-yellow-500">1st</span>
             )}
             <span className="font-medium tabular-nums">+{String(score.scoreAwarded)}</span>

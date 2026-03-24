@@ -52,6 +52,21 @@ describe("createSessionSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts session without dateWatched", () => {
+    const { dateWatched: _, ...withoutDate } = validSession;
+    const result = createSessionSchema.safeParse(withoutDate);
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.dateWatched).toBeUndefined();
+  });
+
+  it("accepts null dateWatched", () => {
+    const result = createSessionSchema.safeParse({ ...validSession, dateWatched: null });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.dateWatched).toBeNull();
+  });
+
   it("accepts optional notes up to 1000 chars", () => {
     const result = createSessionSchema.safeParse({
       ...validSession,

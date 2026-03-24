@@ -14,7 +14,7 @@ interface InlineRating {
 
 interface CreateSessionParams {
   readonly mediaId: string;
-  readonly dateWatched: string;
+  readonly dateWatched?: string;
   readonly timeWatchedAt?: string;
   readonly pickedByUserId?: string | null;
   readonly attendeeIds: string[];
@@ -90,7 +90,7 @@ export function useSubmitRating() {
 }
 
 interface UpdateSessionParams {
-  readonly dateWatched?: string;
+  readonly dateWatched?: string | null;
   readonly timeWatchedAt?: string | null;
   readonly pickedByUserId?: string | null;
   readonly notes?: string | null;

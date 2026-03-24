@@ -58,7 +58,7 @@ export interface SessionAttendee {
 /** Session info from media detail */
 export interface MediaSession {
   id: string;
-  date_watched: string;
+  date_watched: string | null;
   time_watched_at: string | null;
   notes: string | null;
   created_at: string;

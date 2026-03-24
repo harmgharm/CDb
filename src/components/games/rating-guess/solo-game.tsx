@@ -156,7 +156,11 @@ export function SoloGame({ gameId, onPlayAgain }: SoloGameProps) {
 
     return (
       <div className="flex flex-col items-center gap-4">
-        <ScoreHeader totalScore={game.totalScore + roundResult.scoreAwarded} />
+        <ScoreHeader
+          totalScore={game.totalScore + roundResult.scoreAwarded}
+          baseScore={roundResult.roundScore}
+          streakBonus={roundResult.streakBonus}
+        />
         <RoundResult
           result={roundResult}
           roundNumber={game.currentRound}
@@ -166,6 +170,7 @@ export function SoloGame({ gameId, onPlayAgain }: SoloGameProps) {
           }}
           isAdvancing={isAdvancing}
           isLastRound={game.currentRound + 1 >= game.roundCount}
+          hideScoreBreakdown
           resultHeader={
             <div className="flex flex-col items-center gap-2">
               <span className="text-4xl">{header.icon}</span>
@@ -227,11 +232,23 @@ export function SoloGame({ gameId, onPlayAgain }: SoloGameProps) {
   );
 }
 
-function ScoreHeader({ totalScore }: Readonly<{ totalScore: number }>) {
+function ScoreHeader({
+  totalScore,
+  baseScore,
+  streakBonus,
+}: Readonly<{ totalScore: number; baseScore?: number; streakBonus?: number }>) {
   return (
     <div className="text-center">
       <p className="text-muted-foreground text-xs tracking-wider uppercase">Score</p>
       <p className="text-3xl font-bold tabular-nums">{String(totalScore)}</p>
+      {baseScore !== undefined && (
+        <div className="text-muted-foreground flex items-center justify-center gap-3 text-sm">
+          <span>Base: {String(baseScore)}</span>
+          {streakBonus !== undefined && streakBonus > 0 && (
+            <span className="text-orange-400">Streak: +{String(streakBonus)}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
  * POST /api/sessions — Create session with attendees
  */
 
+import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
   }
 
   const results = await query
-    .orderBy("watch_sessions.date_watched", "desc")
+    .orderBy(sql`watch_sessions.date_watched desc nulls last`)
     .offset(offset)
     .limit(limit)
     .execute();
@@ -235,7 +236,7 @@ export async function POST(req: NextRequest) {
       .insertInto("watch_sessions")
       .values({
         media_id: mediaId,
-        date_watched: dateWatched,
+        date_watched: dateWatched ?? null,
         time_watched_at: timeWatchedAt ?? null,
         picked_by_user_id: pickedByUserId ?? null,
         created_by_user_id: user.id,

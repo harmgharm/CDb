@@ -59,7 +59,9 @@ export function EditSessionDialog({
 
   const originalAttendeeIds = session.attendees.map((a) => a.user_id);
 
-  const [dateWatched, setDateWatched] = useState(formatDateForInput(session.date_watched));
+  const [dateWatched, setDateWatched] = useState(
+    session.date_watched === null ? "" : formatDateForInput(session.date_watched),
+  );
   const [timeWatched, setTimeWatched] = useState(session.time_watched_at ?? "");
   const [pickerId, setPickerId] = useState(session.picker_id ?? GROUP_PICK_VALUE);
   const [attendeeIds, setAttendeeIds] = useState<string[]>(originalAttendeeIds);
@@ -93,7 +95,7 @@ export function EditSessionDialog({
     // Run session update and attendee updates in parallel
     const results = await Promise.all([
       updateSession(session.id, {
-        dateWatched,
+        dateWatched: dateWatched.length > 0 ? dateWatched : null,
         timeWatchedAt: timeWatched.length > 0 ? timeWatched : null,
         pickedByUserId: isGroupPick ? null : pickerId,
         notes: notes.length > 0 ? notes : null,
@@ -131,7 +133,7 @@ export function EditSessionDialog({
           {/* Date & Time */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="edit-date-watched">Date Watched</Label>
+              <Label htmlFor="edit-date-watched">Date Watched (optional)</Label>
               <Input
                 id="edit-date-watched"
                 type="date"
@@ -139,7 +141,6 @@ export function EditSessionDialog({
                 onChange={(event) => {
                   setDateWatched(event.target.value);
                 }}
-                required
               />
             </div>
             <div className="space-y-2">

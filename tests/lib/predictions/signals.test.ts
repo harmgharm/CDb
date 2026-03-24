@@ -26,6 +26,7 @@ function makeMedia(overrides: Partial<ResolvedMedia> = {}): ResolvedMedia {
     runtimeMinutes: 148,
     episodeCount: null,
     voteAverage: 7.8,
+    trailerUrl: null,
     ...overrides,
   };
 }

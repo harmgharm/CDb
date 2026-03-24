@@ -42,6 +42,8 @@ const ACTION_OPTIONS = [
   { value: "rating.deleted", label: "Rating Deleted" },
   { value: "invite.created", label: "Invite Created" },
   { value: "invite.used", label: "Invite Used" },
+  { value: "user.password_reset", label: "Password Reset" },
+  { value: "user.login_failed", label: "Login Failed" },
 ];
 
 const ENTITY_TYPE_OPTIONS = [
@@ -72,6 +74,9 @@ const ACTION_COLORS: Record<string, string> = {
   updated: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   deleted: "bg-red-500/10 text-red-500 border-red-500/20",
   used: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- key name, not a password
+  password_reset: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+  login_failed: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
 function ActionBadge({ action }: Readonly<{ action: string }>) {
@@ -128,14 +133,18 @@ function AuditLogRow({ entry, index }: Readonly<{ entry: AuditLogEntry; index: n
       </TableCell>
       <TableCell className="capitalize">{entry.entity_type}</TableCell>
       <TableCell className="font-mono text-xs">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="cursor-default">{entry.entity_id.slice(0, 8)}...</span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p className="font-mono text-xs">{entry.entity_id}</p>
-          </TooltipContent>
-        </Tooltip>
+        {entry.entity_id === null ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-default">{entry.entity_id.slice(0, 8)}...</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="font-mono text-xs">{entry.entity_id}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </TableCell>
       <TableCell className="max-w-48 truncate">
         <MetadataCell metadata={entry.metadata} />

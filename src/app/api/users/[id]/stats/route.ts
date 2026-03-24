@@ -2,6 +2,7 @@
  * GET /api/users/[id]/stats — Detailed user statistics
  */
 
+import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
@@ -89,7 +90,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "media.type",
       "media.poster_url",
     ])
-    .orderBy("watch_sessions.date_watched", "desc")
+    .orderBy(sql`watch_sessions.date_watched desc nulls last`)
     .limit(20)
     .execute();
 

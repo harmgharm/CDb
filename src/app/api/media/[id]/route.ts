@@ -4,6 +4,7 @@
  * DELETE /api/media/[id] — Delete media (admin only)
  */
 
+import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
@@ -43,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "users.avatar_url as picker_avatar_url",
     ])
     .where("watch_sessions.media_id", "=", id)
-    .orderBy("watch_sessions.date_watched", "desc")
+    .orderBy(sql`watch_sessions.date_watched desc nulls last`)
     .execute();
 
   // Fetch all attendees for this media's sessions

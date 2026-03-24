@@ -48,7 +48,7 @@ export interface GenreCount {
 /** Recent pick */
 export interface RecentPick {
   session_id: string;
-  date_watched: string;
+  date_watched: string | null;
   media_id: string;
   title: string;
   type: MediaType;

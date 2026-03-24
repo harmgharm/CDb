@@ -66,6 +66,28 @@ export function useChangeRole() {
   return { changeRole, isUpdating };
 }
 
+export function useResetPassword() {
+  const [isResetting, setIsResetting] = useState(false);
+
+  const resetPassword = useCallback(async (userId: string): Promise<string | null> => {
+    setIsResetting(true);
+    try {
+      const response = await fetchWithAuth(`/api/admin/users/${userId}/reset-password`, {
+        method: "POST",
+      });
+      const json = (await response.json()) as ApiResponse<{ temporaryPassword: string }>;
+      if (json.error !== null) return null;
+      return json.data.temporaryPassword;
+    } catch {
+      return null;
+    } finally {
+      setIsResetting(false);
+    }
+  }, []);
+
+  return { resetPassword, isResetting };
+}
+
 export function useDeleteUser() {
   const [isDeleting, setIsDeleting] = useState(false);
 

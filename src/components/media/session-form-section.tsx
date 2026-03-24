@@ -79,7 +79,7 @@ export function SessionFormSection({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="import-date" className="text-xs">
-            Date Watched
+            Date Watched (optional)
           </Label>
           <Input
             id="import-date"

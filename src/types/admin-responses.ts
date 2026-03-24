@@ -9,7 +9,7 @@ export interface AuditLogEntry {
   readonly id: string;
   readonly action: AuditAction;
   readonly entity_type: string;
-  readonly entity_id: string;
+  readonly entity_id: string | null;
   readonly metadata: Record<string, unknown> | null;
   readonly created_at: string;
   readonly user_id: string;

@@ -19,6 +19,7 @@ export interface ResolvedMedia {
   runtimeMinutes: number | null;
   episodeCount: number | null;
   voteAverage: number | null;
+  trailerUrl: string | null;
 }
 
 /** Individual signal computation result */

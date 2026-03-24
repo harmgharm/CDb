@@ -39,6 +39,7 @@ export async function GET() {
       .selectFrom("watch_sessions")
       .innerJoin("media", "media.id", "watch_sessions.media_id")
       .select(["media.title", "media.type", "media.poster_url", "watch_sessions.date_watched"])
+      .where("watch_sessions.date_watched", "is not", null)
       .orderBy("watch_sessions.date_watched", "desc")
       .limit(6)
       .execute(),

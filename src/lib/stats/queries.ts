@@ -353,6 +353,7 @@ export async function fetchStreakData(): Promise<SessionDay[]> {
       sql<string | null>`MIN(time_watched_at)`.as("earliest_time"),
       sql<string | null>`MAX(time_watched_at)`.as("latest_time"),
     ])
+    .where("date_watched", "is not", null)
     .groupBy(sql`date_watched::date`)
     .orderBy("d", "asc")
     .execute();

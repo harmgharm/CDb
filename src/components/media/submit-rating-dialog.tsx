@@ -26,7 +26,7 @@ interface OnBehalfOfUser {
 interface SubmitRatingDialogProps {
   readonly sessionId: string;
   readonly mediaTitle: string;
-  readonly dateWatched: string;
+  readonly dateWatched: string | null;
   readonly onRated: () => void;
   readonly onBehalfOf?: OnBehalfOfUser;
 }
@@ -158,12 +158,15 @@ export function SubmitRatingDialog({
     }
   }
 
-  const formattedDate = new Date(dateWatched).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  const formattedDate =
+    dateWatched === null
+      ? null
+      : new Date(dateWatched).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          timeZone: "UTC",
+        });
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -190,7 +193,8 @@ export function SubmitRatingDialog({
             {onBehalfOf === undefined ? "Rate This Session" : `Rate for ${onBehalfOf.name}`}
           </DialogTitle>
           <DialogDescription>
-            {mediaTitle} &middot; {formattedDate}
+            {mediaTitle}
+            {formattedDate !== null && <> &middot; {formattedDate}</>}
           </DialogDescription>
         </DialogHeader>
 

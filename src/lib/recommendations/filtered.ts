@@ -183,7 +183,7 @@ async function discoverFilteredMovies(options: DiscoverOptions): Promise<Recomme
 
   const genreIds = genres.map((g) => getMovieGenreId(g)).filter((id): id is number => id !== null);
   if (genreIds.length > 0) {
-    baseParams.with_genres = genreIds.join(",");
+    baseParams.with_genres = genreIds.join("|");
   }
 
   const label = genreLabel(genres);
@@ -234,7 +234,7 @@ async function discoverFilteredTv(options: DiscoverOptions): Promise<Recommendat
 
   const genreIds = genres.map((g) => getTvGenreId(g)).filter((id): id is number => id !== null);
   if (genreIds.length > 0) {
-    baseParams.with_genres = genreIds.join(",");
+    baseParams.with_genres = genreIds.join("|");
   }
 
   const label = genreLabel(genres);
@@ -252,6 +252,50 @@ async function discoverFilteredTv(options: DiscoverOptions): Promise<Recommendat
   }
 }
 
+interface FetchAnimeOptions {
+  baseParams: Record<string, string>;
+  dateRange: DecadeRange | null;
+  watched: WatchedIds;
+  seen: Set<number>;
+  label: string;
+}
+
+async function fetchAnimeResults(options: FetchAnimeOptions): Promise<RecommendationItem[]> {
+  const { baseParams, dateRange, watched, seen, label } = options;
+  const params: Record<string, string> = { ...baseParams, page: randomPage(3) };
+  if (dateRange !== null) {
+    params.start_date = dateRange.gte;
+    params.end_date = dateRange.lte;
+  }
+  const response = await discoverAnime(params);
+  const results: RecommendationItem[] = [];
+  for (const anime of response.data) {
+    if (seen.has(anime.mal_id) || isAlreadyWatched(watched, { malId: anime.mal_id })) continue;
+    seen.add(anime.mal_id);
+    results.push({
+      mediaId: null,
+      tmdbId: null,
+      malId: anime.mal_id,
+      title: anime.title_english ?? anime.title,
+      posterUrl: anime.images.jpg.large_image_url,
+      mediaType: "anime",
+      overview: anime.synopsis,
+      releaseYear: anime.year,
+      voteAverage: anime.score,
+      genres: anime.genres.map((g) => g.name),
+      score: (anime.score ?? 7) / 10,
+      recType: "content",
+      reasons: [
+        {
+          tag: "Filtered pick",
+          detail: label.length === 0 ? "Highly rated anime" : `Top ${label} anime`,
+        },
+      ],
+    });
+  }
+  return results;
+}
+
 async function discoverFilteredAnime(options: DiscoverOptions): Promise<RecommendationItem[]> {
   const { genres, dateRanges, watched } = options;
   const baseParams: Record<string, string> = {
@@ -261,9 +305,10 @@ async function discoverFilteredAnime(options: DiscoverOptions): Promise<Recommen
   };
 
   const genreIds = genres.map((g) => getMalGenreId(g)).filter((id): id is number => id !== null);
-  if (genreIds.length > 0) {
-    baseParams.genres = genreIds.join(",");
-  }
+
+  // Jikan doesn't support OR for genres natively — query each genre separately and merge
+  const genreQueries =
+    genreIds.length > 1 ? genreIds.map(String) : [genreIds.length === 1 ? String(genreIds[0]) : ""];
 
   const label = genreLabel(genres);
   const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
@@ -271,36 +316,21 @@ async function discoverFilteredAnime(options: DiscoverOptions): Promise<Recommen
   const results: RecommendationItem[] = [];
 
   try {
-    for (const dateRange of rangesToQuery) {
-      const params: Record<string, string> = { ...baseParams, page: randomPage(3) };
-      if (dateRange !== null) {
-        params.start_date = dateRange.gte;
-        params.end_date = dateRange.lte;
+    for (const genreId of genreQueries) {
+      const genreParams = { ...baseParams };
+      if (genreId.length > 0) {
+        genreParams.genres = genreId;
       }
-      const response = await discoverAnime(params);
-      for (const anime of response.data) {
-        if (seen.has(anime.mal_id) || isAlreadyWatched(watched, { malId: anime.mal_id })) continue;
-        seen.add(anime.mal_id);
-        results.push({
-          mediaId: null,
-          tmdbId: null,
-          malId: anime.mal_id,
-          title: anime.title_english ?? anime.title,
-          posterUrl: anime.images.jpg.large_image_url,
-          mediaType: "anime",
-          overview: anime.synopsis,
-          releaseYear: anime.year,
-          voteAverage: anime.score,
-          genres: anime.genres.map((g) => g.name),
-          score: (anime.score ?? 7) / 10,
-          recType: "content",
-          reasons: [
-            {
-              tag: "Filtered pick",
-              detail: label.length === 0 ? "Highly rated anime" : `Top ${label} anime`,
-            },
-          ],
-        });
+      for (const dateRange of rangesToQuery) {
+        results.push(
+          ...(await fetchAnimeResults({
+            baseParams: genreParams,
+            dateRange,
+            watched,
+            seen,
+            label,
+          })),
+        );
       }
     }
     return results;

@@ -232,6 +232,7 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
       "game_guesses.is_correct",
       "game_guesses.score_awarded",
       "game_guesses.time_from_start_ms",
+      "game_guesses.guess_data",
     ])
     .where("game_guesses.round_id", "=", currentRound.id)
     .execute();
@@ -259,6 +260,7 @@ async function publishMultiplayerRoundEvents(options: RoundEventOptions): Promis
       isCorrect: guess?.is_correct ?? false,
       isFirstCorrect: player.user_id === firstCorrectUserId,
       timeFromStartMs: guess?.time_from_start_ms ?? null,
+      guessData: guess?.guess_data ?? null,
     };
   });
 

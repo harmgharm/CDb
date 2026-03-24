@@ -57,11 +57,11 @@ export class RateLimiter {
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
-/** 5 login attempts per 15 minutes per IP (reset on success) */
-export const loginLimiter = new RateLimiter(5, FIFTEEN_MINUTES);
+/** 10 login attempts per 15 minutes per IP (reset on success) */
+export const loginLimiter = new RateLimiter(10, FIFTEEN_MINUTES);
 
 /** 5 signup attempts per 15 minutes per IP */
 export const signupLimiter = new RateLimiter(5, FIFTEEN_MINUTES);
 
-/** 10 refresh attempts per 15 minutes per IP */
-export const refreshLimiter = new RateLimiter(10, FIFTEEN_MINUTES);
+/** 20 refresh attempts per 15 minutes per IP */
+export const refreshLimiter = new RateLimiter(20, FIFTEEN_MINUTES);

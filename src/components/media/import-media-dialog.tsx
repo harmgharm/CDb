@@ -42,10 +42,6 @@ interface ImportMediaDialogProps {
   readonly initialQuery?: string;
 }
 
-function todayString(): string {
-  return new Date().toISOString().split("T")[0] ?? "";
-}
-
 export function ImportMediaDialog({
   open,
   onOpenChange,
@@ -63,7 +59,7 @@ export function ImportMediaDialog({
     null,
   );
   const [sessionForm, setSessionForm] = useState<SessionFormState>({
-    dateWatched: todayString(),
+    dateWatched: "",
     timeWatched: "",
     pickerId: "",
     attendeeIds: [],
@@ -108,7 +104,7 @@ export function ImportMediaDialog({
     setSessionOpen(false);
     setSessionTarget(null);
     setSessionForm({
-      dateWatched: todayString(),
+      dateWatched: "",
       timeWatched: "",
       pickerId: "",
       attendeeIds: currentUser === null ? [] : [currentUser.id],
@@ -180,14 +176,7 @@ export function ImportMediaDialog({
     [importMedia, onSuccess, currentUser],
   );
 
-  async function handleCreateSession() {
-    if (sessionTarget === null) return;
-
-    if (sessionForm.attendeeIds.length === 0) {
-      toast.error("Select at least one attendee");
-      return;
-    }
-
+  function buildSessionParams(target: { mediaId: string }) {
     const isGroupPick =
       sessionForm.pickerId.length === 0 || sessionForm.pickerId === GROUP_PICK_VALUE;
 
@@ -196,21 +185,36 @@ export function ImportMediaDialog({
         ? sessionForm.attendeeIds
         : [...sessionForm.attendeeIds, sessionForm.pickerId];
 
-    // Build inline ratings from filled-in fields
     const ratings = Object.entries(sessionForm.inlineRatings)
       .filter(([, value]) => value.length > 0)
       .map(([userId, value]) => ({ userId, score: Number(value) }))
       .filter(({ score }) => !Number.isNaN(score) && score >= 1 && score <= 10);
 
-    const success = await createSession({
-      mediaId: sessionTarget.mediaId,
-      dateWatched: sessionForm.dateWatched,
-      timeWatchedAt: sessionForm.timeWatched.length > 0 ? sessionForm.timeWatched : undefined,
-      pickedByUserId: isGroupPick ? null : sessionForm.pickerId,
-      attendeeIds: finalAttendees,
-      notes: sessionForm.notes.length > 0 ? sessionForm.notes : undefined,
-      ratings: ratings.length > 0 ? ratings : undefined,
-    });
+    return {
+      params: {
+        mediaId: target.mediaId,
+        dateWatched: sessionForm.dateWatched.length > 0 ? sessionForm.dateWatched : undefined,
+        timeWatchedAt: sessionForm.timeWatched.length > 0 ? sessionForm.timeWatched : undefined,
+        pickedByUserId: isGroupPick ? null : sessionForm.pickerId,
+        attendeeIds: finalAttendees,
+        notes: sessionForm.notes.length > 0 ? sessionForm.notes : undefined,
+        ratings: ratings.length > 0 ? ratings : undefined,
+      },
+      finalAttendees,
+      ratings,
+    };
+  }
+
+  async function handleCreateSession() {
+    if (sessionTarget === null) return;
+
+    if (sessionForm.attendeeIds.length === 0) {
+      toast.error("Select at least one attendee");
+      return;
+    }
+
+    const { params, finalAttendees, ratings } = buildSessionParams(sessionTarget);
+    const success = await createSession(params);
 
     if (success) {
       const isAttendee = currentUser !== null && finalAttendees.includes(currentUser.id);

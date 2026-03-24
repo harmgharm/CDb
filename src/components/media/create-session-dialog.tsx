@@ -52,17 +52,13 @@ function getInitials(user: UserListItem): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-function todayString(): string {
-  return new Date().toISOString().split("T")[0] ?? "";
-}
-
 export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSessionDialogProps) {
   const { user: currentUser } = useAuth();
   const { data: users } = useUserList();
   const { createSession, isCreating } = useCreateSession();
 
   const [open, setOpen] = useState(false);
-  const [dateWatched, setDateWatched] = useState(todayString);
+  const [dateWatched, setDateWatched] = useState("");
   const [timeWatched, setTimeWatched] = useState("");
   const [pickerId, setPickerId] = useState("");
   const [attendeeIds, setAttendeeIds] = useState<string[]>([]);
@@ -73,7 +69,7 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
     currentUser !== null && (currentUser.role === "admin" || currentUser.role === "moderator");
 
   function resetForm() {
-    setDateWatched(todayString());
+    setDateWatched("");
     setTimeWatched("");
     setPickerId("");
     setAttendeeIds([]);
@@ -136,7 +132,7 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
 
     const success = await createSession({
       mediaId,
-      dateWatched,
+      dateWatched: dateWatched.length > 0 ? dateWatched : undefined,
       timeWatchedAt: timeWatched.length > 0 ? timeWatched : undefined,
       pickedByUserId: isGroupPick ? null : pickerId,
       attendeeIds: finalAttendees,
@@ -178,7 +174,7 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
           {/* Date & Time */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="date-watched">Date Watched</Label>
+              <Label htmlFor="date-watched">Date Watched (optional)</Label>
               <Input
                 id="date-watched"
                 type="date"
@@ -186,7 +182,6 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
                 onChange={(event) => {
                   setDateWatched(event.target.value);
                 }}
-                required
               />
             </div>
             <div className="space-y-2">

@@ -70,7 +70,7 @@ export function RecentPicks({ picks }: RecentPicksProps) {
                     </div>
                     <MediaTypeBadge type={pick.type} />
                     <p className="text-muted-foreground mt-1 text-xs">
-                      {formatDate(pick.date_watched)}
+                      {pick.date_watched === null ? "Date unknown" : formatDate(pick.date_watched)}
                     </p>
                   </div>
                 </Link>

@@ -26,6 +26,7 @@ export interface PredictionResult {
   directors: string[];
   overview: string | null;
   voteAverage: number | null;
+  trailerUrl: string | null;
 }
 
 export interface PredictionResponse {

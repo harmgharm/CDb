@@ -6,11 +6,27 @@
  */
 
 import { getAnimeDetails } from "@/lib/api/jikan";
-import { getMovieCredits, getMovieDetails, getTvDetails, tmdbImageUrl } from "@/lib/api/tmdb";
+import {
+  findTrailerKey,
+  getMovieCredits,
+  getMovieDetails,
+  getTvDetails,
+  tmdbImageUrl,
+} from "@/lib/api/tmdb";
 import { db } from "@/lib/db";
 import type { PredictionRequestInput } from "@/lib/validations/predictions";
 
 import type { ResolvedMedia } from "./types";
+
+function youtubeUrl(key: string | null): string | null {
+  return key === null ? null : `https://www.youtube.com/watch?v=${key}`;
+}
+
+function extractYoutubeKey(embedUrl: string | null): string | null {
+  if (embedUrl === null) return null;
+  const match = /\/embed\/([a-zA-Z0-9_-]+)/.exec(embedUrl);
+  return match?.[1] ?? null;
+}
 
 /**
  * Resolve media metadata from DB or external API.
@@ -51,6 +67,7 @@ async function findInDatabase(input: PredictionRequestInput): Promise<ResolvedMe
       "episode_count",
       "tmdb_rating",
       "mal_score",
+      "trailer_key",
     ]);
 
   if (input.mediaId !== undefined) {
@@ -80,6 +97,7 @@ async function findInDatabase(input: PredictionRequestInput): Promise<ResolvedMe
     runtimeMinutes: row.runtime_minutes,
     episodeCount: row.episode_count,
     voteAverage: row.tmdb_rating ?? row.mal_score,
+    trailerUrl: youtubeUrl(row.trailer_key),
   };
 }
 
@@ -94,6 +112,7 @@ async function resolveFromTmdb(
     ]);
 
     const directors = credits.crew.filter((c) => c.job === "Director").map((c) => c.name);
+    const trailerKey = details.videos ? findTrailerKey(details.videos.results) : null;
 
     return {
       mediaId: null,
@@ -110,12 +129,14 @@ async function resolveFromTmdb(
       runtimeMinutes: details.runtime,
       episodeCount: null,
       voteAverage: details.vote_average,
+      trailerUrl: youtubeUrl(trailerKey),
     };
   }
 
   // TV or anime-on-TMDB
   const details = await getTvDetails(tmdbId);
   const creators = details.created_by.map((c) => c.name);
+  const trailerKey = details.videos ? findTrailerKey(details.videos.results) : null;
 
   return {
     mediaId: null,
@@ -133,11 +154,13 @@ async function resolveFromTmdb(
       details.episode_run_time.length > 0 ? (details.episode_run_time[0] ?? null) : null,
     episodeCount: details.number_of_episodes,
     voteAverage: details.vote_average,
+    trailerUrl: youtubeUrl(trailerKey),
   };
 }
 
 async function resolveFromJikan(malId: number): Promise<ResolvedMedia> {
   const { data: anime } = await getAnimeDetails(malId);
+  const trailerKey = extractYoutubeKey(anime.trailer.embed_url) ?? anime.trailer.youtube_id;
 
   return {
     mediaId: null,
@@ -153,5 +176,6 @@ async function resolveFromJikan(malId: number): Promise<ResolvedMedia> {
     runtimeMinutes: null,
     episodeCount: anime.episodes,
     voteAverage: anime.score,
+    trailerUrl: youtubeUrl(trailerKey),
   };
 }

@@ -64,7 +64,9 @@ export type AuditAction =
   | "game.joined"
   | "game.left"
   | "game.lobby_closed"
-  | "game.invited";
+  | "game.invited"
+  | "user.password_reset"
+  | "user.login_failed";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -145,7 +147,7 @@ export type MediaUpdate = Updateable<MediaTable>;
 export interface WatchSessionsTable extends TimestampColumns {
   id: Generated<string>;
   media_id: string;
-  date_watched: Date;
+  date_watched: Date | null;
   time_watched_at: string | null;
   picked_by_user_id: string | null;
   created_by_user_id: string | null;

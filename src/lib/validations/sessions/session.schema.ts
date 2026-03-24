@@ -15,7 +15,7 @@ const inlineRatingSchema = z.object({
 
 export const createSessionSchema = z.object({
   mediaId: z.uuid("Invalid media ID"),
-  dateWatched: z.coerce.date(),
+  dateWatched: z.coerce.date().nullable().optional(),
   timeWatchedAt: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
@@ -30,7 +30,7 @@ export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
 export const updateSessionSchema = z.object({
   mediaId: z.uuid("Invalid media ID").optional(),
-  dateWatched: z.coerce.date().optional(),
+  dateWatched: z.coerce.date().nullable().optional(),
   timeWatchedAt: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")

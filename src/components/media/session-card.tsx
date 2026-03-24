@@ -263,6 +263,9 @@ export function SessionCard({
   const canEditSession = isModeratorOrAdmin || isCreator;
   const canDeleteSession = isModeratorOrAdmin || isCreator;
 
+  const dateLabel =
+    session.date_watched === null ? "" : ` from ${formatDate(session.date_watched)}`;
+
   const isAttendee =
     currentUserId !== null && session.attendees.some((a) => a.user_id === currentUserId);
   const hasRated =
@@ -288,7 +291,7 @@ export function SessionCard({
             <div className="flex items-center gap-2">
               <CalendarIcon className="text-muted-foreground size-4" />
               <CardTitle className="text-sm font-medium">
-                {formatDate(session.date_watched)}
+                {session.date_watched === null ? "Date unknown" : formatDate(session.date_watched)}
               </CardTitle>
             </div>
             <div className="flex items-center gap-2">
@@ -408,7 +411,7 @@ export function SessionCard({
         open={showDelete}
         onOpenChange={setShowDelete}
         title="Delete Session"
-        description={`Delete the session from ${formatDate(session.date_watched)}? All ratings for this session will also be deleted.`}
+        description={`Delete the session${dateLabel}? All ratings for this session will also be deleted.`}
         isDeleting={isDeleting}
         onConfirm={() => {
           void handleDeleteSession();

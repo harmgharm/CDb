@@ -120,6 +120,7 @@ export async function GET() {
   const lastSession = await db
     .selectFrom("watch_sessions")
     .select("date_watched")
+    .where("date_watched", "is not", null)
     .orderBy("date_watched", "desc")
     .limit(1)
     .executeTakeFirst();

@@ -2,8 +2,10 @@
 
 import {
   CheckCircle2Icon,
+  ExternalLinkIcon,
   HelpCircleIcon,
   MinusCircleIcon,
+  PlayCircleIcon,
   ThumbsUpIcon,
   UsersIcon,
 } from "lucide-react";
@@ -127,6 +129,18 @@ export function PredictionResultCard({ prediction }: PredictionResultCardProps) 
                   <p className="text-muted-foreground mt-1 truncate text-xs">
                     {prediction.directors.slice(0, 2).join(", ")}
                   </p>
+                )}
+                {prediction.trailerUrl !== null && (
+                  <a
+                    href={prediction.trailerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground mt-1.5 inline-flex items-center gap-1.5 text-xs transition-colors"
+                  >
+                    <PlayCircleIcon className="size-3.5" />
+                    <span className="font-medium">Watch Trailer</span>
+                    <ExternalLinkIcon className="size-2.5" />
+                  </a>
                 )}
               </div>
             </div>
