@@ -42,3 +42,24 @@ export interface RatingGuessResultData {
 export interface RatingGuessGuessData {
   guessedRating: number;
 }
+
+// ── Year Guess ──────────────────────────────────────────────────
+
+export interface YearGuessRoundData {
+  mediaId: string | null;
+  title: string;
+  posterUrl: string;
+  correctYear: number;
+  tmdbId: number | null;
+  malId: number | null;
+}
+
+export interface YearGuessResultData {
+  correctYear: number;
+  guessedYear: number;
+  difference: number;
+}
+
+export interface YearGuessGuessData {
+  guessedYear: number;
+}

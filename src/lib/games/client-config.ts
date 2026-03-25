@@ -9,7 +9,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { ImageIcon, StarIcon } from "lucide-react";
+import { CalendarIcon, ImageIcon, StarIcon } from "lucide-react";
 
 import type { GameType } from "@/lib/db/types";
 
@@ -42,6 +42,17 @@ const configs = new Map<GameType, ClientGameConfig>([
       description:
         "See a movie, show, or anime and guess its rating. The closer your guess, the more points you earn! Play solo or compete with friends.",
       icon: StarIcon,
+    },
+  ],
+  [
+    "year_guess",
+    {
+      gameType: "year_guess",
+      displayName: "Year Guesser",
+      basePath: "/play/year-guess",
+      description:
+        "See a movie, show, or anime and guess when it was released. The closer your guess, the more points you earn! Play solo or compete with friends.",
+      icon: CalendarIcon,
     },
   ],
 ]);

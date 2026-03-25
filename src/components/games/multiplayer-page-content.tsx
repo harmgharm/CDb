@@ -18,6 +18,7 @@ import { InvitePlayersDialog } from "@/components/games/invite-players-dialog";
 import { MultiplayerResult } from "@/components/games/multiplayer-result";
 import { MultiplayerGame as PosterRevealMultiplayerGame } from "@/components/games/poster-reveal/multiplayer-game";
 import { MultiplayerGame as RatingGuessMultiplayerGame } from "@/components/games/rating-guess/multiplayer-game";
+import { MultiplayerGame as YearGuessMultiplayerGame } from "@/components/games/year-guess/multiplayer-game";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useGameMediaOptions, useGameState, useJoinGame, useLeaveLobby } from "@/hooks/use-games";
 import type { GameType } from "@/lib/db/types";
@@ -36,6 +37,7 @@ const GAME_COMPONENTS: Record<
 > = {
   poster_reveal: PosterRevealMultiplayerGame,
   rating_guess: RatingGuessMultiplayerGame,
+  year_guess: YearGuessMultiplayerGame,
 };
 
 interface MultiplayerPageContentProps {

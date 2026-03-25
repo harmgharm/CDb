@@ -208,15 +208,6 @@ export async function POST(req: NextRequest) {
     return errorResponse("Media not found", 404);
   }
 
-  // Verify picker is in attendees (if a picker was selected)
-  if (
-    pickedByUserId !== null &&
-    pickedByUserId !== undefined &&
-    !attendeeIds.includes(pickedByUserId)
-  ) {
-    return errorResponse("Picker must be an attendee", 400);
-  }
-
   // Validate inline ratings
   if (ratings !== undefined && ratings.length > 0) {
     const ratingError = validateInlineRatings({

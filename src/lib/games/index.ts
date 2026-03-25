@@ -9,6 +9,7 @@
 // Register engines (side-effect imports)
 import "./engines/poster-reveal";
 import "./engines/rating-guess";
+import "./engines/year-guess";
 
 // Re-export public API
 export type { CorrectnessResult, GameEngine, RoundPoolItem } from "./engine";

@@ -18,7 +18,7 @@ describe("createGameSchema", () => {
   });
 
   it("accepts all valid game types", () => {
-    for (const gameType of ["poster_reveal", "rating_guess"]) {
+    for (const gameType of ["poster_reveal", "rating_guess", "year_guess"]) {
       const result = createGameSchema.safeParse({ gameType, difficulty: "normal" });
       expect(result.success).toBe(true);
     }

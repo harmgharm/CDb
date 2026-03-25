@@ -180,11 +180,6 @@ export function ImportMediaDialog({
     const isGroupPick =
       sessionForm.pickerId.length === 0 || sessionForm.pickerId === GROUP_PICK_VALUE;
 
-    const finalAttendees =
-      isGroupPick || sessionForm.attendeeIds.includes(sessionForm.pickerId)
-        ? sessionForm.attendeeIds
-        : [...sessionForm.attendeeIds, sessionForm.pickerId];
-
     const ratings = Object.entries(sessionForm.inlineRatings)
       .filter(([, value]) => value.length > 0)
       .map(([userId, value]) => ({ userId, score: Number(value) }))
@@ -196,11 +191,10 @@ export function ImportMediaDialog({
         dateWatched: sessionForm.dateWatched.length > 0 ? sessionForm.dateWatched : undefined,
         timeWatchedAt: sessionForm.timeWatched.length > 0 ? sessionForm.timeWatched : undefined,
         pickedByUserId: isGroupPick ? null : sessionForm.pickerId,
-        attendeeIds: finalAttendees,
+        attendeeIds: sessionForm.attendeeIds,
         notes: sessionForm.notes.length > 0 ? sessionForm.notes : undefined,
         ratings: ratings.length > 0 ? ratings : undefined,
       },
-      finalAttendees,
       ratings,
     };
   }
@@ -213,11 +207,11 @@ export function ImportMediaDialog({
       return;
     }
 
-    const { params, finalAttendees, ratings } = buildSessionParams(sessionTarget);
+    const { params, ratings } = buildSessionParams(sessionTarget);
     const success = await createSession(params);
 
     if (success) {
-      const isAttendee = currentUser !== null && finalAttendees.includes(currentUser.id);
+      const isAttendee = currentUser !== null && sessionForm.attendeeIds.includes(currentUser.id);
       const alreadyRated = currentUser !== null && ratings.some((r) => r.userId === currentUser.id);
       const mediaId = sessionTarget.mediaId;
 

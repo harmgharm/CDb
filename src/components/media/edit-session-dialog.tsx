@@ -83,13 +83,9 @@ export function EditSessionDialog({
 
     const isGroupPick = pickerId.length === 0 || pickerId === GROUP_PICK_VALUE;
 
-    // Ensure picker is in attendees
-    const finalAttendees =
-      isGroupPick || attendeeIds.includes(pickerId) ? attendeeIds : [...attendeeIds, pickerId];
-
     // Diff attendees
-    const added = finalAttendees.filter((id) => !originalAttendeeIds.includes(id));
-    const removed = originalAttendeeIds.filter((id) => !finalAttendees.includes(id));
+    const added = attendeeIds.filter((id) => !originalAttendeeIds.includes(id));
+    const removed = originalAttendeeIds.filter((id) => !attendeeIds.includes(id));
     const hasAttendeeChanges = added.length > 0 || removed.length > 0;
 
     // Run session update and attendee updates in parallel

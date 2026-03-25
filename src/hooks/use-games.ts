@@ -17,7 +17,7 @@ import type { MediaListResponse } from "@/types/media-responses";
 // ── Create Game ──────────────────────────────────────────────────
 
 interface CreateGameParams {
-  readonly gameType?: "poster_reveal" | "rating_guess";
+  readonly gameType?: "poster_reveal" | "rating_guess" | "year_guess";
   readonly mode?: "solo" | "multiplayer";
   readonly difficulty: "normal" | "hard";
   readonly roundCount: number;
@@ -156,7 +156,7 @@ export function useLeaderboard(
     category?: "normal_ranked" | "hard_ranked";
     page?: number;
     limit?: number;
-    gameType?: "poster_reveal" | "rating_guess";
+    gameType?: "poster_reveal" | "rating_guess" | "year_guess";
   } = {},
 ) {
   const { category = "normal_ranked", page = 1, limit = 20, gameType = "poster_reveal" } = options;

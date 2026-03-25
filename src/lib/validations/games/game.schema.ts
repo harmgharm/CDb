@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 export const createGameSchema = z.object({
-  gameType: z.enum(["poster_reveal", "rating_guess"]).default("poster_reveal"),
+  gameType: z.enum(["poster_reveal", "rating_guess", "year_guess"]).default("poster_reveal"),
   mode: z.enum(["solo", "multiplayer"]).default("solo"),
   difficulty: z.enum(["normal", "hard"]),
   roundCount: z.coerce.number().int().min(1).max(20).default(5),
@@ -26,7 +26,7 @@ export const submitGuessSchema = z.object({
 export type SubmitGuessInput = z.infer<typeof submitGuessSchema>;
 
 export const leaderboardQuerySchema = z.object({
-  gameType: z.enum(["poster_reveal", "rating_guess"]).default("poster_reveal"),
+  gameType: z.enum(["poster_reveal", "rating_guess", "year_guess"]).default("poster_reveal"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   category: z.enum(["normal_ranked", "hard_ranked"]).default("normal_ranked"),

@@ -120,10 +120,6 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
 
     const isGroupPick = pickerId.length === 0 || pickerId === GROUP_PICK_VALUE;
 
-    // Ensure picker is in attendees (if a specific picker was chosen)
-    const finalAttendees =
-      isGroupPick || attendeeIds.includes(pickerId) ? attendeeIds : [...attendeeIds, pickerId];
-
     // Build inline ratings from filled-in fields
     const ratings = Object.entries(inlineRatings)
       .filter(([, value]) => value.length > 0)
@@ -135,7 +131,7 @@ export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSe
       dateWatched: dateWatched.length > 0 ? dateWatched : undefined,
       timeWatchedAt: timeWatched.length > 0 ? timeWatched : undefined,
       pickedByUserId: isGroupPick ? null : pickerId,
-      attendeeIds: finalAttendees,
+      attendeeIds,
       notes: notes.length > 0 ? notes : undefined,
       ratings: ratings.length > 0 ? ratings : undefined,
     });
