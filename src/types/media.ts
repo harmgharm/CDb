@@ -37,4 +37,6 @@ export interface MediaSearchResult {
   episodeCount?: number | null;
   /** Studio names (anime only, from Jikan search) */
   studios?: string[];
+  /** True when a TMDB movie/TV result appears to be anime (Animation genre + Japanese) */
+  isPossibleAnime?: boolean;
 }

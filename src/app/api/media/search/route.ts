@@ -16,12 +16,26 @@ import { searchMediaSchema } from "@/lib/validations/media";
 import type { MediaSearchResult } from "@/types/media";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+/** TMDB Animation genre ID (same for movies and TV) */
+const ANIMATION_GENRE_ID = 16;
+
 function parseYear(dateString: string): number | null {
   return dateString.length > 0 ? Number(dateString.slice(0, 4)) : null;
 }
 
+function isPossibleAnimeMovie(movie: TmdbMovieSearchResult): boolean {
+  return movie.genre_ids.includes(ANIMATION_GENRE_ID) && movie.original_language === "ja";
+}
+
+function isPossibleAnimeTv(show: TmdbTvSearchResult): boolean {
+  return (
+    show.genre_ids.includes(ANIMATION_GENRE_ID) &&
+    (show.original_language === "ja" || show.origin_country.includes("JP"))
+  );
+}
+
 function normalizeMovie(movie: TmdbMovieSearchResult): MediaSearchResult {
-  return {
+  const result: MediaSearchResult = {
     externalId: movie.id,
     title: movie.title,
     type: "movie",
@@ -32,10 +46,14 @@ function normalizeMovie(movie: TmdbMovieSearchResult): MediaSearchResult {
     voteAverage: movie.vote_average > 0 ? movie.vote_average : null,
     genres: mapMovieGenreIds(movie.genre_ids),
   };
+  if (isPossibleAnimeMovie(movie)) {
+    result.isPossibleAnime = true;
+  }
+  return result;
 }
 
 function normalizeTv(show: TmdbTvSearchResult): MediaSearchResult {
-  return {
+  const result: MediaSearchResult = {
     externalId: show.id,
     title: show.name,
     type: "tv",
@@ -46,6 +64,10 @@ function normalizeTv(show: TmdbTvSearchResult): MediaSearchResult {
     voteAverage: show.vote_average > 0 ? show.vote_average : null,
     genres: mapTvGenreIds(show.genre_ids),
   };
+  if (isPossibleAnimeTv(show)) {
+    result.isPossibleAnime = true;
+  }
+  return result;
 }
 
 async function lookupExistingIds(
@@ -141,5 +163,13 @@ export async function GET(req: NextRequest) {
   const results = await fetchSearchResults(parsed.data.query, parsed.data.type);
   await attachExistingMediaIds(results);
 
-  return successResponse(results);
+  // Sort possible-anime TMDB results below Jikan anime results so users see
+  // the proper anime version first when searching without a type filter.
+  const sorted = results.toSorted((a, b) => {
+    const aWeight = a.isPossibleAnime === true ? 1 : 0;
+    const bWeight = b.isPossibleAnime === true ? 1 : 0;
+    return aWeight - bWeight;
+  });
+
+  return successResponse(sorted);
 }

@@ -19,7 +19,13 @@ import { getUserDismissedIds } from "./dismissed";
 import { addScoreJitter, randomSample } from "./random";
 import type { RecommendationItem } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
+import {
+  getUserWatchedAnimeTitles,
+  getUserWatchedIds,
+  isAlreadyWatched,
+  isWatchedAnimeTitle,
+  mergeWatchedIds,
+} from "./watched";
 
 const TMDB_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -84,10 +90,12 @@ export async function computeTmdbRecommendations(
   }
 
   // 2. Fetch recommendations for each source (with caching)
-  const watched = mergeWatchedIds(
-    await getUserWatchedIds(userId),
-    await getUserDismissedIds(userId),
-  );
+  const [watchedIds, dismissedIds, animeTitles] = await Promise.all([
+    getUserWatchedIds(userId),
+    getUserDismissedIds(userId),
+    getUserWatchedAnimeTitles(userId),
+  ]);
+  const watched = mergeWatchedIds(watchedIds, dismissedIds);
   const allResults: { source: RatedMediaSource; items: RecommendationItem[] }[] = [];
 
   for (const source of sources) {
@@ -96,7 +104,7 @@ export async function computeTmdbRecommendations(
   }
 
   // 3. Merge, score, jitter, sample, and ensure type depth
-  const merged = mergeAndScore(allResults, watched);
+  const merged = mergeAndScore(allResults, watched, animeTitles);
   const jittered = addScoreJitter(merged);
   const pool = randomSample(jittered, Math.max(limit, 100));
   return sliceWithTypeDepth(pool, limit);
@@ -346,6 +354,7 @@ function getItemKey(item: RecommendationItem): string {
 function collectUnwatchedItems(
   allResults: { source: RatedMediaSource; items: RecommendationItem[] }[],
   watched: { tmdbIds: Set<number>; malIds: Set<number>; mediaIds: Set<string> },
+  animeTitles: Set<string>,
 ): { frequencyMap: Map<string, number>; bestItems: Map<string, RecommendationItem> } {
   const frequencyMap = new Map<string, number>();
   const bestItems = new Map<string, RecommendationItem>();
@@ -353,6 +362,7 @@ function collectUnwatchedItems(
   for (const { source, items } of allResults) {
     for (const item of items) {
       if (isAlreadyWatched(watched, item)) continue;
+      if (item.mediaType !== "anime" && isWatchedAnimeTitle(item.title, animeTitles)) continue;
 
       const key = getItemKey(item);
       frequencyMap.set(key, (frequencyMap.get(key) ?? 0) + 1);
@@ -392,8 +402,9 @@ function findMaxSourceScore(
 function mergeAndScore(
   allResults: { source: RatedMediaSource; items: RecommendationItem[] }[],
   watched: { tmdbIds: Set<number>; malIds: Set<number>; mediaIds: Set<string> },
+  animeTitles: Set<string>,
 ): RecommendationItem[] {
-  const { frequencyMap, bestItems } = collectUnwatchedItems(allResults, watched);
+  const { frequencyMap, bestItems } = collectUnwatchedItems(allResults, watched, animeTitles);
   const maxFrequency = Math.max(1, ...frequencyMap.values());
 
   for (const [key, item] of bestItems) {

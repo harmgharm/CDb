@@ -22,7 +22,13 @@ import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 import { getUserDismissedIds } from "./dismissed";
 import { addScoreJitter, randomPage, randomSample } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
-import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
+import {
+  getUserWatchedAnimeTitles,
+  getUserWatchedIds,
+  isAlreadyWatched,
+  isWatchedAnimeTitle,
+  mergeWatchedIds,
+} from "./watched";
 
 export interface RecommendationFilters {
   mediaType?: MediaType[];
@@ -53,10 +59,12 @@ export async function computeFilteredRecommendations(
   filters: RecommendationFilters,
   limit = 60,
 ): Promise<RecommendationItem[]> {
-  const watched = mergeWatchedIds(
-    await getUserWatchedIds(userId),
-    await getUserDismissedIds(userId),
-  );
+  const [watchedIds, dismissedIds, animeTitles] = await Promise.all([
+    getUserWatchedIds(userId),
+    getUserDismissedIds(userId),
+    getUserWatchedAnimeTitles(userId),
+  ]);
+  const watched = mergeWatchedIds(watchedIds, dismissedIds);
 
   // Determine which genres to use — prefer user-selected filter, fall back to user's top genre
   const genres =
@@ -77,17 +85,17 @@ export async function computeFilteredRecommendations(
   for (const type of mediaTypes) {
     switch (type) {
       case "movie": {
-        const items = await discoverFilteredMovies({ genres, dateRanges, watched });
+        const items = await discoverFilteredMovies({ genres, dateRanges, watched, animeTitles });
         results.push(...items);
         break;
       }
       case "tv": {
-        const items = await discoverFilteredTv({ genres, dateRanges, watched });
+        const items = await discoverFilteredTv({ genres, dateRanges, watched, animeTitles });
         results.push(...items);
         break;
       }
       case "anime": {
-        const items = await discoverFilteredAnime({ genres, dateRanges, watched });
+        const items = await discoverFilteredAnime({ genres, dateRanges, watched, animeTitles });
         results.push(...items);
         break;
       }
@@ -134,6 +142,7 @@ interface DiscoverOptions {
   genres: string[];
   dateRanges: DecadeRange[];
   watched: WatchedIds;
+  animeTitles: Set<string>;
 }
 
 function genreLabel(genres: string[]): string {
@@ -146,13 +155,14 @@ interface FetchPagesOptions {
   baseParams: Record<string, string>;
   dateRange: DecadeRange | null;
   watched: WatchedIds;
+  animeTitles: Set<string>;
   seen: Set<number>;
   label: string;
 }
 
 /** Fetch 2 pages from TMDB discover for a single date range */
 async function fetchMoviePages(options: FetchPagesOptions): Promise<RecommendationItem[]> {
-  const { baseParams, dateRange, watched, seen, label } = options;
+  const { baseParams, dateRange, watched, animeTitles, seen, label } = options;
   const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
   if (dateRange !== null) {
     params["primary_release_date.gte"] = dateRange.gte;
@@ -166,6 +176,7 @@ async function fetchMoviePages(options: FetchPagesOptions): Promise<Recommendati
     });
     for (const item of response.results) {
       if (seen.has(item.id) || isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+      if (isWatchedAnimeTitle(item.title, animeTitles)) continue;
       seen.add(item.id);
       results.push(parseMovieToItem(item, label));
     }
@@ -175,7 +186,7 @@ async function fetchMoviePages(options: FetchPagesOptions): Promise<Recommendati
 }
 
 async function discoverFilteredMovies(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genres, dateRanges, watched } = options;
+  const { genres, dateRanges, watched, animeTitles } = options;
   const baseParams: Record<string, string> = {
     sort_by: "vote_average.desc",
     "vote_count.gte": "100",
@@ -193,7 +204,9 @@ async function discoverFilteredMovies(options: DiscoverOptions): Promise<Recomme
 
   try {
     for (const dateRange of rangesToQuery) {
-      results.push(...(await fetchMoviePages({ baseParams, dateRange, watched, seen, label })));
+      results.push(
+        ...(await fetchMoviePages({ baseParams, dateRange, watched, animeTitles, seen, label })),
+      );
     }
     return results;
   } catch {
@@ -203,7 +216,7 @@ async function discoverFilteredMovies(options: DiscoverOptions): Promise<Recomme
 
 /** Fetch 2 pages from TMDB TV discover for a single date range */
 async function fetchTvPages(options: FetchPagesOptions): Promise<RecommendationItem[]> {
-  const { baseParams, dateRange, watched, seen, label } = options;
+  const { baseParams, dateRange, watched, animeTitles, seen, label } = options;
   const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
   if (dateRange !== null) {
     params["first_air_date.gte"] = dateRange.gte;
@@ -217,6 +230,7 @@ async function fetchTvPages(options: FetchPagesOptions): Promise<RecommendationI
     });
     for (const item of response.results) {
       if (seen.has(item.id) || isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+      if (isWatchedAnimeTitle(item.name, animeTitles)) continue;
       seen.add(item.id);
       results.push(parseTvToItem(item, label));
     }
@@ -226,7 +240,7 @@ async function fetchTvPages(options: FetchPagesOptions): Promise<RecommendationI
 }
 
 async function discoverFilteredTv(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genres, dateRanges, watched } = options;
+  const { genres, dateRanges, watched, animeTitles } = options;
   const baseParams: Record<string, string> = {
     sort_by: "vote_average.desc",
     "vote_count.gte": "100",
@@ -244,7 +258,9 @@ async function discoverFilteredTv(options: DiscoverOptions): Promise<Recommendat
 
   try {
     for (const dateRange of rangesToQuery) {
-      results.push(...(await fetchTvPages({ baseParams, dateRange, watched, seen, label })));
+      results.push(
+        ...(await fetchTvPages({ baseParams, dateRange, watched, animeTitles, seen, label })),
+      );
     }
     return results;
   } catch {

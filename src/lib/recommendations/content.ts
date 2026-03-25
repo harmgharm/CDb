@@ -25,7 +25,13 @@ import { getUserDismissedIds } from "./dismissed";
 import { addScoreJitter, randomPage, randomSample } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
+import {
+  getUserWatchedAnimeTitles,
+  getUserWatchedIds,
+  isAlreadyWatched,
+  isWatchedAnimeTitle,
+  mergeWatchedIds,
+} from "./watched";
 
 type ParsedMediaItem = Omit<RecommendationItem, "score" | "recType" | "reasons">;
 
@@ -76,14 +82,16 @@ export async function computeContentRecommendations(
     .slice(0, 3);
 
   // 3. Get watched IDs for exclusion
-  const watched = mergeWatchedIds(
-    await getUserWatchedIds(userId),
-    await getUserDismissedIds(userId),
-  );
+  const [watchedIds, dismissedIds, animeTitles] = await Promise.all([
+    getUserWatchedIds(userId),
+    getUserDismissedIds(userId),
+    getUserWatchedAnimeTitles(userId),
+  ]);
+  const watched = mergeWatchedIds(watchedIds, dismissedIds);
   const results: RecommendationItem[] = [];
 
   // 4. Genre-based TMDB discover (max 3 API calls)
-  const genreResults = await fetchGenreBasedResults(topGenres, watched);
+  const genreResults = await fetchGenreBasedResults(topGenres, watched, animeTitles);
   results.push(...genreResults);
 
   // 5. Director-based DB scan (zero API calls)
@@ -148,16 +156,17 @@ function computeDirectorScores(
 async function fetchGenreBasedResults(
   topGenres: GenreScore[],
   watched: WatchedIds,
+  animeTitles: Set<string>,
 ): Promise<RecommendationItem[]> {
   const movieResults: RecommendationItem[] = [];
   const tvResults: RecommendationItem[] = [];
   const animeResults: RecommendationItem[] = [];
 
   for (const genreScore of topGenres) {
-    const movies = await fetchMovieGenreResults(genreScore, watched);
+    const movies = await fetchMovieGenreResults(genreScore, watched, animeTitles);
     movieResults.push(...movies);
 
-    const tv = await fetchTvGenreResults(genreScore, watched);
+    const tv = await fetchTvGenreResults(genreScore, watched, animeTitles);
     tvResults.push(...tv);
 
     const anime = await fetchAnimeGenreResultsForGenre(genreScore, watched);
@@ -174,6 +183,7 @@ async function fetchGenreBasedResults(
 async function fetchMovieGenreResults(
   genreScore: GenreScore,
   watched: WatchedIds,
+  animeTitles: Set<string>,
 ): Promise<RecommendationItem[]> {
   const movieGenreId = getMovieGenreId(genreScore.genre);
   if (movieGenreId === null) return [];
@@ -196,7 +206,10 @@ async function fetchMovieGenreResults(
 
       for (const item of response.results) {
         if (results.length >= maxPerGenre) break;
-        if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+        const skip =
+          isAlreadyWatched(watched, { tmdbId: item.id }) ||
+          isWatchedAnimeTitle(item.title, animeTitles);
+        if (skip) continue;
         results.push(scoreGenreResult(parseMovieResult(item), genreScore));
       }
     } catch {
@@ -210,6 +223,7 @@ async function fetchMovieGenreResults(
 async function fetchTvGenreResults(
   genreScore: GenreScore,
   watched: WatchedIds,
+  animeTitles: Set<string>,
 ): Promise<RecommendationItem[]> {
   const tvGenreId = getTvGenreId(genreScore.genre);
   if (tvGenreId === null) return [];
@@ -232,7 +246,10 @@ async function fetchTvGenreResults(
 
       for (const item of response.results) {
         if (results.length >= maxPerGenre) break;
-        if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+        const skip =
+          isAlreadyWatched(watched, { tmdbId: item.id }) ||
+          isWatchedAnimeTitle(item.name, animeTitles);
+        if (skip) continue;
         results.push(scoreGenreResult(parseTvResult(item), genreScore));
       }
     } catch {

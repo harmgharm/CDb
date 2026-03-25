@@ -20,7 +20,12 @@ import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 import { addScoreJitter, randomPage, randomSample } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getGroupWatchedIds, isAlreadyWatched } from "./watched";
+import {
+  getGroupWatchedAnimeTitles,
+  getGroupWatchedIds,
+  isAlreadyWatched,
+  isWatchedAnimeTitle,
+} from "./watched";
 
 interface UserGenrePreference {
   userId: string;
@@ -50,7 +55,10 @@ export async function computeGroupRecommendations(limit = 60): Promise<Recommend
   const sharedGenres = findSharedGenres(userPreferences);
 
   // 4. Get watched + watchlist data
-  const watched = await getGroupWatchedIds();
+  const [watched, animeTitles] = await Promise.all([
+    getGroupWatchedIds(),
+    getGroupWatchedAnimeTitles(),
+  ]);
   const watchlistPopularity = await getWatchlistPopularity();
   const activeUserCount = activeUsers.length;
 
@@ -58,6 +66,7 @@ export async function computeGroupRecommendations(limit = 60): Promise<Recommend
   const results = await scoreAndCollectResults({
     sharedGenres,
     watched,
+    animeTitles,
     watchlistPopularity,
     activeUserCount,
     userPreferences,
@@ -119,16 +128,24 @@ async function computeSingleUserPreference(userId: string): Promise<UserGenrePre
 async function scoreAndCollectResults(options: {
   sharedGenres: string[];
   watched: WatchedIds;
+  animeTitles: Set<string>;
   watchlistPopularity: WatchlistPopularItem[];
   activeUserCount: number;
   userPreferences: UserGenrePreference[];
 }): Promise<RecommendationItem[]> {
-  const { sharedGenres, watched, watchlistPopularity, activeUserCount, userPreferences } = options;
+  const {
+    sharedGenres,
+    watched,
+    animeTitles,
+    watchlistPopularity,
+    activeUserCount,
+    userPreferences,
+  } = options;
   const results: RecommendationItem[] = [];
 
   // TMDB discover with shared genres
   if (sharedGenres.length > 0) {
-    const discoverResults = await fetchGroupDiscover(sharedGenres, watched);
+    const discoverResults = await fetchGroupDiscover(sharedGenres, watched, animeTitles);
     for (const item of discoverResults) {
       const watchlistCount = getWatchlistCountForItem(watchlistPopularity, item);
       const genreOverlap = sharedGenres.length / Math.max(1, getAllGenres(userPreferences).size);
@@ -202,6 +219,7 @@ function getAllGenres(preferences: UserGenrePreference[]): Set<string> {
 async function fetchGroupDiscover(
   sharedGenres: string[],
   watched: WatchedIds,
+  animeTitles: Set<string>,
 ): Promise<RecommendationItem[]> {
   // Build genre ID lists for movie and TV
   const movieGenreIds = sharedGenres
@@ -212,17 +230,29 @@ async function fetchGroupDiscover(
     .map((g) => getTvGenreId(g))
     .filter((id): id is number => id !== null);
 
-  const movieResults = await discoverMovieItems(movieGenreIds, sharedGenres, watched);
-  const tvResults = await discoverTvItems(tvGenreIds, sharedGenres, watched);
+  const movieResults = await discoverMovieItems({
+    genreIds: movieGenreIds,
+    sharedGenres,
+    watched,
+    animeTitles,
+  });
+  const tvResults = await discoverTvItems({
+    genreIds: tvGenreIds,
+    sharedGenres,
+    watched,
+    animeTitles,
+  });
 
   return [...movieResults, ...tvResults];
 }
 
-async function discoverMovieItems(
-  genreIds: number[],
-  sharedGenres: string[],
-  watched: WatchedIds,
-): Promise<RecommendationItem[]> {
+async function discoverMovieItems(options: {
+  genreIds: number[];
+  sharedGenres: string[];
+  watched: WatchedIds;
+  animeTitles: Set<string>;
+}): Promise<RecommendationItem[]> {
+  const { genreIds, sharedGenres, watched, animeTitles } = options;
   if (genreIds.length === 0) return [];
 
   try {
@@ -236,6 +266,7 @@ async function discoverMovieItems(
     const results: RecommendationItem[] = [];
     for (const item of response.results) {
       if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+      if (isWatchedAnimeTitle(item.title, animeTitles)) continue;
       results.push(movieToGroupItem(item, sharedGenres));
     }
     return results;
@@ -244,11 +275,13 @@ async function discoverMovieItems(
   }
 }
 
-async function discoverTvItems(
-  genreIds: number[],
-  sharedGenres: string[],
-  watched: WatchedIds,
-): Promise<RecommendationItem[]> {
+async function discoverTvItems(options: {
+  genreIds: number[];
+  sharedGenres: string[];
+  watched: WatchedIds;
+  animeTitles: Set<string>;
+}): Promise<RecommendationItem[]> {
+  const { genreIds, sharedGenres, watched, animeTitles } = options;
   if (genreIds.length === 0) return [];
 
   try {
@@ -262,6 +295,7 @@ async function discoverTvItems(
     const results: RecommendationItem[] = [];
     for (const item of response.results) {
       if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+      if (isWatchedAnimeTitle(item.name, animeTitles)) continue;
       results.push(tvToGroupItem(item, sharedGenres));
     }
     return results;

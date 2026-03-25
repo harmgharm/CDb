@@ -24,7 +24,13 @@ import { addScoreJitter, randomPage, randomSample } from "./random";
 import { cacheRecommendations, getCachedRecommendations } from "./tmdb-recs";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
-import { getUserWatchedIds, isAlreadyWatched, mergeWatchedIds } from "./watched";
+import {
+  getUserWatchedAnimeTitles,
+  getUserWatchedIds,
+  isAlreadyWatched,
+  isWatchedAnimeTitle,
+  mergeWatchedIds,
+} from "./watched";
 
 /** A fetched result set tagged with its source title and endpoint origin */
 interface SourceResult {
@@ -44,10 +50,12 @@ export async function computeSimilarRecommendations(
   sources: SimilarSource[],
   limit = 20,
 ): Promise<RecommendationItem[]> {
-  const watched = mergeWatchedIds(
-    await getUserWatchedIds(userId),
-    await getUserDismissedIds(userId),
-  );
+  const [watchedIds, dismissedIds, animeTitles] = await Promise.all([
+    getUserWatchedIds(userId),
+    getUserDismissedIds(userId),
+    getUserWatchedAnimeTitles(userId),
+  ]);
+  const watched = mergeWatchedIds(watchedIds, dismissedIds);
 
   // Fetch results from all sources in parallel
   const resultPromises: Promise<SourceResult[]>[] = sources.map((source) => fetchForSource(source));
@@ -58,7 +66,7 @@ export async function computeSimilarRecommendations(
   const sourceIds = buildSourceIdSet(sources);
 
   // Merge, score, filter, and sample
-  const merged = mergeAndScore(allResults, watched, sourceIds);
+  const merged = mergeAndScore({ allResults, watched, sourceIds, animeTitles });
   const jittered = addScoreJitter(merged);
   const pool = randomSample(jittered, Math.max(limit, 60));
   return sliceWithTypeDepth(pool, limit);
@@ -366,11 +374,13 @@ function scoreItems(state: MergeState, totalSources: number): void {
  * - 0.3 x cross-source frequency (how many input titles recommend this)
  * - 0.3 x endpoint breadth (appears in both /similar and /recommendations)
  */
-function mergeAndScore(
-  allResults: SourceResult[],
-  watched: WatchedIds,
-  sourceIds: { tmdbIds: Set<number>; malIds: Set<number> },
-): RecommendationItem[] {
+function mergeAndScore(options: {
+  allResults: SourceResult[];
+  watched: WatchedIds;
+  sourceIds: { tmdbIds: Set<number>; malIds: Set<number> };
+  animeTitles: Set<string>;
+}): RecommendationItem[] {
+  const { allResults, watched, sourceIds, animeTitles } = options;
   const state: MergeState = {
     bestItems: new Map(),
     sourceFrequency: new Map(),
@@ -381,6 +391,7 @@ function mergeAndScore(
     for (const item of items) {
       if (isAlreadyWatched(watched, item)) continue;
       if (isSourceTitle(item, sourceIds)) continue;
+      if (item.mediaType !== "anime" && isWatchedAnimeTitle(item.title, animeTitles)) continue;
       mergeItem(state, { item, sourceTitle, endpoint });
     }
   }

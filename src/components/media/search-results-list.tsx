@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangleIcon,
   BookmarkCheckIcon,
   BookmarkPlusIcon,
   CheckCircle2Icon,
@@ -196,20 +197,31 @@ export function SearchResultsList({
               }
             }}
           >
-            <div className="relative min-w-0 flex-1">
-              {isImported && (
-                <div className="absolute top-0 left-0 z-10 flex size-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm">
-                  <CheckIcon className="size-3 text-white" />
+            <div className="relative min-w-0 flex-1 space-y-1.5">
+              <div className="relative">
+                {isImported && (
+                  <div className="absolute top-0 left-0 z-10 flex size-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm">
+                    <CheckIcon className="size-3 text-white" />
+                  </div>
+                )}
+                <MediaInfoRow
+                  posterUrl={result.posterUrl}
+                  title={result.title}
+                  type={result.type}
+                  releaseYear={result.releaseYear}
+                  overview={result.overview}
+                  rating={result.voteAverage}
+                />
+              </div>
+              {result.isPossibleAnime === true && (
+                <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangleIcon className="size-3 shrink-0" />
+                  <span>
+                    This looks like anime. Search under &ldquo;Anime&rdquo; to add the Jikan version
+                    instead.
+                  </span>
                 </div>
               )}
-              <MediaInfoRow
-                posterUrl={result.posterUrl}
-                title={result.title}
-                type={result.type}
-                releaseYear={result.releaseYear}
-                overview={result.overview}
-                rating={result.voteAverage}
-              />
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <MediaTypeBadge type={result.type} />

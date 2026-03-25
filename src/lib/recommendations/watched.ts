@@ -64,6 +64,61 @@ export function mergeWatchedIds(a: WatchedIds, b: WatchedIds): WatchedIds {
 }
 
 /**
+ * Get normalized anime titles that a specific user has watched in sessions.
+ * Used to filter TMDB movie/TV results that are actually anime the user already watched via Jikan.
+ */
+export async function getUserWatchedAnimeTitles(userId: string): Promise<Set<string>> {
+  const rows = await db
+    .selectFrom("session_attendees")
+    .innerJoin("watch_sessions", "watch_sessions.id", "session_attendees.session_id")
+    .innerJoin("media", "media.id", "watch_sessions.media_id")
+    .select(["media.title", "media.original_title"])
+    .where("session_attendees.user_id", "=", userId)
+    .where("media.type", "=", "anime")
+    .execute();
+
+  return buildAnimeTitleSet(rows);
+}
+
+/**
+ * Get normalized anime titles that the entire group has watched.
+ * Used to filter TMDB results in group recommendations.
+ */
+export async function getGroupWatchedAnimeTitles(): Promise<Set<string>> {
+  const rows = await db
+    .selectFrom("watch_sessions")
+    .innerJoin("media", "media.id", "watch_sessions.media_id")
+    .select(["media.title", "media.original_title"])
+    .where("media.type", "=", "anime")
+    .distinct()
+    .execute();
+
+  return buildAnimeTitleSet(rows);
+}
+
+function buildAnimeTitleSet(rows: { title: string; original_title: string | null }[]): Set<string> {
+  const titles = new Set<string>();
+  for (const row of rows) {
+    titles.add(normalizeTitle(row.title));
+    if (row.original_title !== null) {
+      titles.add(normalizeTitle(row.original_title));
+    }
+  }
+  return titles;
+}
+
+function normalizeTitle(title: string): string {
+  return title.toLowerCase().trim();
+}
+
+/**
+ * Check if a title matches a known watched anime title.
+ */
+export function isWatchedAnimeTitle(title: string, animeTitles: Set<string>): boolean {
+  return animeTitles.has(normalizeTitle(title));
+}
+
+/**
  * Check if a recommendation item is already watched.
  */
 export function isAlreadyWatched(
