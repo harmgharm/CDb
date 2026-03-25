@@ -41,7 +41,7 @@ export async function GET() {
       .select(["media.title", "media.type", "media.poster_url", "watch_sessions.date_watched"])
       .where("watch_sessions.date_watched", "is not", null)
       .orderBy("watch_sessions.date_watched", "desc")
-      .limit(6)
+      .limit(8)
       .execute(),
 
     // Highest rated media (public-safe, expanded to 5)
