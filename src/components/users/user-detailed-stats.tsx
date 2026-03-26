@@ -125,6 +125,17 @@ export function UserDetailedStats({ userId }: UserDetailedStatsProps) {
         </div>
       </StatsSection>
 
+      {/* Cast section */}
+      <StatsSection title="Cast" icon={<UsersIcon className="size-4" />}>
+        <div className="space-y-6">
+          <CategoryStatList items={stats.cast.mostWatched} label="Most Watched" />
+          <StatPair>
+            <CategoryStatList items={stats.cast.highestRated} label="Highest Rated" showScore />
+            <CategoryStatList items={stats.cast.lowestRated} label="Lowest Rated" showScore />
+          </StatPair>
+        </div>
+      </StatsSection>
+
       {/* Years section */}
       <StatsSection title="Years" icon={<BarChart3Icon className="size-4" />}>
         <div className="space-y-6">

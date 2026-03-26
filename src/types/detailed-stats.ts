@@ -32,6 +32,13 @@ export interface DirectorStat {
   avgScore: number | null;
 }
 
+/** Cast stat entry */
+export interface CastStat {
+  actor: string;
+  count: number;
+  avgScore: number | null;
+}
+
 /** Year stat entry */
 export interface YearStat {
   year: number;
@@ -92,6 +99,12 @@ export interface GroupDetailedStats {
     lowestRated: DirectorStat[];
   };
 
+  cast: {
+    mostWatched: CastStat[];
+    highestRated: CastStat[];
+    lowestRated: CastStat[];
+  };
+
   years: {
     mostWatched: YearStat[];
     leastWatched: YearStat[];
@@ -130,6 +143,12 @@ export interface UserDetailedStatsResponse {
     mostWatched: DirectorStat[];
     highestRated: DirectorStat[];
     lowestRated: DirectorStat[];
+  };
+
+  cast: {
+    mostWatched: CastStat[];
+    highestRated: CastStat[];
+    lowestRated: CastStat[];
   };
 
   years: {

@@ -9,6 +9,7 @@ import {
   FlameIcon,
   MusicIcon,
   StarIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { CategoryStatList } from "@/components/stats/category-stat-list";
@@ -134,6 +135,17 @@ export function GroupDetailedStats() {
               showScore
             />
             <CategoryStatList items={stats.directors.lowestRated} label="Lowest Rated" showScore />
+          </StatPair>
+        </div>
+      </StatsSection>
+
+      {/* Cast section */}
+      <StatsSection title="Cast" icon={<UsersIcon className="size-4" />}>
+        <div className="space-y-6">
+          <CategoryStatList items={stats.cast.mostWatched} label="Most Watched" />
+          <StatPair>
+            <CategoryStatList items={stats.cast.highestRated} label="Highest Rated" showScore />
+            <CategoryStatList items={stats.cast.lowestRated} label="Lowest Rated" showScore />
           </StatPair>
         </div>
       </StatsSection>

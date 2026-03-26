@@ -13,12 +13,14 @@ import { db } from "@/lib/db";
 import {
   fetchAttendanceRate,
   fetchAvgRating,
+  fetchCastStats,
   fetchDirectorStats,
   fetchGenreStats,
   fetchHoursWatched,
   fetchPickerStats,
   fetchRankedMedia,
   fetchYearStats,
+  formatCastStats,
   formatDirectorStats,
   formatGenreStats,
   formatRankedMedia,
@@ -49,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     lowestRatedRaw,
     genreStatsRaw,
     directorStatsRaw,
+    castStatsRaw,
     yearStatsRaw,
     pickerStats,
   ] = await Promise.all([
@@ -59,6 +62,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     fetchRankedMedia("asc", 5, id),
     fetchGenreStats(id),
     fetchDirectorStats(id),
+    fetchCastStats(id),
     fetchYearStats(id),
     fetchPickerStats(id),
   ]);
@@ -74,6 +78,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const directorsByScore = directorsWithScore.toSorted(
     (a, b) => (b.avgScore ?? 0) - (a.avgScore ?? 0),
   );
+
+  // Format and slice cast stats
+  const castStats = formatCastStats(castStatsRaw, 1);
+  const castWithScore = castStats.filter((c) => c.avgScore !== null);
+  const castByScore = castWithScore.toSorted((a, b) => (b.avgScore ?? 0) - (a.avgScore ?? 0));
 
   // Format and slice year stats
   const yearStats = formatYearStats(yearStatsRaw, 1);
@@ -102,6 +111,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       mostWatched: directorStats.slice(0, 5),
       highestRated: directorsByScore.slice(0, 5),
       lowestRated: directorsByScore.toReversed().slice(0, 5),
+    },
+    cast: {
+      mostWatched: castStats.slice(0, 5),
+      highestRated: castByScore.slice(0, 5),
+      lowestRated: castByScore.toReversed().slice(0, 5),
     },
     years: {
       mostWatched: yearStats.slice(0, 5),

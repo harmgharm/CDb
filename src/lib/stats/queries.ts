@@ -233,6 +233,53 @@ export function formatDirectorStats(rows: readonly DirectorStatsRow[], minRating
 }
 
 // ============================================
+// Cast Stats
+// ============================================
+
+interface CastStatsRow {
+  actor: string;
+  watch_count: string;
+  avg_score: string | null;
+  rating_count: string;
+}
+
+export async function fetchCastStats(userId?: string) {
+  const userJoin =
+    userId === undefined
+      ? sql``
+      : sql`JOIN session_attendees sa ON sa.session_id = ws.id AND sa.user_id = ${userId}`;
+
+  const userRatingFilter = userId === undefined ? sql`` : sql`AND r.user_id = ${userId}`;
+
+  const rows = await sql<CastStatsRow>`
+    SELECT
+      c->>'name' AS actor,
+      COUNT(DISTINCT ws.id) as watch_count,
+      AVG(r.score) as avg_score,
+      COUNT(r.id) as rating_count
+    FROM watch_sessions ws
+    JOIN media m ON m.id = ws.media_id
+    ${userJoin}
+    CROSS JOIN LATERAL jsonb_array_elements(m.top_cast) AS c
+    LEFT JOIN ratings r ON r.session_id = ws.id ${userRatingFilter}
+    WHERE m.top_cast IS NOT NULL
+    GROUP BY c->>'name'
+    ORDER BY watch_count DESC
+  `.execute(db);
+
+  return rows.rows;
+}
+
+export function formatCastStats(rows: readonly CastStatsRow[], minRatings = 2) {
+  return rows.map((r) => ({
+    actor: r.actor,
+    count: Number(r.watch_count),
+    avgScore:
+      Number(r.rating_count) >= minRatings ? Math.round(Number(r.avg_score) * 10) / 10 : null,
+  }));
+}
+
+// ============================================
 // Year Stats
 // ============================================
 

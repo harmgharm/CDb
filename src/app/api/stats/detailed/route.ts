@@ -10,6 +10,7 @@ import { requireAuth } from "@/lib/auth";
 import {
   fetchAvgRating,
   fetchAvgStartTime,
+  fetchCastStats,
   fetchDirectorStats,
   fetchDivisiveMedia,
   fetchGenreStats,
@@ -18,6 +19,7 @@ import {
   fetchRankedMedia,
   fetchStreakData,
   fetchYearStats,
+  formatCastStats,
   formatDirectorStats,
   formatGenreStats,
   formatRankedMedia,
@@ -39,6 +41,7 @@ export async function GET() {
     divisiveMedia,
     genreStatsRaw,
     directorStatsRaw,
+    castStatsRaw,
     yearStatsRaw,
     pickerLeaderboard,
   ] = await Promise.all([
@@ -51,6 +54,7 @@ export async function GET() {
     fetchDivisiveMedia(3),
     fetchGenreStats(),
     fetchDirectorStats(),
+    fetchCastStats(),
     fetchYearStats(),
     fetchPickerLeaderboard(5),
   ]);
@@ -70,6 +74,11 @@ export async function GET() {
   const directorsByScore = directorsWithScore.toSorted(
     (a, b) => (b.avgScore ?? 0) - (a.avgScore ?? 0),
   );
+
+  // Format cast stats
+  const castStats = formatCastStats(castStatsRaw);
+  const castWithScore = castStats.filter((c) => c.avgScore !== null);
+  const castByScore = castWithScore.toSorted((a, b) => (b.avgScore ?? 0) - (a.avgScore ?? 0));
 
   // Format year stats
   const yearStats = formatYearStats(yearStatsRaw);
@@ -100,6 +109,11 @@ export async function GET() {
       mostWatched: directorStats.slice(0, 5),
       highestRated: directorsByScore.slice(0, 5),
       lowestRated: directorsByScore.toReversed().slice(0, 5),
+    },
+    cast: {
+      mostWatched: castStats.slice(0, 5),
+      highestRated: castByScore.slice(0, 5),
+      lowestRated: castByScore.toReversed().slice(0, 5),
     },
     years: {
       mostWatched: yearStats.slice(0, 5),

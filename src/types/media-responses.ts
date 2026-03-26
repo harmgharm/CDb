@@ -34,6 +34,14 @@ export interface MediaListItem {
   budget: string | null;
   revenue: string | null;
   studios: string[] | null;
+  top_cast:
+    | {
+        id: number;
+        name: string;
+        character: string;
+        profilePath: string | null;
+      }[]
+    | null;
   created_at: string;
   updated_at: string;
 }

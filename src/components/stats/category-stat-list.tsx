@@ -3,9 +3,9 @@
 import { StarIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 
-import type { DirectorStat, GenreStat, YearStat } from "@/types/detailed-stats";
+import type { CastStat, DirectorStat, GenreStat, YearStat } from "@/types/detailed-stats";
 
-type StatItem = GenreStat | DirectorStat | YearStat;
+type StatItem = GenreStat | DirectorStat | CastStat | YearStat;
 
 interface CategoryStatListProps {
   readonly items: readonly StatItem[];
@@ -17,6 +17,7 @@ interface CategoryStatListProps {
 function getItemLabel(item: StatItem): string {
   if ("genre" in item) return item.genre;
   if ("director" in item) return item.director;
+  if ("actor" in item) return item.actor;
   return String(item.year);
 }
 

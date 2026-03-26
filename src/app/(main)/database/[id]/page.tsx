@@ -11,6 +11,7 @@ import {
   StarIcon,
   Trash2Icon,
   TvIcon,
+  UserIcon,
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import Image from "next/image";
@@ -28,6 +29,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AddToWatchlistButton } from "@/components/watchlist";
 import { useMediaDetail } from "@/hooks/use-media";
 import { useSingleMediaRefresh } from "@/hooks/use-media-refresh";
@@ -226,6 +228,40 @@ export default function MediaDetailPage() {
                 {media.type === "tv" ? "Created by" : "Directed by"}{" "}
                 <span className="text-foreground font-medium">{media.directors.join(", ")}</span>
               </p>
+            )}
+
+            {media.top_cast !== null && media.top_cast.length > 0 && (
+              <TooltipProvider>
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {media.top_cast.map((member) => (
+                    <Tooltip key={member.id}>
+                      <TooltipTrigger asChild>
+                        <div className="flex shrink-0 flex-col items-center gap-1">
+                          {member.profilePath === null ? (
+                            <div className="bg-muted flex size-12 items-center justify-center rounded-full">
+                              <UserIcon className="text-muted-foreground size-5" />
+                            </div>
+                          ) : (
+                            <Image
+                              src={`https://image.tmdb.org/t/p/w185${member.profilePath}`}
+                              alt={member.name}
+                              width={48}
+                              height={48}
+                              className="size-12 rounded-full object-cover"
+                            />
+                          )}
+                          <span className="max-w-16 truncate text-center text-[11px]">
+                            {member.name}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">{member.character}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </TooltipProvider>
             )}
 
             <div className="flex flex-wrap items-center gap-2">
