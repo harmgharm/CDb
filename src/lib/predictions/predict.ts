@@ -10,6 +10,7 @@ import type { PredictionResult, PredictionSignal } from "@/types/prediction-resp
 import type { PredictionRequestInput } from "../validations/predictions";
 import { resolveMedia } from "./resolve-media";
 import {
+  computeCastSignal,
   computeCollaborativeSignal,
   computeDirectorSignal,
   computeEraSignal,
@@ -24,7 +25,8 @@ import { loadUserAffinity } from "./user-affinity";
 const DEFAULT_WEIGHTS: Record<string, number> = {
   collaborative: 0.3,
   genre: 0.25,
-  director: 0.15,
+  director: 0.1,
+  cast: 0.05,
   external: 0.1,
   group: 0.1,
   era: 0.1,
@@ -70,11 +72,13 @@ export async function predictRating(
   const directorSignal = computeDirectorSignal(affinity, media);
   const externalSignal = computeExternalSignal(media);
   const eraSignal = computeEraSignal(affinity, media);
+  const castSignal = computeCastSignal(affinity, media);
 
   const signalMap: Record<string, SignalResult> = {
     collaborative: collaborativeSignal,
     genre: genreSignal,
     director: directorSignal,
+    cast: castSignal,
     external: externalSignal,
     group: groupSignal,
     era: eraSignal,
@@ -117,6 +121,7 @@ export async function predictRating(
     buildSignal("collaborative", signalMap.collaborative),
     buildSignal("genre", signalMap.genre),
     buildSignal("director", signalMap.director),
+    buildSignal("cast", signalMap.cast),
     buildSignal("external", signalMap.external),
     buildSignal("group", signalMap.group),
     buildSignal("era", signalMap.era),
