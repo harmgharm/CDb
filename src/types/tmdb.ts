@@ -61,6 +61,7 @@ export interface TmdbMovieDetail {
   production_companies: TmdbProductionCompany[];
   videos?: TmdbVideosResponse;
   release_dates?: TmdbReleaseDatesResponse;
+  credits?: TmdbCreditsResponse;
 }
 
 export interface TmdbTvCreator {
@@ -92,6 +93,7 @@ export interface TmdbTvDetail {
   created_by: TmdbTvCreator[];
   videos?: TmdbVideosResponse;
   content_ratings?: TmdbContentRatingsResponse;
+  credits?: TmdbCreditsResponse;
 }
 
 export interface TmdbGenre {
@@ -107,9 +109,20 @@ export interface TmdbCrewMember {
   department: string;
 }
 
-/** Response from /movie/{id}/credits */
+/** Cast member from /movie/{id}/credits or /tv/{id}/credits */
+export interface TmdbCastMember {
+  id: number;
+  name: string;
+  character: string;
+  order: number;
+  profile_path: string | null;
+  known_for_department: string;
+}
+
+/** Response from /movie/{id}/credits or /tv/{id}/credits */
 export interface TmdbCreditsResponse {
   id: number;
+  cast: TmdbCastMember[];
   crew: TmdbCrewMember[];
 }
 
