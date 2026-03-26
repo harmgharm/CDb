@@ -7,6 +7,7 @@ import type { RecommendationReason } from "@/types/recommendation-responses";
 const TAG_STYLES: Record<string, string> = {
   "Top genre": "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20",
   "Top director": "bg-purple-500/10 text-purple-500 hover:bg-purple-500/20",
+  "Featured cast": "bg-violet-500/10 text-violet-500 hover:bg-violet-500/20",
   "Similar taste": "bg-green-500/10 text-green-500 hover:bg-green-500/20",
   "Shared taste": "bg-green-500/10 text-green-500 hover:bg-green-500/20",
   "TMDB suggests": "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20",
