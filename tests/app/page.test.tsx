@@ -33,27 +33,61 @@ vi.mock("motion/react-client", async (importOriginal) => {
   return mocked;
 });
 
+// Mock motion/react to avoid animation internals in tests
+vi.mock("motion/react", () => ({
+  animate: vi.fn(() => ({ stop: vi.fn() })),
+  useMotionValue: vi.fn(() => ({
+    on: vi.fn(() => vi.fn()),
+  })),
+  useTransform: vi.fn(() => ({
+    on: vi.fn(() => vi.fn()),
+  })),
+}));
+
+const MOCK_PUBLIC_STATS = {
+  mediaWatched: { movie: 10, tv: 5, anime: 3 },
+  totalSessions: 18,
+  totalRatings: 36,
+  memberCount: 4,
+  hoursWatched: 52,
+  avgRating: 7.2,
+  mostWatchedGenre: "Drama",
+  recentMedia: [],
+  topMedia: [],
+};
+
 describe("HomePage", () => {
   beforeEach(() => {
-    // Mock fetch to simulate unauthenticated user with no public stats
+    // Mock fetch: 401 for auth, valid stats for public endpoint
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: () => ({ data: null, error: "Unauthorized", message: null }),
+      vi.fn().mockImplementation((url: string) => {
+        if (url === "/api/stats/public") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ data: MOCK_PUBLIC_STATS, error: null, message: null }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ data: null, error: "Unauthorized", message: null }),
+        });
       }),
     );
   });
 
-  it("renders the heading", () => {
+  it("renders the heading", async () => {
     render(<HomePage />);
-    expect(screen.getByRole("heading", { name: /cinemadatabase/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /cdb/i })).toBeInTheDocument();
   });
 
-  it("renders the description", () => {
+  it("renders the description", async () => {
     render(<HomePage />);
-    expect(screen.getByText(/track movies, anime, and tv shows with friends/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/track movies, anime, and tv shows with friends/i),
+    ).toBeInTheDocument();
   });
 
   it("renders login and signup buttons", () => {
