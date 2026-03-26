@@ -47,6 +47,12 @@ interface DirectorScore {
   count: number;
 }
 
+interface CastScore {
+  actor: string;
+  avgRating: number;
+  count: number;
+}
+
 /**
  * Compute content-based recommendations for a user.
  * Requires the user to have at least 5 ratings for meaningful results.
@@ -60,7 +66,14 @@ export async function computeContentRecommendations(
     .selectFrom("ratings")
     .innerJoin("watch_sessions", "watch_sessions.id", "ratings.session_id")
     .innerJoin("media", "media.id", "watch_sessions.media_id")
-    .select(["media.id", "media.genres", "media.directors", "media.type", "ratings.score"])
+    .select([
+      "media.id",
+      "media.genres",
+      "media.directors",
+      "media.top_cast",
+      "media.type",
+      "ratings.score",
+    ])
     .where("ratings.user_id", "=", userId)
     .execute();
 
@@ -69,6 +82,7 @@ export async function computeContentRecommendations(
   // 2. Compute genre and director scores
   const genreScores = computeGenreScores(ratedMedia);
   const directorScores = computeDirectorScores(ratedMedia);
+  const castScores = computeCastScores(ratedMedia);
 
   // Top genres (avg >= 7.0) — widened to 5 to avoid genre lock-in
   const topGenres = genreScores
@@ -80,6 +94,11 @@ export async function computeContentRecommendations(
     .filter((d) => d.avgRating >= 7.5)
     .toSorted((a, b) => b.avgRating - a.avgRating)
     .slice(0, 3);
+
+  const topCast = castScores
+    .filter((c) => c.avgRating >= 7.5 && c.count >= 2)
+    .toSorted((a, b) => b.avgRating - a.avgRating)
+    .slice(0, 5);
 
   // 3. Get watched IDs for exclusion
   const [watchedIds, dismissedIds, animeTitles] = await Promise.all([
@@ -98,7 +117,11 @@ export async function computeContentRecommendations(
   const directorResults = await fetchDirectorBasedResults(topDirectors, watched, userId);
   results.push(...directorResults);
 
-  // 6. Deduplicate and ensure each media type has up to 20 items for type filtering
+  // 6. Cast-based DB scan (zero API calls)
+  const castResults = await fetchCastBasedResults(topCast, watched, userId);
+  results.push(...castResults);
+
+  // 7. Deduplicate and ensure each media type has up to 20 items for type filtering
   return deduplicateAndSlice(results, limit);
 }
 
@@ -148,6 +171,32 @@ function computeDirectorScores(
 
   return [...directorMap.entries()].map(([director, data]) => ({
     director,
+    avgRating: Math.round((data.total / data.count) * 10) / 10,
+    count: data.count,
+  }));
+}
+
+function computeCastScores(
+  ratedMedia: {
+    top_cast: { name: string }[] | null;
+    score: string;
+  }[],
+): CastScore[] {
+  const castMap = new Map<string, { total: number; count: number }>();
+
+  for (const item of ratedMedia) {
+    if (item.top_cast === null) continue;
+    const score = Number(item.score);
+    for (const member of item.top_cast) {
+      const existing = castMap.get(member.name) ?? { total: 0, count: 0 };
+      existing.total += score;
+      existing.count += 1;
+      castMap.set(member.name, existing);
+    }
+  }
+
+  return [...castMap.entries()].map(([actor, data]) => ({
+    actor,
     avgRating: Math.round((data.total / data.count) * 10) / 10,
     count: data.count,
   }));
@@ -377,6 +426,67 @@ async function fetchDirectorBasedResults(
           {
             tag: "Top director",
             detail: `You rated ${directorScore.director} films ${String(directorScore.avgRating)} avg`,
+          },
+        ],
+      });
+    }
+  }
+
+  return results;
+}
+
+async function fetchCastBasedResults(
+  topCast: CastScore[],
+  watched: WatchedIds,
+  userId: string,
+): Promise<RecommendationItem[]> {
+  if (topCast.length === 0) return [];
+
+  const results: RecommendationItem[] = [];
+
+  const attendedMediaIds = await db
+    .selectFrom("session_attendees")
+    .innerJoin("watch_sessions", "watch_sessions.id", "session_attendees.session_id")
+    .select("watch_sessions.media_id")
+    .where("session_attendees.user_id", "=", userId)
+    .execute();
+
+  const watchedMediaIds = new Set(attendedMediaIds.map((r) => r.media_id));
+
+  for (const castScore of topCast) {
+    const media = await db
+      .selectFrom("media")
+      .selectAll()
+      .where(
+        sql<boolean>`EXISTS (SELECT 1 FROM jsonb_array_elements(media.top_cast) AS c WHERE c->>'name' = ${castScore.actor})`,
+      )
+      .execute();
+
+    for (const item of media) {
+      if (watchedMediaIds.has(item.id)) continue;
+      if (isAlreadyWatched(watched, { mediaId: item.id })) continue;
+
+      const castMatchScore = castScore.avgRating / 10;
+      const voteScore = (item.tmdb_rating ?? item.mal_score ?? 0) / 10;
+      const combinedScore = 0.5 * castMatchScore + 0.5 * voteScore;
+
+      results.push({
+        mediaId: item.id,
+        tmdbId: item.tmdb_id,
+        malId: item.mal_id,
+        title: item.title,
+        posterUrl: item.poster_url,
+        mediaType: item.type,
+        overview: item.synopsis,
+        releaseYear: item.release_year,
+        voteAverage: item.tmdb_rating ?? item.mal_score,
+        genres: item.genres,
+        score: Math.round(combinedScore * 1000) / 1000,
+        recType: "content",
+        reasons: [
+          {
+            tag: "Featured cast",
+            detail: `Features ${castScore.actor} (${String(castScore.avgRating)} avg)`,
           },
         ],
       });
