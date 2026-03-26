@@ -6,13 +6,7 @@
  */
 
 import { getAnimeDetails } from "@/lib/api/jikan";
-import {
-  findTrailerKey,
-  getMovieCredits,
-  getMovieDetails,
-  getTvDetails,
-  tmdbImageUrl,
-} from "@/lib/api/tmdb";
+import { findTrailerKey, getMovieDetails, getTvDetails, tmdbImageUrl } from "@/lib/api/tmdb";
 import { db } from "@/lib/db";
 import type { PredictionRequestInput } from "@/lib/validations/predictions";
 
@@ -68,6 +62,7 @@ async function findInDatabase(input: PredictionRequestInput): Promise<ResolvedMe
       "tmdb_rating",
       "mal_score",
       "trailer_key",
+      "top_cast",
     ]);
 
   if (input.mediaId !== undefined) {
@@ -93,6 +88,7 @@ async function findInDatabase(input: PredictionRequestInput): Promise<ResolvedMe
     releaseYear: row.release_year,
     genres: row.genres,
     directors: row.directors ?? [],
+    cast: (row.top_cast)?.map((c) => c.name) ?? [],
     overview: row.synopsis,
     runtimeMinutes: row.runtime_minutes,
     episodeCount: row.episode_count,
@@ -106,12 +102,16 @@ async function resolveFromTmdb(
   mediaType: "movie" | "tv" | "anime",
 ): Promise<ResolvedMedia> {
   if (mediaType === "movie") {
-    const [details, credits] = await Promise.all([
-      getMovieDetails(tmdbId),
-      getMovieCredits(tmdbId),
-    ]);
+    const details = await getMovieDetails(tmdbId);
 
-    const directors = credits.crew.filter((c) => c.job === "Director").map((c) => c.name);
+    const directors = (details.credits?.crew ?? [])
+      .filter((c) => c.job === "Director")
+      .map((c) => c.name);
+    const cast =
+      details.credits?.cast
+        .toSorted((a, b) => a.order - b.order)
+        .slice(0, 8)
+        .map((c) => c.name) ?? [];
     const trailerKey = details.videos ? findTrailerKey(details.videos.results) : null;
 
     return {
@@ -125,6 +125,7 @@ async function resolveFromTmdb(
         details.release_date.length > 0 ? Number(details.release_date.slice(0, 4)) : null,
       genres: details.genres.map((g) => g.name),
       directors,
+      cast,
       overview: details.overview,
       runtimeMinutes: details.runtime,
       episodeCount: null,
@@ -136,6 +137,11 @@ async function resolveFromTmdb(
   // TV or anime-on-TMDB
   const details = await getTvDetails(tmdbId);
   const creators = details.created_by.map((c) => c.name);
+  const cast =
+    details.credits?.cast
+      .toSorted((a, b) => a.order - b.order)
+      .slice(0, 8)
+      .map((c) => c.name) ?? [];
   const trailerKey = details.videos ? findTrailerKey(details.videos.results) : null;
 
   return {
@@ -149,6 +155,7 @@ async function resolveFromTmdb(
       details.first_air_date.length > 0 ? Number(details.first_air_date.slice(0, 4)) : null,
     genres: details.genres.map((g) => g.name),
     directors: creators,
+    cast,
     overview: details.overview,
     runtimeMinutes:
       details.episode_run_time.length > 0 ? (details.episode_run_time[0] ?? null) : null,
@@ -172,6 +179,7 @@ async function resolveFromJikan(malId: number): Promise<ResolvedMedia> {
     releaseYear: anime.year,
     genres: anime.genres.map((g) => g.name),
     directors: [],
+    cast: [],
     overview: anime.synopsis,
     runtimeMinutes: null,
     episodeCount: anime.episodes,

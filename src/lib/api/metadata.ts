@@ -9,12 +9,12 @@ import {
   findTrailerKey,
   findUsCertification,
   findUsContentRating,
-  getMovieCredits,
   getMovieDetails,
   getTvDetails,
   getTvExternalIds,
   tmdbImageUrl,
 } from "@/lib/api/tmdb";
+import type { CastMember } from "@/lib/db/types";
 
 export interface MediaMetadata {
   title: string;
@@ -41,6 +41,7 @@ export interface MediaMetadata {
   budget: number | null;
   revenue: number | null;
   studios: string[] | null;
+  topCast: CastMember[] | null;
 }
 
 function parseYear(dateString: string): number | null {
@@ -59,10 +60,27 @@ function extractYoutubeKey(embedUrl: string | null): string | null {
   return match?.[1] ?? null;
 }
 
-export async function fetchMovieMetadata(tmdbId: number): Promise<MediaMetadata> {
-  const [movie, credits] = await Promise.all([getMovieDetails(tmdbId), getMovieCredits(tmdbId)]);
+function extractTopCast(
+  cast:
+    | { id: number; name: string; character: string; order: number; profile_path: string | null }[]
+    | undefined,
+): CastMember[] | null {
+  if (cast === undefined || cast.length === 0) return null;
+  return cast
+    .toSorted((a, b) => a.order - b.order)
+    .slice(0, 8)
+    .map((member) => ({
+      id: member.id,
+      name: member.name,
+      character: member.character,
+      profilePath: member.profile_path,
+    }));
+}
 
-  const directors = credits.crew
+export async function fetchMovieMetadata(tmdbId: number): Promise<MediaMetadata> {
+  const movie = await getMovieDetails(tmdbId);
+
+  const directors = (movie.credits?.crew ?? [])
     .filter((member) => member.job === "Director")
     .map((member) => member.name);
 
@@ -92,6 +110,7 @@ export async function fetchMovieMetadata(tmdbId: number): Promise<MediaMetadata>
     revenue: movie.revenue > 0 ? movie.revenue : null,
     studios:
       movie.production_companies.length > 0 ? movie.production_companies.map((c) => c.name) : null,
+    topCast: extractTopCast(movie.credits?.cast),
   };
 }
 
@@ -126,6 +145,7 @@ export async function fetchTvMetadata(tmdbId: number): Promise<MediaMetadata> {
     revenue: null,
     studios:
       show.production_companies.length > 0 ? show.production_companies.map((c) => c.name) : null,
+    topCast: extractTopCast(show.credits?.cast),
   };
 }
 
@@ -157,6 +177,7 @@ export async function fetchAnimeMetadata(malId: number): Promise<MediaMetadata> 
     budget: null,
     revenue: null,
     studios: anime.studios.length > 0 ? anime.studios.map((s) => s.name) : null,
+    topCast: null,
   };
 }
 
@@ -187,5 +208,6 @@ export function metadataToDbFields(metadata: MediaMetadata): Record<string, unkn
     budget: metadata.budget,
     revenue: metadata.revenue,
     studios: metadata.studios === null ? null : JSON.stringify(metadata.studios),
+    top_cast: metadata.topCast === null ? null : JSON.stringify(metadata.topCast),
   };
 }

@@ -22,6 +22,7 @@ function makeMedia(overrides: Partial<ResolvedMedia> = {}): ResolvedMedia {
     releaseYear: 2020,
     genres: ["Action", "Drama"],
     directors: ["Christopher Nolan"],
+    cast: [],
     overview: null,
     runtimeMinutes: 148,
     episodeCount: null,

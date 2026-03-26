@@ -15,6 +15,7 @@ export interface ResolvedMedia {
   releaseYear: number | null;
   genres: string[];
   directors: string[];
+  cast: string[];
   overview: string | null;
   runtimeMinutes: number | null;
   episodeCount: number | null;

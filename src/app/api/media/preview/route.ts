@@ -7,7 +7,7 @@
 
 import { getAnimeDetails } from "@/lib/api/jikan";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { findTrailerKey, getMovieCredits, getMovieDetails, getTvDetails } from "@/lib/api/tmdb";
+import { findTrailerKey, getMovieDetails, getTvDetails } from "@/lib/api/tmdb";
 import { requireAuth } from "@/lib/auth";
 import type { MediaPreviewDetail } from "@/types/media";
 
@@ -27,13 +27,14 @@ function extractDirector(credits: { crew: { job: string; name: string }[] }): st
 }
 
 async function fetchMoviePreview(tmdbId: number): Promise<MediaPreviewDetail> {
-  const [details, credits] = await Promise.all([getMovieDetails(tmdbId), getMovieCredits(tmdbId)]);
+  const details = await getMovieDetails(tmdbId);
+  const crew = details.credits?.crew ?? [];
 
   return {
     runtime: details.runtime,
     episodeCount: null,
     seasonCount: null,
-    director: extractDirector(credits),
+    director: extractDirector({ crew }),
     creator: null,
     studios: details.production_companies.map((c) => c.name),
     status: details.status,
