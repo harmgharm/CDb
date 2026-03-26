@@ -8,7 +8,6 @@
 import { env } from "@/lib/env";
 import type {
   TmdbContentRatingsResponse,
-  TmdbCreditsResponse,
   TmdbExternalIds,
   TmdbMovieDetail,
   TmdbMovieSearchResult,
@@ -70,14 +69,14 @@ export async function searchTv(
 export async function getMovieDetails(tmdbId: number): Promise<TmdbMovieDetail> {
   return tmdbFetch(`/movie/${tmdbId.toString()}`, {
     language: "en-US",
-    append_to_response: "videos,release_dates",
+    append_to_response: "videos,release_dates,credits",
   });
 }
 
 export async function getTvDetails(tmdbId: number): Promise<TmdbTvDetail> {
   return tmdbFetch(`/tv/${tmdbId.toString()}`, {
     language: "en-US",
-    append_to_response: "videos,content_ratings",
+    append_to_response: "videos,content_ratings,credits",
   });
 }
 
@@ -114,10 +113,6 @@ export function findUsCertification(releaseDates: TmdbReleaseDatesResponse): str
 export function findUsContentRating(contentRatings: TmdbContentRatingsResponse): string | null {
   const usEntry = contentRatings.results.find((r) => r.iso_3166_1 === "US");
   return usEntry?.rating ?? null;
-}
-
-export async function getMovieCredits(tmdbId: number): Promise<TmdbCreditsResponse> {
-  return tmdbFetch(`/movie/${tmdbId.toString()}/credits`, { language: "en-US" });
 }
 
 export async function getTvExternalIds(tmdbId: number): Promise<TmdbExternalIds> {
