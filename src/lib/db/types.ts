@@ -87,6 +87,14 @@ export interface TimestampColumns {
 /** ColumnType helper for JSONB fields */
 export type JsonColumn<T> = ColumnType<T, string | T, string | T>;
 
+/** Cast member stored in media.top_cast JSONB */
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profilePath: string | null;
+}
+
 // ============================================
 // TABLES
 // ============================================
@@ -136,6 +144,7 @@ export interface MediaTable extends TimestampColumns {
   budget: ColumnType<string, number | bigint, number | bigint> | null;
   revenue: ColumnType<string, number | bigint, number | bigint> | null;
   studios: JsonColumn<string[]> | null;
+  top_cast: JsonColumn<CastMember[]> | null;
 }
 
 export type Media = Selectable<MediaTable>;
