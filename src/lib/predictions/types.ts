@@ -42,6 +42,7 @@ export interface UserAffinityData {
   decadeScores: Map<number, AffinityEntry>;
   formatScores: Map<MediaType, AffinityEntry>;
   runtimeBucketScores: Map<string, AffinityEntry>;
+  castScores: Map<string, AffinityEntry>;
   overallAvg: number;
   ratingCount: number;
 }

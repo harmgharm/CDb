@@ -36,6 +36,7 @@ function makeAffinity(overrides: Partial<UserAffinityData> = {}): UserAffinityDa
   return {
     genreScores: new Map(),
     directorScores: new Map(),
+    castScores: new Map(),
     decadeScores: new Map(),
     formatScores: new Map(),
     runtimeBucketScores: new Map(),

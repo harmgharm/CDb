@@ -8,7 +8,7 @@
 import { sql } from "kysely";
 
 import { db } from "@/lib/db";
-import type { MediaType } from "@/lib/db/types";
+import type { CastMember, MediaType } from "@/lib/db/types";
 
 import type { AffinityEntry, UserAffinityData } from "./types";
 
@@ -19,6 +19,7 @@ interface RatingRow {
   runtime_minutes: number | null;
   genres: string[];
   directors: string[] | null;
+  top_cast: CastMember[] | null;
 }
 
 export function toDecade(year: number): number {
@@ -48,6 +49,7 @@ export function processRow(
   maps: {
     genre: Map<string, AffinityEntry>;
     director: Map<string, AffinityEntry>;
+    cast: Map<string, AffinityEntry>;
     decade: Map<number, AffinityEntry>;
     format: Map<MediaType, AffinityEntry>;
     runtime: Map<string, AffinityEntry>;
@@ -60,6 +62,12 @@ export function processRow(
   if (row.directors !== null) {
     for (const director of row.directors) {
       addToAffinityMap(maps.director, director, score);
+    }
+  }
+
+  if (row.top_cast !== null) {
+    for (const member of row.top_cast) {
+      addToAffinityMap(maps.cast, member.name, score);
     }
   }
 
@@ -86,7 +94,8 @@ export async function loadUserAffinity(userId: string): Promise<UserAffinityData
       m.release_year,
       m.runtime_minutes,
       m.genres,
-      m.directors
+      m.directors,
+      m.top_cast
     FROM ratings r
     JOIN watch_sessions ws ON ws.id = r.session_id
     JOIN media m ON m.id = ws.media_id
@@ -96,6 +105,7 @@ export async function loadUserAffinity(userId: string): Promise<UserAffinityData
   const maps = {
     genre: new Map<string, AffinityEntry>(),
     director: new Map<string, AffinityEntry>(),
+    cast: new Map<string, AffinityEntry>(),
     decade: new Map<number, AffinityEntry>(),
     format: new Map<MediaType, AffinityEntry>(),
     runtime: new Map<string, AffinityEntry>(),
@@ -113,6 +123,7 @@ export async function loadUserAffinity(userId: string): Promise<UserAffinityData
   return {
     genreScores: maps.genre,
     directorScores: maps.director,
+    castScores: maps.cast,
     decadeScores: maps.decade,
     formatScores: maps.format,
     runtimeBucketScores: maps.runtime,
