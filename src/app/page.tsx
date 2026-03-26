@@ -314,7 +314,7 @@ function TopRatedRow({ stats }: TopRatedRowProps) {
       >
         Top Rated by the Group
       </motion.h2>
-      <div className="flex justify-center gap-4">
+      <div className="flex gap-4 overflow-x-auto pb-2 sm:justify-center sm:overflow-x-visible">
         {stats.topMedia.map((media, index) => (
           <motion.div
             key={media.id}

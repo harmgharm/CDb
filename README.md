@@ -1,4 +1,4 @@
-# CinemaDatabase (CDB)
+# Cinema Database (CDb)
 
 A movie, anime, and TV show tracking app for a group of friends who watch together. Log what you've
 watched, who picked it, rate everything, and see how your tastes compare.
