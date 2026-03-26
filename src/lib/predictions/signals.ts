@@ -226,6 +226,43 @@ export function computeDirectorSignal(
 }
 
 // ============================================
+// 3b. Cast Signal (weight: 0.05)
+// ============================================
+
+/**
+ * Predict based on user's cast preferences.
+ * Uses the best matching actor's average.
+ */
+export function computeCastSignal(affinity: UserAffinityData, media: ResolvedMedia): SignalResult {
+  if (media.cast.length === 0) {
+    return { score: null, weight: 0, detail: "No cast data available" };
+  }
+
+  let bestMatch: { actor: string; avg: number; count: number } | null = null;
+
+  for (const actor of media.cast) {
+    const entry = affinity.castScores.get(actor);
+    if (entry !== undefined && (bestMatch === null || entry.count > bestMatch.count)) {
+      bestMatch = { actor, avg: entry.avg, count: entry.count };
+    }
+  }
+
+  if (bestMatch === null) {
+    const castNames = media.cast.slice(0, 2).join(", ");
+    return {
+      score: null,
+      weight: 0,
+      detail: `You haven't rated other work by ${castNames}`,
+    };
+  }
+
+  const countLabel = bestMatch.count === 1 ? "title" : "titles";
+  const detail = `You rate films with ${bestMatch.actor} ${String(Math.round(bestMatch.avg * 10) / 10)} avg (${String(bestMatch.count)} ${countLabel})`;
+
+  return { score: Math.round(bestMatch.avg * 10) / 10, weight: 0.05, detail };
+}
+
+// ============================================
 // 4. External Rating Signal (weight: 0.10)
 // ============================================
 
