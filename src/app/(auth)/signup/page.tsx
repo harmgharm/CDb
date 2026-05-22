@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
 import type { ApiResponse } from "@/lib/api/response";
 import type { SafeUser } from "@/types/auth";
 
 export default function SignupPage() {
+  useRedirectIfAuthenticated("/home");
+
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

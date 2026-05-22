@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
 import type { ApiResponse } from "@/lib/api/response";
 import type { SafeUser } from "@/types/auth";
 
@@ -22,6 +23,8 @@ export default function LoginPage() {
 function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/home";
+
+  useRedirectIfAuthenticated(callbackUrl);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
