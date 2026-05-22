@@ -3,6 +3,9 @@
 # superpowers brainstorming
 .superpowers/
 
+# design system workspace
+/CDb Design System/
+
 # dependencies
 /node_modules
 /.pnp
