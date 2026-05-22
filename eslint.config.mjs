@@ -31,7 +31,7 @@ export default defineConfig([
   prettierConfig,
 
   // Global ignores
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "CDb Design System/**"]),
 
   // Disable type-checked rules for root config files
   {
