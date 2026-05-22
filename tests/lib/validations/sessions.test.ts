@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSessionSchema, ratingSchema } from "@/lib/validations/sessions";
+import { createSessionSchema, ratingSchema, updateRatingSchema } from "@/lib/validations/sessions";
 
 describe("createSessionSchema", () => {
   const validSession = {
@@ -125,8 +125,37 @@ describe("ratingSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts null review to clear it", () => {
+    const result = ratingSchema.safeParse({ ...validRating, review: null });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects invalid session UUID", () => {
     const result = ratingSchema.safeParse({ ...validRating, sessionId: "bad-id" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateRatingSchema", () => {
+  it("accepts null review to clear an existing review", () => {
+    const result = updateRatingSchema.safeParse({ review: null });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.review).toBeNull();
+  });
+
+  it("accepts a review string", () => {
+    const result = updateRatingSchema.safeParse({ review: "Updated thoughts" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts score-only updates", () => {
+    const result = updateRatingSchema.safeParse({ score: 9 });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects review over 1000 chars", () => {
+    const result = updateRatingSchema.safeParse({ review: "a".repeat(1001) });
     expect(result.success).toBe(false);
   });
 });

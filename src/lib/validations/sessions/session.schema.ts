@@ -45,7 +45,7 @@ export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 export const ratingSchema = z.object({
   sessionId: z.uuid("Invalid session ID"),
   score: z.number().min(1, "Score must be at least 1").max(10, "Score must be at most 10"),
-  review: z.string().max(1000).optional(),
+  review: z.string().max(1000).nullable().optional(),
   userId: z.uuid("Invalid user ID").optional(),
 });
 
@@ -53,7 +53,7 @@ export type RatingInput = z.infer<typeof ratingSchema>;
 
 export const updateRatingSchema = z.object({
   score: z.number().min(1).max(10).optional(),
-  review: z.string().max(1000).optional(),
+  review: z.string().max(1000).nullable().optional(),
 });
 
 export type UpdateRatingInput = z.infer<typeof updateRatingSchema>;

@@ -235,7 +235,10 @@ export function useUpdateRating() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const updateRating = useCallback(
-    async (ratingId: string, data: { score?: number; review?: string }): Promise<boolean> => {
+    async (
+      ratingId: string,
+      data: { score?: number; review?: string | null },
+    ): Promise<boolean> => {
       setIsUpdating(true);
       try {
         const response = await fetchWithAuth(`/api/ratings/${ratingId}`, {

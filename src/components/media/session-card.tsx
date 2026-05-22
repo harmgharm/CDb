@@ -71,7 +71,7 @@ function EditRatingDialog({ open, onOpenChange, rating, onSaved }: EditRatingDia
   async function handleSave() {
     const success = await updateRating(rating.id, {
       score,
-      review: review.length > 0 ? review : undefined,
+      review: review.length > 0 ? review : null,
     });
     if (success) {
       toast.success("Rating updated");
