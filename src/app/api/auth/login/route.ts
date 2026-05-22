@@ -64,6 +64,14 @@ export async function POST(req: NextRequest) {
   // Clear rate limit on successful login
   loginLimiter.reset(ip);
 
+  void logAudit({
+    userId: user.id,
+    action: "user.login_succeeded",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { ip, identifier, userAgent: req.headers.get("user-agent") ?? "unknown" },
+  });
+
   // Create tokens
   const accessToken = await signAccessToken({ userId: user.id, role: user.role });
   const { jwt: refreshJwt } = await createRefreshToken(user.id);

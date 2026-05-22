@@ -43,6 +43,7 @@ const ACTION_OPTIONS = [
   { value: "invite.created", label: "Invite Created" },
   { value: "invite.used", label: "Invite Used" },
   { value: "user.password_reset", label: "Password Reset" },
+  { value: "user.login_succeeded", label: "Login Succeeded" },
   { value: "user.login_failed", label: "Login Failed" },
 ];
 
@@ -77,6 +78,7 @@ const ACTION_COLORS: Record<string, string> = {
   // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- key name, not a password
   password_reset: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   login_failed: "bg-red-500/10 text-red-500 border-red-500/20",
+  login_succeeded: "bg-green-500/10 text-green-500 border-green-500/20",
 };
 
 function ActionBadge({ action }: Readonly<{ action: string }>) {

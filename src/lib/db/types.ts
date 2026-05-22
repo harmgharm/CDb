@@ -66,6 +66,7 @@ export type AuditAction =
   | "game.lobby_closed"
   | "game.invited"
   | "user.password_reset"
+  | "user.login_succeeded"
   | "user.login_failed";
 
 // ============================================
