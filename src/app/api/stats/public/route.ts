@@ -44,7 +44,7 @@ export async function GET() {
       .limit(8)
       .execute(),
 
-    // Highest rated media (public-safe, expanded to 5)
+    // Highest rated media (public-safe, top 6 — matches design system kit)
     db
       .selectFrom("ratings")
       .innerJoin("watch_sessions", "watch_sessions.id", "ratings.session_id")
@@ -60,7 +60,7 @@ export async function GET() {
       .groupBy(["media.id", "media.title", "media.type", "media.poster_url"])
       .having(db.fn.countAll(), ">=", 2)
       .orderBy("avg_score", "desc")
-      .limit(5)
+      .limit(6)
       .execute(),
 
     fetchHoursWatched(),
