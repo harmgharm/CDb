@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ClapperboardIcon,
   DatabaseIcon,
   Gamepad2Icon,
   HomeIcon,
@@ -18,8 +17,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 
+import { Wordmark } from "@/components/branding/wordmark";
 import { OnlineUsersSection } from "@/components/online-users";
 import { useAuth } from "@/components/providers/auth-provider";
+import { UpNextCard } from "@/components/sidebar/up-next-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -87,24 +88,17 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/home">
-                <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
-                  <ClapperboardIcon className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">CinemaDB</span>
-                  <span className="text-muted-foreground truncate text-xs">Movie tracker</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <Link
+          href="/home"
+          className="hover:bg-sidebar-accent flex flex-col gap-0.5 rounded-md px-2 py-1.5 transition-colors group-data-[collapsible=icon]:hidden"
+        >
+          <Wordmark size="sm" />
+          <span className="text-muted-foreground text-xs">A cinema database for friends.</span>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>
+        <UpNextCard />
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
