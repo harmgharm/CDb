@@ -38,8 +38,8 @@ function OnlineUsersList() {
 
   return (
     <div className="px-3 py-2">
-      <p className="text-muted-foreground mb-2 text-xs font-medium">
-        Online ({onlineUsers.length})
+      <p className="text-muted-foreground mb-2 text-[10px] font-semibold tracking-wider uppercase">
+        Online
       </p>
       <TooltipProvider delayDuration={200}>
         <div className="flex items-center -space-x-1.5">
@@ -56,7 +56,7 @@ function OnlineUsersList() {
                       {getInitials(user.displayName, user.username)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="border-sidebar absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 bg-emerald-500" />
+                  <div className="bg-cdb-success border-sidebar absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2" />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
