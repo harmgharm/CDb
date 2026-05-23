@@ -42,6 +42,7 @@ vi.mock("motion/react", () => ({
   useTransform: vi.fn(() => ({
     on: vi.fn(() => vi.fn()),
   })),
+  useReducedMotion: vi.fn(() => false),
 }));
 
 const MOCK_PUBLIC_STATS = {
@@ -85,14 +86,12 @@ describe("HomePage", () => {
 
   it("renders the description", async () => {
     render(<HomePage />);
-    expect(
-      await screen.findByText(/track movies, anime, and tv shows with friends/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/movie nights, logged/i)).toBeInTheDocument();
   });
 
-  it("renders login and signup buttons", () => {
+  it("renders login and signup buttons", async () => {
     render(<HomePage />);
-    expect(screen.getByRole("link", { name: /log in/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign up/i })).toBeInTheDocument();
+    expect(await screen.findAllByRole("link", { name: /log in/i })).not.toHaveLength(0);
+    expect(await screen.findAllByRole("link", { name: /sign up/i })).not.toHaveLength(0);
   });
 });
