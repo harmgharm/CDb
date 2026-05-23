@@ -5,11 +5,11 @@ const STATUS_CONFIG: Record<WatchlistStatus, { label: string; className: string 
   planning: { label: "Planning", className: "" },
   watching: {
     label: "Watching",
-    className: "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20",
+    className: "bg-cdb-info/10 text-cdb-info hover:bg-cdb-info/20",
   },
   scrapped: {
     label: "Scrapped",
-    className: "bg-red-500/10 text-red-500 hover:bg-red-500/20",
+    className: "text-muted-foreground",
   },
 };
 
