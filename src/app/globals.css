@@ -165,6 +165,7 @@
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
+  --dur-pulse: 1800ms;
 
   /* ============================================================
      shadcn semantic bridge — re-points to CDb foundation tokens.
@@ -302,4 +303,27 @@
 
 @utility animate-ticker {
   animation: ticker 30s linear infinite;
+}
+
+@keyframes up-next-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@utility animate-up-next-pulse {
+  animation: up-next-pulse var(--dur-pulse) var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-up-next-pulse {
+    animation: none;
+    opacity: 1;
+  }
 }
