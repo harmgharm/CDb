@@ -12,6 +12,7 @@ export interface UserListItem {
   avatar_url: string | null;
   role: UserRole;
   created_at: string;
+  tagline: string;
 }
 
 /** User profile from GET /api/users/[id] */

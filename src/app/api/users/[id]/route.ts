@@ -8,6 +8,8 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
+import { fetchTaglineInputs } from "@/lib/users/stats";
+import { deriveTagline } from "@/lib/users/tagline";
 import { updateProfileSchema } from "@/lib/validations/users";
 
 interface RouteParams {
@@ -71,34 +73,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("User not found", 404);
   }
 
-  // Basic stats
-  const sessionCount = await db
-    .selectFrom("session_attendees")
-    .select(db.fn.countAll().as("count"))
-    .where("user_id", "=", id)
-    .executeTakeFirstOrThrow();
-
-  const ratingStats = await db
-    .selectFrom("ratings")
-    .select([db.fn.countAll().as("count"), db.fn.avg("score").as("avg_score")])
-    .where("user_id", "=", id)
-    .executeTakeFirstOrThrow();
-
-  const pickCount = await db
-    .selectFrom("watch_sessions")
-    .select(db.fn.countAll().as("count"))
-    .where("picked_by_user_id", "=", id)
-    .executeTakeFirstOrThrow();
+  const taglineInputs = await fetchTaglineInputs(id, user.created_at);
 
   return successResponse({
     ...user,
     stats: {
-      sessionsAttended: Number(sessionCount.count),
-      ratingsGiven: Number(ratingStats.count),
-      avgScore:
-        Number(ratingStats.count) > 0 ? Math.round(Number(ratingStats.avg_score) * 10) / 10 : null,
-      pickCount: Number(pickCount.count),
+      sessionsAttended: taglineInputs.sessionsAttended,
+      ratingsGiven: taglineInputs.ratingsGiven,
+      avgScore: taglineInputs.ratingsGiven > 0 ? taglineInputs.avgScore : null,
+      pickCount: taglineInputs.pickCount,
     },
+    tagline: deriveTagline(taglineInputs),
   });
 }
 

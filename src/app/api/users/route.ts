@@ -5,6 +5,8 @@
 import { successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fetchTaglineInputsBatch } from "@/lib/users/stats";
+import { deriveTagline } from "@/lib/users/tagline";
 
 export async function GET() {
   await requireAuth();
@@ -15,5 +17,15 @@ export async function GET() {
     .orderBy("username", "asc")
     .execute();
 
-  return successResponse(users);
+  const taglineInputs = await fetchTaglineInputsBatch(users);
+
+  return successResponse(
+    users.map((u) => {
+      const inputs = taglineInputs.get(u.id);
+      return {
+        ...u,
+        tagline: inputs === undefined ? "Watching along." : deriveTagline(inputs),
+      };
+    }),
+  );
 }
