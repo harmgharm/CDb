@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
@@ -62,63 +61,68 @@ function LoginForm() {
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to CinemaDatabase</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          onSubmit={(event) => {
-            void handleSubmit(event);
-          }}
-          className="space-y-4"
-        >
-          {error.length > 0 && (
-            <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">{error}</div>
-          )}
+    <div className="flex flex-col gap-4">
+      <p className="text-muted-foreground text-[11px] font-medium tracking-[0.18em] uppercase">
+        Welcome back
+      </p>
+      <h1 className="font-display text-[clamp(40px,6vw,56px)] leading-[1.0] tracking-tight">
+        Welcome <em className="text-cdb-marquee italic">back</em>
+      </h1>
+      <p className="text-muted-foreground mt-1 text-sm">Pick up where you left off.</p>
 
-          <div className="space-y-2">
-            <Label htmlFor="identifier">Email or Username</Label>
-            <Input
-              id="identifier"
-              type="text"
-              placeholder="you@example.com or username"
-              value={identifier}
-              onChange={(event) => {
-                setIdentifier(event.target.value);
-              }}
-              required
-              autoComplete="username"
-            />
-          </div>
+      <form
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
+        className="mt-2 flex flex-col gap-4"
+      >
+        {error.length > 0 && (
+          <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">{error}</div>
+        )}
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-              }}
-              required
-              autoComplete="current-password"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="identifier">Email or username</Label>
+          <Input
+            id="identifier"
+            type="text"
+            placeholder="you@example.com or username"
+            value={identifier}
+            onChange={(event) => {
+              setIdentifier(event.target.value);
+            }}
+            required
+            autoComplete="username"
+          />
+        </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
-          </Button>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+            }}
+            required
+            autoComplete="current-password"
+          />
+        </div>
 
-          <p className="text-muted-foreground text-center text-sm">
-            Have an invite code?{" "}
-            <Link href="/signup" className="text-primary underline-offset-4 hover:underline">
-              Sign up
-            </Link>
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+        <Button type="submit" className="mt-2 w-full" disabled={loading}>
+          {loading ? "Signing in..." : "Log in"}
+        </Button>
+
+        <p className="text-muted-foreground text-center text-sm">
+          Have an invite code?{" "}
+          <Link
+            href="/signup"
+            className="text-cdb-marquee font-medium underline underline-offset-[3px]"
+          >
+            Sign up
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

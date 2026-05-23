@@ -2,11 +2,12 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-type WordmarkSize = "sm" | "md" | "lg";
+type WordmarkSize = "sm" | "md" | "lg" | "xl";
 
 const SIZE_CLASSES: Record<WordmarkSize, string> = {
   sm: "text-2xl",
   md: "text-5xl",
+  xl: "text-[clamp(56px,7vw,88px)]",
   lg: "text-[clamp(64px,12vw,144px)]",
 };
 
