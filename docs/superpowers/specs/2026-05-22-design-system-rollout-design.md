@@ -371,16 +371,35 @@ phase every existing component looks "new-but-rough" without any structural chan
 
 - Editorial header: dynamic "Tuesday at CDb" style (day of week + brand). Instrument Serif at
   page-title scale (44px).
-- New `<NowShowing>` component (`src/components/dashboard/now-showing.tsx`): latest 3 sessions
-  classified as rated / in-progress / upcoming.
-- Replace `<StatsOverview>` with a compact stat strip: single bordered card, 6 cells, divider lines.
-  Same data, different layout.
+- New `<NowShowing>` component (`src/components/dashboard/now-showing.tsx`): latest 2 sessions
+  classified as rated / in-progress. The upcoming session is intentionally NOT shown here. It lives
+  in the sidebar Up Next mini-card (shipped in Phase 1), so duplicating that poster moment on the
+  dashboard would be redundant. The editorial header subtitle surfaces the next session in copy
+  instead.
+- Replace `<StatsOverview>` with a compact stat strip: single bordered card, 7 cells (Group avg ·
+  Movies · TV · Anime · Sessions · Ratings · Hours), divider lines. Same data, different layout.
+  Ratings (total ratings logged) is restored as a cell from the old prod stats.
 - Activity feed stays utility (no editorial typography on rows).
 
 **Scope (out):**
 
 - Editorial primitives (none here — this is a dashboard, not a magazine spread).
 - New stats. Same data, restyled.
+- A standalone "Headline row" component. An early kit draft had one (Watch Streak / Highest Rated /
+  Most Divisive / Currently Airing); it was dissolved in the current design system and there is no
+  `headline-row.tsx` to build. See the decisions below.
+
+**No Headline row (resolved):**
+
+The kit's old top-level Headline row was cut and its contents redistributed. Pin these so we don't
+relitigate:
+
+- **Currently Airing** — cut. The app does not track airing status, so there is no data to surface.
+- **Highest Rated / Most Divisive** — cut from a top-level position. They duplicate the Ratings
+  sub-section that already lives inside the Deep Cuts tabs lower on the page.
+- **Watch Streak** — folded into the new `viewing-habits.tsx` card as its streak header (a 14-day
+  streak header sitting above the 7-day watch-pattern bar chart), not a separate hero card. This
+  card replaces the earlier standalone `watch-pattern.tsx` plan.
 
 **Constraints:**
 
@@ -391,8 +410,10 @@ phase every existing component looks "new-but-rough" without any structural chan
 **Acceptance criteria:**
 
 - [ ] Header shows day-of-week + "CDb" in Instrument Serif.
-- [ ] Now Showing card renders three latest sessions with correct classification.
-- [ ] Compact stat strip shows the same 5–6 numbers as before, dividers between cells.
+- [ ] Now Showing card renders the two latest rated / in-progress sessions with correct
+      classification (upcoming session is not shown here, it lives in the sidebar Up Next card).
+- [ ] Compact stat strip shows 7 cells (Group avg, Movies, TV, Anime, Sessions, Ratings, Hours),
+      dividers between cells.
 - [ ] Activity feed unchanged structurally; picks up new tokens.
 - [ ] Light mode: dashboard readable, no broken stats.
 
