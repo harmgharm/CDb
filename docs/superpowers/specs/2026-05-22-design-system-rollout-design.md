@@ -399,7 +399,9 @@ relitigate:
   sub-section that already lives inside the Deep Cuts tabs lower on the page.
 - **Watch Streak** — folded into the new `viewing-habits.tsx` card as its streak header (a 14-day
   streak header sitting above the 7-day watch-pattern bar chart), not a separate hero card. This
-  card replaces the earlier standalone `watch-pattern.tsx` plan.
+  card replaces the earlier standalone `watch-pattern.tsx` plan. The meta line label is **"Avg
+  start"** (the literal `avgStartTime` field), not the earlier cutesy "Lights down" — that label was
+  de-corned in the design system and "Lights down" no longer appears anywhere in the kit.
 
 **Constraints:**
 
@@ -542,6 +544,12 @@ the tagline utility from Phase 2.
   render an empty `<em>`).
 - Roster numbers are display-only — not stable IDs.
 - Online pill must reflect real Ably presence (already wired).
+- The profile page wrapper (`.cdb-up-page` in the kit) needs `overflow-x: clip`. The magazine-cover
+  header stacks full-bleed absolute layers including a `blur(80px)` backdrop, which bleeds a few px
+  of horizontal overflow and triggers a flickering horizontal scrollbar. This is a structural
+  consequence of the blurred-backdrop design, not a kit artifact, so it will reproduce in any
+  faithful build. Use `clip` (not `hidden`) so no scroll container is established that could break
+  sticky/anchored children.
 
 **Acceptance criteria:**
 
@@ -550,6 +558,8 @@ the tagline utility from Phase 2.
 - [ ] Profile header renders as magazine cover layout with 88px serif name.
 - [ ] Rating distribution highlights the user's average bar in marquee amber.
 - [ ] Online pill works for online and offline users.
+- [ ] No horizontal scrollbar / flicker on the profile page (`overflow-x: clip` applied to the page
+      wrapper).
 - [ ] Light mode: roster and profile remain legible.
 
 **Open questions:**
@@ -669,11 +679,67 @@ the tagline utility from Phase 2.
 
 ---
 
+### Phase 12 — Scheduling & Queue (new product feature, NOT a visual phase)
+
+**Status:** Parked. This is a real product feature, not part of the visual revamp. The design system
+already specs its UI (`.cdb-queue-*`, `.cdb-db-timeline` / `.cdb-tl-*`, `.cdb-imp-proposed`, the
+Propose button), so the visual layer is ready and waiting. Build the feature with its own
+brainstorming / schema design pass; the design comes "for free" once the data exists.
+
+This phase is intentionally sequenced **after** the visual rollout (Phases 0–11) finishes. The
+rollout's stated goal is a pure visual revamp; adding new product features is an explicit non-goal
+there. Surfaces that would eventually show queue data render the existing real-data fallback in the
+meantime (see below), so no screen ships looking unfinished. Do not wire mock/placeholder proposal
+data into the real app to populate the new design.
+
+**The three features (all designed in the kit, none built in the app):**
+
+- **Group queue with propose → vote → schedule.** A new dashboard section (`.cdb-queue-*` in the
+  kit). The group proposes titles, votes, and one gets scheduled. This is the data source the
+  sidebar Up Next card _would_ eventually read from.
+- **Timeline view in Database.** A third view toggle (grid / list / timeline) with
+  `.cdb-db-timeline` / `.cdb-tl-*` styling. Persist the last-used view in localStorage under
+  `cdb:db-view` (the kit already uses this key).
+- **"Propose to group" entry points.** A button in the Add Media / import-search dialog (already in
+  the kit as `.cdb-imp-proposed` + Propose button) and a lighter affordance on personal-watchlist
+  items (not yet in the kit).
+
+**Decisions already made (pin these — more will surface at implementation):**
+
+- **Sidebar Up Next advance/replace behavior:** advance the slot when the current pick is logged as
+  watched (the real "this is done" signal), then promote the top-voted queue item into the slot.
+  Never auto-remove on the scheduled date alone. If the queue is empty, show a graceful empty state
+  with a Propose CTA ("Nothing scheduled, propose something") rather than going blank or showing a
+  stale pick. The sidebar stays a live anchor, not a countdown timer.
+- **Propose source — do both, import dialog is primary:** lead with a "Propose to group" action in
+  the import / search dialog, sitting next to the existing personal "Watchlist" button (proposing
+  and discovering are the same impulse). Also add a lighter "Propose to group" affordance on
+  personal-watchlist items as a follow-up, since people stockpile there. The group queue is its own
+  store fed by both paths, so personal watchlists are untouched. Build the import-dialog button
+  first; the watchlist → propose path is the follow-up.
+
+**Until this ships (fallback in the visual rollout):**
+
+- The sidebar Up Next card keeps its current real-data behavior: most recent in-progress session →
+  top of the current user's watchlist → hidden. It shows "Up next in your watchlist", not "Proposed
+  by". The "Proposed by" / scheduled-date copy from the kit is adopted only when this feature exists
+  (see Phase 1 — sidebar stays as-is until then). This is a real fallback, not placeholder data.
+
+**Open questions (defer to the feature's own brainstorming):**
+
+- Schema: dedicated `proposals` / `queue` table vs. extending watch_sessions with a proposed/voting
+  status. Real-time voting via Ably (already in the stack).
+- Tie-breaking when votes are equal; who can schedule (any member vs. picker rotation).
+- Does the dashboard queue section also need an empty state mirroring the sidebar CTA?
+
+---
+
 ## 6. Order of operations
 
 Phases 0 → 2 unblock everything; they can ship in any order against the existing screens with no
 visual regression risk. Phases 3 → 10 follow the README's recommended sequence and each land as
-small focused PRs. Phase 11 closes out mobile.
+small focused PRs. Phase 11 closes out mobile. Phase 12 (Scheduling & Queue) is a separate product
+feature, sequenced after the visual rollout finishes — it is not a visual phase.
 
 ```
 [0] Foundation tokens, fonts, favicon
@@ -688,6 +754,8 @@ small focused PRs. Phase 11 closes out mobile.
 [9] Settings          (reuses EditorialMasthead)
 [10] Media + Play touch-ups
 [11] Mobile pass
+─────────────────────  (visual rollout complete)
+[12] Scheduling & Queue  (NEW product feature; design already in kit; own brainstorming/schema pass)
 ```
 
 ---
