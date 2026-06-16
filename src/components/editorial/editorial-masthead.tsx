@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
  *
  * First introduced on the Database surface (Phase 6) and reused on For You
  * (Phase 7). The API is deliberately minimal: the only structural variables are
- * the title's lead/accent split, the eyebrow/issue strings, the lede, and
- * alignment. Anything more elaborate should be added when a real second
- * consumer needs it, not preemptively.
+ * the title's lead/accent split, the eyebrow/issue strings, the lede,
+ * alignment, and an optional actions slot. Anything more elaborate should be
+ * added when a real second consumer needs it, not preemptively.
  */
 
 interface EditorialMastheadProps {
@@ -30,6 +30,13 @@ interface EditorialMastheadProps {
   readonly footnote?: string;
   /** Title/lede alignment. Database centers; other surfaces may left-align. */
   readonly align?: "center" | "left";
+  /**
+   * Optional controls rendered to the right of the title (For You puts its
+   * Dismissed / Refresh all buttons here). Only rendered on left alignment,
+   * where the title sits in a row with room beside it; centered mastheads have
+   * no side gutter so the slot is ignored there.
+   */
+  readonly actions?: React.ReactNode;
 }
 
 export function EditorialMasthead({
@@ -40,8 +47,10 @@ export function EditorialMasthead({
   lede,
   footnote,
   align = "center",
+  actions,
 }: EditorialMastheadProps) {
   const isCentered = align === "center";
+  const showActions = !isCentered && actions !== undefined;
 
   return (
     <header className="flex flex-col gap-6">
@@ -56,15 +65,25 @@ export function EditorialMasthead({
         )}
       </div>
 
-      <h1
-        className={cn(
-          "font-display m-0 text-[clamp(56px,11vw,144px)] leading-[0.88] font-normal tracking-[-0.045em]",
-          isCentered ? "text-center" : "text-left",
-        )}
-      >
-        <span className="text-[var(--fg-dim)]">{titleLead}</span>{" "}
-        <em className="text-cdb-marquee-text tracking-[-0.06em] italic">{titleAccent}</em>
-      </h1>
+      {showActions ? (
+        <div className="flex items-start justify-between gap-6">
+          <h1 className="font-display m-0 text-left text-[clamp(56px,11vw,144px)] leading-[0.88] font-normal tracking-[-0.045em]">
+            <span className="text-[var(--fg-dim)]">{titleLead}</span>{" "}
+            <em className="text-cdb-marquee-text tracking-[-0.06em] italic">{titleAccent}</em>
+          </h1>
+          <div className="flex flex-shrink-0 items-center gap-2 pt-2">{actions}</div>
+        </div>
+      ) : (
+        <h1
+          className={cn(
+            "font-display m-0 text-[clamp(56px,11vw,144px)] leading-[0.88] font-normal tracking-[-0.045em]",
+            isCentered ? "text-center" : "text-left",
+          )}
+        >
+          <span className="text-[var(--fg-dim)]">{titleLead}</span>{" "}
+          <em className="text-cdb-marquee-text tracking-[-0.06em] italic">{titleAccent}</em>
+        </h1>
+      )}
 
       {lede !== undefined && (
         <p

@@ -38,7 +38,11 @@ export function useRecommendations(params: RecommendationQueryParams = {}) {
 }
 
 export function useRecommendationsByType(type: RecommendationType) {
-  return useSWR<RecommendationsResponse>(`/api/recommendations?type=${type}`);
+  // keepPreviousData holds the last section while a refresh refetches, so the
+  // poster row and aside stay put instead of blanking to a skeleton.
+  return useSWR<RecommendationsResponse>(`/api/recommendations?type=${type}`, {
+    keepPreviousData: true,
+  });
 }
 
 /**
@@ -56,7 +60,10 @@ export function useFilteredRecommendations(filters: {
     (filters.decade !== undefined && filters.decade.length > 0);
 
   const key = hasFilters ? buildRecommendationKey(filters) : null;
-  return useSWR<RecommendationsResponse>(key);
+  // keepPreviousData holds the previous filtered grid while toggling
+  // type/genre/decade refetches, so the section updates smoothly instead of
+  // flashing a skeleton on every filter click (mirrors Phase 6's useMediaList).
+  return useSWR<RecommendationsResponse>(key, { keepPreviousData: true });
 }
 
 export function useRefreshRecommendations() {

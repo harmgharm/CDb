@@ -17,7 +17,9 @@ import { cn } from "@/lib/utils";
  * without changing this file.
  *
  * Two segment modes:
- * - "toggle": every option renders as a word; clicking selects it (pick one).
+ * - "toggle": every option renders as a word; clicking selects it. Single-pick
+ *   by default (Database's type filter); pass `multiple` with `activeValues`
+ *   for an additive multi-select (For You's type/genre/decade filters).
  * - "cycle": only the active word renders; clicking advances to the next
  *   option and wraps. Keeps a long option list to a single word in the
  *   sentence.
@@ -37,9 +39,23 @@ export interface FilterSegment {
   /** Optional lead-in rendered before the word(s), e.g. "sorted by". */
   readonly label?: string;
   readonly options: readonly FilterOption[];
+  /**
+   * The single active value. Used by "cycle" mode and by single-select
+   * "toggle" mode. Ignored when `multiple` is set, where `activeValues` drives
+   * the active state instead.
+   */
   readonly activeValue: string;
   readonly mode: "toggle" | "cycle";
   readonly onSelect: (value: string) => void;
+  /**
+   * Multi-select toggle: more than one option can be active at once. The page
+   * owns add/remove (e.g. via a Set), so `onSelect` here means "this word was
+   * clicked", not "this is now the only selection". Only meaningful for
+   * "toggle" mode.
+   */
+  readonly multiple?: boolean;
+  /** Active values when `multiple` is set. Ignored otherwise. */
+  readonly activeValues?: readonly string[];
 }
 
 interface DirectionToggle {
@@ -60,7 +76,11 @@ interface ConversationalFiltersProps {
   readonly segments: readonly FilterSegment[];
   /** Optional asc/desc toggle rendered after the last segment. */
   readonly direction?: DirectionToggle;
-  readonly search: SearchControl;
+  /**
+   * Optional search box rendered in the right-hand band. Database filters by
+   * title; For You has no search, so the box is omitted there.
+   */
+  readonly search?: SearchControl;
   /**
    * Page-specific controls rendered at the right of the band, after the search
    * (e.g. view toggle, refresh, add). Kept as a slot so the primitive owns the
@@ -96,6 +116,10 @@ function FilterWord({
 }
 
 function ToggleSegment({ segment }: Readonly<{ segment: FilterSegment }>) {
+  const activeValues = segment.activeValues ?? [];
+  const isActive = (value: string): boolean =>
+    segment.multiple === true ? activeValues.includes(value) : segment.activeValue === value;
+
   return (
     <>
       {segment.options.map((option, index) => (
@@ -103,7 +127,7 @@ function ToggleSegment({ segment }: Readonly<{ segment: FilterSegment }>) {
           {index > 0 && <span className="text-muted-foreground italic">,</span>}
           <FilterWord
             option={option}
-            active={segment.activeValue === option.value}
+            active={isActive(option.value)}
             onClick={() => {
               segment.onSelect(option.value);
             }}
@@ -175,18 +199,20 @@ export function ConversationalFilters({
       </p>
 
       <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-48">
-          <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--fg-dim)]" />
-          <input
-            type="search"
-            value={search.value}
-            placeholder={search.placeholder ?? "Search titles..."}
-            onChange={(event) => {
-              search.onChange(event.target.value);
-            }}
-            className="bg-card focus-visible:border-cdb-marquee focus-visible:ring-cdb-marquee h-9 w-full rounded-md border pr-3 pl-9 text-sm outline-none focus-visible:ring-1"
-          />
-        </div>
+        {search !== undefined && (
+          <div className="relative w-full sm:w-48">
+            <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--fg-dim)]" />
+            <input
+              type="search"
+              value={search.value}
+              placeholder={search.placeholder ?? "Search titles..."}
+              onChange={(event) => {
+                search.onChange(event.target.value);
+              }}
+              className="bg-card focus-visible:border-cdb-marquee focus-visible:ring-cdb-marquee h-9 w-full rounded-md border pr-3 pl-9 text-sm outline-none focus-visible:ring-1"
+            />
+          </div>
+        )}
         {actions}
       </div>
     </div>
