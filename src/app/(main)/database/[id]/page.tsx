@@ -189,7 +189,9 @@ export default function MediaDetailPage() {
             src={media.backdrop_url}
             alt={`${media.title} backdrop`}
             fill
-            sizes="100vw"
+            // The hero spans the main column, which is the viewport minus the
+            // 16rem sidebar at >=md; below md the sidebar collapses to full width.
+            sizes="(min-width: 768px) calc(100vw - 16rem), 100vw"
             className="object-cover"
             priority
           />
@@ -209,6 +211,7 @@ export default function MediaDetailPage() {
             posterUrl={media.poster_url}
             title={media.title}
             className="h-64 w-44 shrink-0 shadow-lg sm:h-72 sm:w-48"
+            priority
           />
 
           <div className="flex-1 space-y-3">
