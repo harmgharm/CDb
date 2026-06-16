@@ -18,6 +18,8 @@
     "db:migrate:status": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config src/lib/db/migrate.ts status",
     "db:seed:admin": "DOTENV_CONFIG_PATH=.env.local tsx -r dotenv/config src/lib/db/seed-admin.ts",
     "db:migrate:test": "DOTENV_CONFIG_PATH=.env.test tsx -r dotenv/config src/lib/db/migrate.ts",
+    "db:migrate:prod": "DOTENV_CONFIG_PATH=.env.production.local tsx -r dotenv/config src/lib/db/migrate.ts",
+    "db:migrate:prod:status": "DOTENV_CONFIG_PATH=.env.production.local tsx -r dotenv/config src/lib/db/migrate.ts status",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "prepare": "husky"
