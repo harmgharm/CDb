@@ -4,7 +4,6 @@ import {
   ArrowLeftIcon,
   BarChart3Icon,
   BookmarkIcon,
-  CalendarIcon,
   ClapperboardIcon,
   CrownIcon,
   Gamepad2Icon,
@@ -17,9 +16,12 @@ import * as motion from "motion/react-client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+import {
+  MagazineCoverBackdrop,
+  MagazineCoverHeader,
+  OnlineNowPill,
+} from "@/components/editorial/magazine-cover-header";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,7 +31,9 @@ import { RatingDistribution } from "@/components/users/rating-distribution";
 import { RecentPicks } from "@/components/users/recent-picks";
 import { UserDetailedStats } from "@/components/users/user-detailed-stats";
 import { WatchlistSection } from "@/components/watchlist";
-import { useUserProfile, useUserStats } from "@/hooks/use-users";
+import { useOnlineUsers } from "@/hooks/use-online-users";
+import { useUserList, useUserProfile, useUserStats } from "@/hooks/use-users";
+import type { UserProfile } from "@/types/user-responses";
 
 function getInitials(displayName: string | null, username: string): string {
   const name = displayName ?? username;
@@ -43,7 +47,7 @@ function getInitials(displayName: string | null, username: string): string {
 
 function formatJoinDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
-    month: "long",
+    month: "short",
     year: "numeric",
   });
 }
@@ -75,16 +79,36 @@ function StatCard({ title, value, icon, index }: StatCardProps) {
   );
 }
 
+function ProfileRoleBadge({ role }: Readonly<{ role: UserProfile["role"] }>) {
+  if (role === "admin") {
+    return (
+      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+        <ShieldIcon className="size-3" />
+        Admin
+      </span>
+    );
+  }
+  if (role === "moderator") {
+    return (
+      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+        <ShieldCheckIcon className="size-3" />
+        Mod
+      </span>
+    );
+  }
+  return null;
+}
+
 function ProfileSkeleton() {
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <Skeleton className="h-8 w-20" />
-      <div className="flex items-center gap-6">
-        <Skeleton className="size-24 rounded-full" />
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-24" />
+    <div className="mx-auto max-w-5xl space-y-6 pt-8">
+      <Skeleton className="h-8 w-24" />
+      <div className="flex items-center gap-7">
+        <Skeleton className="size-32 rounded-full" />
+        <div className="space-y-3">
+          <Skeleton className="h-16 w-64" />
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-48" />
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -100,8 +124,6 @@ export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const { user: currentUser } = useAuth();
   const { data: profile, isLoading: profileLoading } = useUserProfile(params.id);
-  const { data: stats, isLoading: statsLoading } = useUserStats(params.id);
-  const isOwnProfile = currentUser?.id === params.id;
 
   if (profileLoading) {
     return <ProfileSkeleton />;
@@ -110,13 +132,56 @@ export default function UserProfilePage() {
   if (profile === undefined) {
     return (
       <div className="mx-auto max-w-5xl py-16 text-center">
-        <p className="text-muted-foreground text-lg">User not found</p>
+        <p className="text-muted-foreground text-lg">We couldn&apos;t find that profile.</p>
         <Button asChild variant="outline" className="mt-4">
-          <Link href="/users">Back to users</Link>
+          <Link href="/users">Back to cast</Link>
         </Button>
       </div>
     );
   }
+
+  const isOwnProfile = currentUser?.id === profile.id;
+
+  return (
+    <ProfileView profile={profile} isOwnProfile={isOwnProfile} authReady={currentUser !== null} />
+  );
+}
+
+/**
+ * Gated presence pill. The live presence read must sit inside the Ably
+ * ChannelProvider (only mounted once authenticated), so it lives in this small
+ * leaf — swapping it on the auth transition never remounts the stateful
+ * ProfileView around it. Renders nothing when offline or before auth resolves.
+ */
+function ProfilePresencePill({
+  userId,
+  authReady,
+}: Readonly<{ userId: string; authReady: boolean }>) {
+  if (!authReady) return null;
+  return <PresencePillInner userId={userId} />;
+}
+
+function PresencePillInner({ userId }: Readonly<{ userId: string }>) {
+  const onlineUsers = useOnlineUsers();
+  const isOnline = onlineUsers.some((u) => u.userId === userId);
+  return isOnline ? <OnlineNowPill /> : null;
+}
+
+function ProfileView({
+  profile,
+  isOwnProfile,
+  authReady,
+}: Readonly<{ profile: UserProfile; isOwnProfile: boolean; authReady: boolean }>) {
+  const { data: stats, isLoading: statsLoading } = useUserStats(profile.id);
+  // Roster position is decorative, so read the list from SWR cache without
+  // triggering a fetch — it populates once the roster page has been visited.
+  const { data: roster } = useUserList({ revalidateOnMount: false, revalidateIfStale: false });
+
+  // Display-only roster position from the cached list. Null until it loads.
+  const rosterIndex = roster?.findIndex((u) => u.id === profile.id) ?? -1;
+  const rosterNumber = rosterIndex >= 0 ? rosterIndex + 1 : null;
+
+  const name = profile.display_name ?? profile.username;
 
   const statCards = [
     {
@@ -126,7 +191,7 @@ export default function UserProfilePage() {
     },
     {
       title: "Avg Rating",
-      value: profile.stats.avgScore === null ? "—" : String(profile.stats.avgScore),
+      value: profile.stats.avgScore === null ? "—" : profile.stats.avgScore.toFixed(1),
       icon: <StarIcon className="text-muted-foreground size-4" />,
     },
     {
@@ -142,123 +207,105 @@ export default function UserProfilePage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      {/* Back button */}
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/users">
-          <ArrowLeftIcon className="mr-1 size-4" />
-          Back
-        </Link>
-      </Button>
+    <div className="relative -mx-6 -mt-6 [overflow-x:clip]">
+      <MagazineCoverBackdrop avatarUrl={profile.avatar_url} />
 
-      {/* Profile header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" as const }}
-        className="flex flex-col items-center gap-4 text-center sm:flex-row sm:gap-6 sm:text-left"
-      >
-        <Avatar className="size-24">
-          <AvatarImage
-            src={profile.avatar_url ?? undefined}
-            alt={profile.display_name ?? profile.username}
-          />
-          <AvatarFallback className="text-2xl">
-            {getInitials(profile.display_name, profile.username)}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start sm:gap-3">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              {profile.display_name ?? profile.username}
-            </h1>
-            {profile.role === "admin" && (
-              <Badge variant="secondary" className="gap-1">
-                <ShieldIcon className="size-3" />
-                Admin
-              </Badge>
-            )}
-            {profile.role === "moderator" && (
-              <Badge variant="secondary" className="gap-1">
-                <ShieldCheckIcon className="size-3" />
-                Mod
-              </Badge>
-            )}
-          </div>
-          <p className="text-muted-foreground mt-1">@{profile.username}</p>
-          <div className="text-muted-foreground mt-1 flex items-center gap-1 text-sm">
-            <CalendarIcon className="size-3.5" />
-            Member since {formatJoinDate(profile.created_at)}
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Stats cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((card, index) => (
-          <StatCard
-            key={card.title}
-            title={card.title}
-            value={card.value}
-            icon={card.icon}
-            index={index}
-          />
-        ))}
+      <div className="relative z-10 mx-auto max-w-5xl px-6 pt-6 pb-2">
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/users">
+            <ArrowLeftIcon className="mr-1 size-4" />
+            Back to cast
+          </Link>
+        </Button>
       </div>
 
-      {/* Tabbed content */}
-      <Tabs defaultValue="overview">
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="overview">
-            <LayoutDashboardIcon className="size-4" />
-            <span className="hidden sm:inline">Overview</span>
-          </TabsTrigger>
-          <TabsTrigger value="stats">
-            <BarChart3Icon className="size-4" />
-            <span className="hidden sm:inline">Stats</span>
-          </TabsTrigger>
-          <TabsTrigger value="games">
-            <Gamepad2Icon className="size-4" />
-            <span className="hidden sm:inline">Games</span>
-          </TabsTrigger>
-          <TabsTrigger value="watchlist">
-            <BookmarkIcon className="size-4" />
-            <span className="hidden sm:inline">Watchlist</span>
-          </TabsTrigger>
-        </TabsList>
+      <div className="relative z-10 mx-auto max-w-5xl space-y-6 px-6 pb-6">
+        <MagazineCoverHeader
+          rosterNumber={rosterNumber}
+          credit={`Member since ${formatJoinDate(profile.created_at)}`}
+          name={name}
+          tagline={profile.tagline}
+          handle={`@${profile.username}`}
+          metaItems={[
+            `${String(profile.stats.pickCount)} picks`,
+            `${String(profile.stats.sessionsAttended)} watched`,
+          ]}
+          avatarUrl={profile.avatar_url}
+          avatarFallback={getInitials(profile.display_name, profile.username)}
+          onlinePill={<ProfilePresencePill userId={profile.id} authReady={authReady} />}
+          roleBadge={<ProfileRoleBadge role={profile.role} />}
+        />
 
-        <TabsContent value="overview" className="space-y-6">
-          {/* Rating distribution */}
-          {statsLoading ? (
-            <Skeleton className="h-64 rounded-lg" />
-          ) : (
-            stats !== undefined &&
-            stats.ratingDistribution.length > 0 && (
-              <RatingDistribution distribution={stats.ratingDistribution} />
-            )
-          )}
+        {/* Stats cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((card, index) => (
+            <StatCard
+              key={card.title}
+              title={card.title}
+              value={card.value}
+              icon={card.icon}
+              index={index}
+            />
+          ))}
+        </div>
 
-          {/* Recent picks */}
-          {statsLoading ? (
-            <Skeleton className="h-48 rounded-lg" />
-          ) : (
-            stats !== undefined &&
-            stats.recentPicks.length > 0 && <RecentPicks picks={stats.recentPicks} />
-          )}
-        </TabsContent>
+        {/* Tabbed content */}
+        <Tabs defaultValue="overview">
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="overview">
+              <LayoutDashboardIcon className="size-4" />
+              <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="stats">
+              <BarChart3Icon className="size-4" />
+              <span className="hidden sm:inline">Stats</span>
+            </TabsTrigger>
+            <TabsTrigger value="games">
+              <Gamepad2Icon className="size-4" />
+              <span className="hidden sm:inline">Games</span>
+            </TabsTrigger>
+            <TabsTrigger value="watchlist">
+              <BookmarkIcon className="size-4" />
+              <span className="hidden sm:inline">Watchlist</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="stats">
-          <UserDetailedStats userId={params.id} />
-        </TabsContent>
+          <TabsContent value="overview" className="space-y-6">
+            {/* Rating distribution */}
+            {statsLoading ? (
+              <Skeleton className="h-64 rounded-lg" />
+            ) : (
+              stats !== undefined &&
+              stats.ratingDistribution.length > 0 && (
+                <RatingDistribution
+                  distribution={stats.ratingDistribution}
+                  avgScore={profile.stats.avgScore}
+                />
+              )
+            )}
 
-        <TabsContent value="games">
-          <UserGameStats userId={params.id} />
-        </TabsContent>
+            {/* Recent picks */}
+            {statsLoading ? (
+              <Skeleton className="h-48 rounded-lg" />
+            ) : (
+              stats !== undefined &&
+              stats.recentPicks.length > 0 && <RecentPicks picks={stats.recentPicks} />
+            )}
+          </TabsContent>
 
-        <TabsContent value="watchlist">
-          <WatchlistSection userId={params.id} isOwnProfile={isOwnProfile} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="stats">
+            <UserDetailedStats userId={profile.id} />
+          </TabsContent>
+
+          <TabsContent value="games">
+            <UserGameStats userId={profile.id} />
+          </TabsContent>
+
+          <TabsContent value="watchlist">
+            <WatchlistSection userId={profile.id} isOwnProfile={isOwnProfile} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

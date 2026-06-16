@@ -1,13 +1,14 @@
 "use client";
 
-import { CalendarIcon, ShieldCheckIcon, ShieldIcon } from "lucide-react";
+import { ArrowRightIcon, ShieldCheckIcon, ShieldIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
 
+import { formatIssueDate, IssueLine } from "@/components/editorial/issue-line";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOnlineUsers } from "@/hooks/use-online-users";
 import { useUserList } from "@/hooks/use-users";
 import type { UserListItem } from "@/types/user-responses";
 
@@ -28,102 +29,220 @@ function formatJoinDate(dateString: string): string {
   });
 }
 
-function UserCard({ user, index }: Readonly<{ user: UserListItem; index: number }>) {
+function RosterStat({
+  label,
+  value,
+  accent,
+}: Readonly<{ label: string; value: string; accent?: boolean }>) {
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <span
+        className={`font-display text-2xl leading-none tracking-[-0.015em] tabular-nums ${
+          accent === true ? "text-cdb-marquee" : ""
+        }`}
+      >
+        {value}
+      </span>
+      <span className="font-mono text-[9px] tracking-[0.1em] text-[var(--fg-dim)] uppercase">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function RoleBadge({ role }: Readonly<{ role: UserListItem["role"] }>) {
+  if (role === "admin") {
+    return (
+      <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
+        <ShieldIcon className="size-3" />
+        Admin
+      </span>
+    );
+  }
+  if (role === "moderator") {
+    return (
+      <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
+        <ShieldCheckIcon className="size-3" />
+        Mod
+      </span>
+    );
+  }
+  return null;
+}
+
+function RosterRow({
+  user,
+  index,
+  isOnline,
+}: Readonly<{ user: UserListItem; index: number; isOnline: boolean }>) {
+  const name = user.display_name ?? user.username;
+  const tagline = user.tagline.trim();
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.3, ease: "easeOut" as const }}
     >
-      <Link href={`/users/${user.id}`}>
-        <Card className="hover:border-primary/50 transition-colors">
-          <CardContent className="flex items-center gap-4 p-4">
-            <Avatar className="size-14">
-              <AvatarImage
-                src={user.avatar_url ?? undefined}
-                alt={user.display_name ?? user.username}
-              />
-              <AvatarFallback className="text-lg">
-                {getInitials(user.display_name, user.username)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="truncate font-medium">{user.display_name ?? user.username}</h3>
-                {user.role === "admin" && (
-                  <Badge variant="secondary" className="gap-1 text-xs">
-                    <ShieldIcon className="size-3" />
-                    Admin
-                  </Badge>
-                )}
-                {user.role === "moderator" && (
-                  <Badge variant="secondary" className="gap-1 text-xs">
-                    <ShieldCheckIcon className="size-3" />
-                    Mod
-                  </Badge>
-                )}
-              </div>
-              <p className="text-muted-foreground text-sm">@{user.username}</p>
-              <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
-                <CalendarIcon className="size-3" />
-                Joined {formatJoinDate(user.created_at)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <Link
+        href={`/users/${user.id}`}
+        className="grid grid-cols-[28px_72px_1fr_auto] items-center gap-4 border-b border-[var(--border)] py-5 transition-[background,padding] hover:bg-[var(--bg-elev-2)] hover:px-3 sm:grid-cols-[32px_88px_1fr_auto_16px] sm:gap-6 sm:py-6"
+      >
+        <div className="font-mono text-xs tracking-[0.1em] text-[var(--fg-dim)]">
+          {String(index + 1).padStart(2, "0")}
+        </div>
+
+        <div className="relative size-[72px] sm:size-22">
+          <Avatar className="size-full">
+            <AvatarImage src={user.avatar_url ?? undefined} alt={name} />
+            <AvatarFallback className="text-lg">
+              {getInitials(user.display_name, user.username)}
+            </AvatarFallback>
+          </Avatar>
+          {isOnline && (
+            <span className="bg-cdb-success border-background absolute right-1 bottom-1 size-3.5 rounded-full border-3 shadow-[0_0_0_3px_color-mix(in_oklch,var(--cdb-success)_25%,transparent)]" />
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-display truncate text-2xl leading-none tracking-[-0.02em] sm:text-3xl">
+              {name}
+            </span>
+            <RoleBadge role={user.role} />
+          </div>
+          {tagline.length > 0 && (
+            <span className="font-display text-cdb-marquee text-[15px] italic">{tagline}</span>
+          )}
+          <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--fg-dim)]">
+            @{user.username} · joined {formatJoinDate(user.created_at)}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-6 sm:gap-8">
+          <RosterStat label="Picks" value={String(user.stats.picks)} />
+          <RosterStat label="Watched" value={String(user.stats.watched)} />
+          <RosterStat
+            label="Avg"
+            value={user.stats.avgScore === null ? "—" : user.stats.avgScore.toFixed(1)}
+            accent
+          />
+        </div>
+
+        <ArrowRightIcon className="hidden size-4 text-[var(--fg-dim)] sm:block" />
       </Link>
     </motion.div>
   );
 }
 
-function UserCardSkeleton() {
+function RosterRowSkeleton() {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-4">
-        <Skeleton className="size-14 rounded-full" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-3 w-24" />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="grid grid-cols-[28px_72px_1fr_auto] items-center gap-4 border-b border-[var(--border)] py-5 sm:grid-cols-[32px_88px_1fr_auto_16px] sm:gap-6 sm:py-6">
+      <Skeleton className="h-4 w-5" />
+      <Skeleton className="size-[72px] rounded-full sm:size-22" />
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-52" />
+        <Skeleton className="h-3 w-32" />
+      </div>
+      <div className="flex gap-6 sm:gap-8">
+        <Skeleton className="h-9 w-10" />
+        <Skeleton className="h-9 w-12" />
+        <Skeleton className="h-9 w-10" />
+      </div>
+    </div>
   );
 }
 
 export default function UsersPage() {
+  const { user } = useAuth();
   const { data: users, isLoading } = useUserList();
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-        <p className="text-muted-foreground mt-1">
-          {users === undefined
-            ? "View group members and their stats."
-            : `${String(users.length)} members in the group`}
+    <div className="mx-auto max-w-5xl">
+      <RosterContent users={users} isLoading={isLoading} authReady={user !== null} />
+    </div>
+  );
+}
+
+/**
+ * Split out so the presence hook only runs once auth is confirmed — calling it
+ * before the Ably context is ready (unauthenticated) throws. Mirrors the
+ * OnlineUsersSection guard.
+ */
+function RosterContent({
+  users,
+  isLoading,
+  authReady,
+}: Readonly<{ users: UserListItem[] | undefined; isLoading: boolean; authReady: boolean }>) {
+  if (!authReady) {
+    return <RosterShell users={users} isLoading={isLoading} onlineIds={new Set()} />;
+  }
+  return <RosterWithPresence users={users} isLoading={isLoading} />;
+}
+
+function RosterWithPresence({
+  users,
+  isLoading,
+}: Readonly<{ users: UserListItem[] | undefined; isLoading: boolean }>) {
+  const onlineUsers = useOnlineUsers();
+  const onlineIds = new Set(onlineUsers.map((u) => u.userId));
+  return <RosterShell users={users} isLoading={isLoading} onlineIds={onlineIds} />;
+}
+
+function RosterShell({
+  users,
+  isLoading,
+  onlineIds,
+}: Readonly<{
+  users: UserListItem[] | undefined;
+  isLoading: boolean;
+  onlineIds: Set<string>;
+}>) {
+  const memberCount = users?.length ?? 0;
+  const onlineCount = users === undefined ? 0 : users.filter((u) => onlineIds.has(u.id)).length;
+  const memberNoun = memberCount === 1 ? "member" : "members";
+  const eyebrow =
+    users === undefined ? "Ensemble cast" : `Ensemble cast · ${String(memberCount)} ${memberNoun}`;
+
+  return (
+    <>
+      <header className="flex flex-col gap-2.5 border-b border-[var(--border-strong)] pt-4 pb-6">
+        <span className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
+          {eyebrow}
+        </span>
+        <h1 className="font-display m-0 text-center text-[clamp(72px,11vw,144px)] leading-[0.88] font-normal tracking-[-0.045em]">
+          The <em className="text-cdb-marquee tracking-[-0.06em] italic">cast</em>
+        </h1>
+        <p className="font-display text-muted-foreground mx-auto max-w-[560px] text-center text-lg leading-[1.4] italic">
+          Everyone who shows up for the group&apos;s screening room.
         </p>
-      </div>
+      </header>
+
+      <IssueLine
+        left={`Roster · ${formatIssueDate(new Date())}`}
+        right={onlineCount > 0 ? `${String(onlineCount)} online` : undefined}
+      />
 
       {isLoading && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }, (_, index) => (
-            <UserCardSkeleton key={index} />
+        <div className="flex flex-col">
+          {Array.from({ length: 5 }, (_, index) => (
+            <RosterRowSkeleton key={index} />
           ))}
         </div>
       )}
 
-      {!isLoading && users?.length === 0 && (
-        <p className="text-muted-foreground py-16 text-center">No users found.</p>
+      {!isLoading && memberCount === 0 && (
+        <p className="text-muted-foreground py-16 text-center">No one has joined the group yet.</p>
       )}
 
-      {!isLoading && users !== undefined && users.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {!isLoading && users !== undefined && memberCount > 0 && (
+        <div className="flex flex-col">
           {users.map((user, index) => (
-            <UserCard key={user.id} user={user} index={index} />
+            <RosterRow key={user.id} user={user} index={index} isOnline={onlineIds.has(user.id)} />
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

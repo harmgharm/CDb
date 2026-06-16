@@ -4,6 +4,13 @@
 
 import type { GameDifficulty, GameMode, GameType, MediaType, UserRole } from "@/lib/db/types";
 
+/** Lean per-user stats surfaced on the roster list (already computed for the tagline) */
+export interface UserListStats {
+  picks: number;
+  watched: number;
+  avgScore: number | null;
+}
+
 /** User item from GET /api/users list */
 export interface UserListItem {
   id: string;
@@ -13,10 +20,11 @@ export interface UserListItem {
   role: UserRole;
   created_at: string;
   tagline: string;
+  stats: UserListStats;
 }
 
 /** User profile from GET /api/users/[id] */
-export interface UserProfile extends UserListItem {
+export interface UserProfile extends Omit<UserListItem, "stats"> {
   stats: {
     sessionsAttended: number;
     ratingsGiven: number;

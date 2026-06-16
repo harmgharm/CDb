@@ -2,7 +2,7 @@
  * SWR hooks for user data
  */
 
-import useSWR from "swr";
+import useSWR, { type SWRConfiguration } from "swr";
 
 import type { UserDetailedStatsResponse } from "@/types/detailed-stats";
 import type {
@@ -12,8 +12,8 @@ import type {
   UserProfile,
 } from "@/types/user-responses";
 
-export function useUserList() {
-  return useSWR<UserListItem[]>("/api/users");
+export function useUserList(config?: SWRConfiguration<UserListItem[]>) {
+  return useSWR<UserListItem[]>("/api/users", config);
 }
 
 export function useUserProfile(id: string | null) {

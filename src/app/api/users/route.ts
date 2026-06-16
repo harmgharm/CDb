@@ -25,6 +25,13 @@ export async function GET() {
       return {
         ...u,
         tagline: inputs === undefined ? "Watching along." : deriveTagline(inputs),
+        // Roster stats are already computed for the tagline, so surface them
+        // for the roster rows with no extra queries.
+        stats: {
+          picks: inputs?.pickCount ?? 0,
+          watched: inputs?.sessionsAttended ?? 0,
+          avgScore: inputs?.avgScore ?? null,
+        },
       };
     }),
   );

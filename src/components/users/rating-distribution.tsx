@@ -11,21 +11,9 @@ import type { RatingBucket } from "@/types/user-responses";
 
 interface RatingDistributionProps {
   readonly distribution: RatingBucket[];
+  /** The user's average score, highlighted in --primary. Null hides the highlight. */
+  readonly avgScore?: number | null;
 }
-
-/** Color scale from red (1) through yellow (5) to green (10) */
-const SCORE_COLORS: Record<number, string> = {
-  1: "bg-red-500",
-  2: "bg-red-400",
-  3: "bg-orange-500",
-  4: "bg-orange-400",
-  5: "bg-yellow-500",
-  6: "bg-yellow-400",
-  7: "bg-lime-500",
-  8: "bg-green-500",
-  9: "bg-emerald-500",
-  10: "bg-emerald-400",
-};
 
 function RatingDetailsList({ bucket }: { readonly bucket: RatingBucket }) {
   return (
@@ -36,7 +24,7 @@ function RatingDetailsList({ bucket }: { readonly bucket: RatingBucket }) {
       transition={{ duration: 0.2, ease: "easeOut" as const }}
       className="overflow-hidden"
     >
-      <div className="mt-1.5 ml-9 max-h-48 overflow-y-auto rounded-md border p-2">
+      <div className="mt-3 max-h-48 overflow-y-auto rounded-md border p-2">
         <div className="space-y-1.5">
           {bucket.ratings.map((rating) => (
             <Link
@@ -62,7 +50,14 @@ function RatingDetailsList({ bucket }: { readonly bucket: RatingBucket }) {
   );
 }
 
-export function RatingDistribution({ distribution }: RatingDistributionProps) {
+/** The user's average bar is amber; an opened bar is muted; the rest are quiet. */
+function resolveBarColor(isAvg: boolean, isExpanded: boolean): string {
+  if (isAvg) return "bg-primary";
+  if (isExpanded) return "bg-[var(--fg-muted)]";
+  return "bg-[var(--bg-elev-3)] group-hover:bg-[var(--fg-dim)]";
+}
+
+export function RatingDistribution({ distribution, avgScore }: RatingDistributionProps) {
   const [expandedScore, setExpandedScore] = useState<number | null>(null);
 
   // Fill in missing scores (1-10) with count 0
@@ -74,77 +69,81 @@ export function RatingDistribution({ distribution }: RatingDistributionProps) {
 
   const maxCount = Math.max(...allScores.map((b) => b.count), 1);
   const totalRatings = allScores.reduce((sum, b) => sum + b.count, 0);
+  const avgBar = avgScore === null || avgScore === undefined ? null : Math.round(avgScore);
+  const expandedBucket = allScores.find((b) => b.score === expandedScore);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium">
-          Rating Distribution
-          {totalRatings > 0 && (
-            <span className="text-muted-foreground ml-1 font-normal">
-              ({String(totalRatings)} ratings)
-            </span>
-          )}
-        </CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-sm font-medium">Rating distribution</CardTitle>
+        {totalRatings > 0 && (
+          <span className="text-muted-foreground font-mono text-xs">
+            {String(totalRatings)} ratings
+            {avgScore !== null && avgScore !== undefined && ` · avg ${avgScore.toFixed(1)}`}
+          </span>
+        )}
       </CardHeader>
       <CardContent>
         {distribution.length === 0 ? (
           <p className="text-muted-foreground py-4 text-center text-sm">No ratings yet</p>
         ) : (
-          <div className="space-y-1.5">
-            {allScores.toReversed().map((bucket) => {
-              const isExpanded = expandedScore === bucket.score;
-              const hasRatings = bucket.count > 0;
+          <>
+            <div className="grid h-40 grid-cols-10 items-end gap-2">
+              {allScores.map((bucket) => {
+                const hasRatings = bucket.count > 0;
+                const isExpanded = expandedScore === bucket.score;
+                const isAvg = avgBar === bucket.score;
+                const heightPercent = hasRatings ? (bucket.count / maxCount) * 100 : 0;
+                const barColor = resolveBarColor(isAvg, isExpanded);
 
-              return (
-                <div key={bucket.score}>
-                  <div
-                    role={hasRatings ? "button" : undefined}
-                    tabIndex={hasRatings ? 0 : undefined}
-                    className={`flex items-center gap-3 ${hasRatings ? "cursor-pointer" : ""}`}
+                return (
+                  <button
+                    key={bucket.score}
+                    type="button"
+                    disabled={!hasRatings}
+                    aria-pressed={isExpanded}
+                    aria-label={`Score ${String(bucket.score)}, ${String(bucket.count)} ${bucket.count === 1 ? "rating" : "ratings"}`}
                     onClick={() => {
-                      if (hasRatings) {
-                        setExpandedScore(isExpanded ? null : bucket.score);
-                      }
+                      setExpandedScore(isExpanded ? null : bucket.score);
                     }}
-                    onKeyDown={(event) => {
-                      if (hasRatings && (event.key === "Enter" || event.key === " ")) {
-                        setExpandedScore(isExpanded ? null : bucket.score);
-                      }
-                    }}
+                    className="group flex h-full flex-col items-center justify-end gap-1.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdb-marquee)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-default"
                   >
-                    <span className="text-muted-foreground w-6 text-right text-sm font-medium">
-                      {String(bucket.score)}
+                    <span className="font-mono text-[10px] text-[var(--fg-muted)]">
+                      {bucket.count > 0 ? String(bucket.count) : ""}
                     </span>
-                    <div
-                      className={`h-7 flex-1 overflow-hidden rounded transition-colors ${
-                        isExpanded ? "bg-accent" : "bg-muted/30"
+                    <div className="flex w-full flex-1 items-end justify-center">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${String(heightPercent)}%` }}
+                        transition={{
+                          delay: 0.05 + (bucket.score - 1) * 0.03,
+                          duration: 0.5,
+                          ease: "easeOut" as const,
+                        }}
+                        className={`min-h-1 w-[70%] rounded-sm transition-colors ${barColor}`}
+                      />
+                    </div>
+                    <span
+                      className={`font-mono text-[10px] ${
+                        isAvg ? "text-cdb-marquee" : "text-[var(--fg-dim)]"
                       }`}
                     >
-                      {bucket.count > 0 && (
-                        <motion.div
-                          className={`flex h-full items-center rounded ${SCORE_COLORS[bucket.score] ?? "bg-primary"}`}
-                          style={{ opacity: 0.85 }}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${String((bucket.count / maxCount) * 100)}%` }}
-                          transition={{
-                            delay: 0.1 + (10 - bucket.score) * 0.03,
-                            duration: 0.5,
-                            ease: "easeOut" as const,
-                          }}
-                        >
-                          <span className="px-2 text-xs font-medium text-white drop-shadow-sm">
-                            {String(bucket.count)}
-                          </span>
-                        </motion.div>
-                      )}
-                    </div>
-                  </div>
-                  {isExpanded && hasRatings && <RatingDetailsList bucket={bucket} />}
+                      {String(bucket.score)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {expandedBucket !== undefined && expandedBucket.count > 0 && (
+              <div className="mt-1">
+                <div className="text-muted-foreground mb-1 font-mono text-[11px] tracking-[0.04em] uppercase">
+                  Rated {String(expandedBucket.score)}
                 </div>
-              );
-            })}
-          </div>
+                <RatingDetailsList bucket={expandedBucket} />
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
