@@ -1,11 +1,18 @@
 "use client";
 
-import { FilmIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, FilmIcon, RefreshCwIcon } from "lucide-react";
+import { useState } from "react";
 
 import { RecommendationCard } from "@/components/recommendations/recommendation-card";
 import { RecommendationSkeleton } from "@/components/recommendations/recommendation-skeleton";
 import { Button } from "@/components/ui/button";
 import type { RecommendationItem } from "@/types/recommendation-responses";
+
+// Collapsed sections show one row of posters; "See all" expands to the rest.
+// Six fills a row at the lg breakpoint. The engine returns up to 20 per section
+// today, so an expanded last row sits two short of full; bump DISPLAY_LIMIT to a
+// multiple of six (e.g. 30) when the per-section engine count is raised.
+const COLLAPSED_COUNT = 6;
 
 const SECTION_ACCENT: Record<string, string> = {
   "For You": "border-l-blue-500",
@@ -38,6 +45,11 @@ export function RecommendationSection({
   isRefreshing = false,
 }: RecommendationSectionProps) {
   const accentClass = SECTION_ACCENT[title] ?? "border-l-muted-foreground";
+  const [expanded, setExpanded] = useState(false);
+
+  const canExpand = items.length > COLLAPSED_COUNT;
+  const visibleItems = expanded ? items : items.slice(0, COLLAPSED_COUNT);
+  const hiddenCount = items.length - COLLAPSED_COUNT;
 
   return (
     <section className="space-y-4">
@@ -70,16 +82,43 @@ export function RecommendationSection({
       )}
 
       {!isLoading && items.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {items.map((item, index) => (
-            <RecommendationCard
-              key={item.mediaId ?? `${String(item.tmdbId)}-${String(item.malId)}`}
-              item={item}
-              index={index}
-              onDismiss={onDismiss}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {visibleItems.map((item, index) => (
+              <RecommendationCard
+                key={item.mediaId ?? `${String(item.tmdbId)}-${String(item.malId)}`}
+                item={item}
+                index={index}
+                onDismiss={onDismiss}
+              />
+            ))}
+          </div>
+
+          {canExpand && (
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setExpanded((previous) => !previous);
+                }}
+              >
+                {expanded ? (
+                  <>
+                    <ArrowLeftIcon className="mr-1 size-3" />
+                    Show less
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightIcon className="mr-1 size-3" />
+                    See all {String(hiddenCount)} more
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
