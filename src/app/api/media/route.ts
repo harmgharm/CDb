@@ -23,6 +23,11 @@ export async function GET(req: NextRequest) {
   const { type, genre, yearFrom, yearTo, search, sortBy, sortOrder, page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
+  // Map the validated sort order to a compile-time SQL literal so the raw-SQL
+  // orderBy expressions below never interpolate a request value, even though
+  // sortOrder is already constrained to "asc" | "desc" by the schema.
+  const sortDirection = sortOrder === "asc" ? sql.raw("asc") : sql.raw("desc");
+
   let query = db.selectFrom("media").selectAll("media");
 
   if (type !== undefined) {
@@ -69,7 +74,7 @@ export async function GET(req: NextRequest) {
           "latest_watched",
         ),
       )
-      .orderBy(sql`latest_watched ${sql.raw(sortOrder)} nulls last`)
+      .orderBy(sql`latest_watched ${sortDirection} nulls last`)
       .offset(offset)
       .limit(limit)
       .execute();
@@ -94,7 +99,7 @@ export async function GET(req: NextRequest) {
           WHERE ws.media_id = media.id
         )`.as("avg_rating"),
       )
-      .orderBy(sql`avg_rating ${sql.raw(sortOrder)} nulls last`)
+      .orderBy(sql`avg_rating ${sortDirection} nulls last`)
       .offset(offset)
       .limit(limit)
       .execute();
