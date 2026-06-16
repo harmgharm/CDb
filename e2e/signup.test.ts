@@ -26,7 +26,7 @@ test("new user can sign up with invite code", async ({ page }) => {
 
   // Should redirect to dashboard
   await page.waitForURL("/home", { timeout: 15_000 });
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /at CDb/ })).toBeVisible();
 });
 
 test("signup fails with invalid invite code", async ({ page }) => {

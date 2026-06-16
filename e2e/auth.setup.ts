@@ -16,11 +16,11 @@ setup("authenticate as admin", async ({ page }) => {
 
   await page.getByLabel("Email or Username").fill(E2E_ADMIN.username);
   await page.getByLabel("Password").fill(E2E_ADMIN.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Log in" }).click();
 
   // Wait for redirect to dashboard
   await page.waitForURL("/home", { timeout: 15_000 });
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /at CDb/ })).toBeVisible();
 
   // Save auth state for reuse
   await page.context().storageState({ path: ADMIN_AUTH_FILE });

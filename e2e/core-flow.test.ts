@@ -102,7 +102,7 @@ test.describe.serial("core flow", () => {
     await page.goto("/home");
 
     // Dashboard should show stat cards with values
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /at CDb/ })).toBeVisible();
 
     // At minimum, the stats section should be present
     const statsSection = page.locator("[class*='grid']").filter({ hasText: /Movies|Sessions/i });

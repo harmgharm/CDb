@@ -140,7 +140,9 @@ export function ActivityFeed() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
+        <CardTitle className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+          Recent activity
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading && <FeedSkeleton />}

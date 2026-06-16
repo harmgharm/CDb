@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
 test.describe("authenticated user", () => {
   test("can see the dashboard", async ({ page }) => {
     await page.goto("/home");
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /at CDb/ })).toBeVisible();
   });
 
   test("sees sidebar navigation", async ({ page }) => {
