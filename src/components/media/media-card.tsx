@@ -39,6 +39,7 @@ export function MediaCard({ media, index }: MediaCardProps) {
             posterUrl={media.poster_url}
             title={media.title}
             className="size-full transition-transform duration-300 group-hover:scale-105"
+            priority={index === 0}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
           <div className="absolute right-2 bottom-2 left-2 flex items-end justify-between">

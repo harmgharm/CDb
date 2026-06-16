@@ -35,6 +35,7 @@ function FeaturedMainCard({ media, eyebrow }: Readonly<{ media: FeaturedMedia; e
         posterUrl={media.posterUrl}
         title={media.title}
         className="aspect-[2/3] w-full shadow-lg"
+        priority
       />
       <div className="flex flex-col gap-2.5 py-1">
         <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.12em] uppercase">
