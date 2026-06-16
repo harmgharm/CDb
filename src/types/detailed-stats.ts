@@ -67,6 +67,30 @@ export interface DivisiveMedia {
   stddev: number;
 }
 
+/** Featured media entry for the Database editorial band */
+export interface FeaturedMedia {
+  id: string;
+  title: string;
+  type: MediaType;
+  posterUrl: string | null;
+  avgScore: number;
+  ratingCount: number;
+  releaseYear: number | null;
+  runtimeMinutes: number | null;
+  episodeCount: number | null;
+}
+
+/**
+ * Response for the Database "Featured" band. `scope` reports whether the
+ * ranking reflects the current month or fell back to all-time (when the month
+ * has no qualifying ratings yet), so the UI can label the eyebrow honestly.
+ */
+export interface FeaturedResponse {
+  scope: "month" | "all-time";
+  main: FeaturedMedia | null;
+  supporting: FeaturedMedia[];
+}
+
 // ============================================
 // Group detailed stats (Home page)
 // ============================================

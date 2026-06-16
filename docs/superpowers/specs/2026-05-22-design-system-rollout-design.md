@@ -704,6 +704,17 @@ data into the real app to populate the new design.
   the kit as `.cdb-imp-proposed` + Propose button) and a lighter affordance on personal-watchlist
   items (not yet in the kit).
 
+**Follow-up enabled by this phase (not a new feature, a deferred enrichment):**
+
+- **Database FeaturedBand picker + attendees.** Phase 6 built the FeaturedBand card
+  (`(main)/database`) from per-media rating aggregates only, so its meta row shows type / year /
+  runtime but omits the kit's "Picked by {picker}" line and attendee avatar stack. Those are
+  per-session concepts, and a featured title can have several sessions, so surfacing them then would
+  have meant a one-off join plus a "which session" rule on a decorative row. Once this phase makes
+  picker + attendance first-class (the queue tracks who proposed and who showed), enrich the
+  FeaturedBand card to match the kit: add the "Picked by" line and the attendee stack, keyed off the
+  relevant session.
+
 **Decisions already made (pin these — more will surface at implementation):**
 
 - **Sidebar Up Next advance/replace behavior:** advance the slot when the current pick is logged as

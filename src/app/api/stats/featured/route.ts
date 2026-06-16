@@ -1,0 +1,41 @@
+/**
+ * GET /api/stats/featured — Featured media for the Database editorial band.
+ *
+ * Returns the group's top-rated title this month (plus a short supporting
+ * stack), ranked by average rating. When the current month has no qualifying
+ * ratings yet, falls back to the all-time ranking and reports `scope` so the
+ * UI can label the band honestly ("highest rated this month" vs "highest
+ * rated").
+ */
+
+import { successResponse } from "@/lib/api/response";
+import { requireAuth } from "@/lib/auth";
+import { fetchFeaturedMedia, formatFeaturedMedia } from "@/lib/stats/featured";
+import type { FeaturedResponse } from "@/types/detailed-stats";
+
+// 1 headline + 3 supporting cards.
+const FEATURED_LIMIT = 4;
+
+function startOfCurrentMonth(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+export async function GET() {
+  await requireAuth();
+
+  const monthRows = await fetchFeaturedMedia(FEATURED_LIMIT, startOfCurrentMonth());
+
+  const rows = monthRows.length > 0 ? monthRows : await fetchFeaturedMedia(FEATURED_LIMIT);
+  const scope: FeaturedResponse["scope"] = monthRows.length > 0 ? "month" : "all-time";
+
+  const formatted = formatFeaturedMedia(rows);
+
+  const result: FeaturedResponse = {
+    scope,
+    main: formatted[0] ?? null,
+    supporting: formatted.slice(1),
+  };
+
+  return successResponse(result);
+}

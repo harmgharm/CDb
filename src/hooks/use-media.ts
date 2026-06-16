@@ -34,7 +34,12 @@ function buildQueryString(params: MediaQueryParams): string {
 
 export function useMediaList(params: MediaQueryParams) {
   const queryString = buildQueryString(params);
-  return useSWR<MediaListResponse>(`/api/media?${queryString}`);
+  // keepPreviousData holds the last result while a filter/sort change refetches,
+  // so the title count and grid update smoothly instead of blanking to undefined
+  // (and flashing a skeleton) on every filter click.
+  return useSWR<MediaListResponse>(`/api/media?${queryString}`, {
+    keepPreviousData: true,
+  });
 }
 
 export function useMediaDetail(id: string | null) {

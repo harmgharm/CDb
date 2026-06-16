@@ -34,6 +34,7 @@ export interface DashboardStats {
     stddev: number;
   } | null;
   lastSessionDate: string | null;
+  weeksSinceFirstSession: number | null;
 }
 
 export interface FeedSessionItem {

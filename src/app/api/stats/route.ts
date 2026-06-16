@@ -125,8 +125,28 @@ export async function GET() {
     .limit(1)
     .executeTakeFirst();
 
+  // First session date — drives "N weeks in" on the Database masthead.
+  const firstSession = await db
+    .selectFrom("watch_sessions")
+    .select("date_watched")
+    .where("date_watched", "is not", null)
+    .orderBy("date_watched", "asc")
+    .limit(1)
+    .executeTakeFirst();
+
   // Hours watched + average rating
   const [hoursWatched, avgRating] = await Promise.all([fetchHoursWatched(), fetchAvgRating()]);
+
+  // Whole weeks since the group's first logged session (>= 1, so "week one"
+  // reads naturally). Null when no sessions have a watch date yet.
+  const firstWatched = firstSession?.date_watched ?? null;
+  const weeksSinceFirstSession =
+    firstWatched === null
+      ? null
+      : Math.max(
+          1,
+          Math.floor((Date.now() - new Date(firstWatched).getTime()) / (7 * 24 * 60 * 60 * 1000)),
+        );
 
   return successResponse({
     mediaWatched: Object.fromEntries(mediaCounts.map((m) => [m.type, Number(m.count)])),
@@ -179,5 +199,6 @@ export async function GET() {
         }
       : null,
     lastSessionDate: lastSession?.date_watched ?? null,
+    weeksSinceFirstSession,
   });
 }

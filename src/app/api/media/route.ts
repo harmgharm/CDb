@@ -83,10 +83,35 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (sortBy === "rating") {
+    // Sort by the group's average rating (correlated subquery over ratings).
+    const results = await query
+      .select(
+        sql<number | null>`(
+          SELECT AVG(r.score)
+          FROM ratings r
+          JOIN watch_sessions ws ON ws.id = r.session_id
+          WHERE ws.media_id = media.id
+        )`.as("avg_rating"),
+      )
+      .orderBy(sql`avg_rating ${sql.raw(sortOrder)} nulls last`)
+      .offset(offset)
+      .limit(limit)
+      .execute();
+
+    return successResponse({
+      items: results,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  }
+
+  // date_watched and rating are handled by their own branches above.
   const sortColumnMap = {
     title: "media.title",
     release_year: "media.release_year",
-    rating: "media.created_at",
     created_at: "media.created_at",
   } as const;
   const sortColumn = sortColumnMap[sortBy];
