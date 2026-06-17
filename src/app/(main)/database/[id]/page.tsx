@@ -285,13 +285,14 @@ export default function MediaDetailPage() {
               {media.season_count !== null && media.episode_count !== null && (
                 <Badge variant="outline">
                   <TvIcon className="mr-1 size-3" />
-                  {String(media.season_count)} seasons · {String(media.episode_count)} episodes
+                  {String(media.season_count)} {media.season_count === 1 ? "season" : "seasons"} ·{" "}
+                  {String(media.episode_count)} {media.episode_count === 1 ? "episode" : "episodes"}
                 </Badge>
               )}
               {media.season_count === null && media.episode_count !== null && (
                 <Badge variant="outline">
                   <TvIcon className="mr-1 size-3" />
-                  {String(media.episode_count)} episodes
+                  {String(media.episode_count)} {media.episode_count === 1 ? "episode" : "episodes"}
                 </Badge>
               )}
               {media.tmdb_rating !== null && (
