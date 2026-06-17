@@ -8,7 +8,6 @@ import {
   LoaderIcon,
   PlayCircleIcon,
   RefreshCwIcon,
-  StarIcon,
   Trash2Icon,
   TvIcon,
   UserIcon,
@@ -22,6 +21,7 @@ import { toast } from "sonner";
 
 import { ConfirmDeleteDialog } from "@/components/media/confirm-delete-dialog";
 import { CreateSessionDialog } from "@/components/media/create-session-dialog";
+import { GroupRatingCard } from "@/components/media/group-rating-card";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
 import { SessionCard } from "@/components/media/session-card";
@@ -216,21 +216,21 @@ export default function MediaDetailPage() {
 
           <div className="flex-1 space-y-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{media.title}</h1>
+              {media.directors !== null && media.directors.length > 0 && (
+                <p className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
+                  {media.type === "tv" ? "Created by" : "Directed by"} {media.directors.join(", ")}
+                </p>
+              )}
+              <h1 className="font-display mt-1 text-[clamp(36px,6vw,64px)] leading-[0.95] font-normal tracking-tight">
+                {media.title}
+              </h1>
               {media.original_title !== null && (
-                <p className="text-muted-foreground text-sm">{media.original_title}</p>
+                <p className="text-muted-foreground mt-1 text-sm">{media.original_title}</p>
               )}
             </div>
 
             {media.tagline !== null && (
               <p className="text-muted-foreground italic">{media.tagline}</p>
-            )}
-
-            {media.directors !== null && media.directors.length > 0 && (
-              <p className="text-muted-foreground text-sm">
-                {media.type === "tv" ? "Created by" : "Directed by"}{" "}
-                <span className="text-foreground font-medium">{media.directors.join(", ")}</span>
-              </p>
             )}
 
             {media.top_cast !== null && media.top_cast.length > 0 && (
@@ -292,15 +292,6 @@ export default function MediaDetailPage() {
                 <Badge variant="outline">
                   <TvIcon className="mr-1 size-3" />
                   {String(media.episode_count)} episodes
-                </Badge>
-              )}
-              {media.stats.avgRating !== null && (
-                <Badge variant="secondary" className="gap-1">
-                  <StarIcon className="size-3 fill-amber-500 text-amber-500" />
-                  {String(media.stats.avgRating)}/10
-                  <span className="text-muted-foreground ml-0.5">
-                    ({String(media.stats.ratingCount)})
-                  </span>
                 </Badge>
               )}
               {media.tmdb_rating !== null && (
@@ -403,57 +394,72 @@ export default function MediaDetailPage() {
         </div>
       </motion.div>
 
-      {/* Sessions & Ratings */}
+      {/* Sessions & Ratings: 75/25 split on large screens; on narrow screens
+          this stacks to a single column with the rating verdict first. */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" as const }}
+        className="grid gap-6 lg:grid-cols-[3fr_1fr]"
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">
-            Watch Sessions
-            {media.sessions.length > 0 && (
-              <span className="text-muted-foreground ml-2 text-sm font-normal">
-                ({String(media.sessions.length)})
-              </span>
-            )}
-          </h2>
-          <div className="flex items-center gap-2">
-            <AddToWatchlistButton
-              mediaId={media.id}
-              existingEntryId={myWatchlist?.items.find((item) => item.media_id === media.id)?.id}
-              onAdded={() => {
-                void mutateWatchlist();
-              }}
-              onRemoved={() => {
-                void mutateWatchlist();
-              }}
-            />
-            <CreateSessionDialog
-              mediaId={media.id}
-              mediaTitle={media.title}
-              onCreated={handleDataChange}
-            />
-          </div>
-        </div>
+        {/* Rating aside — DOM-first so it sits above sessions when stacked;
+            reordered to the right column and pinned sticky on large screens.
+            top-[72px] clears the sticky app header (h-14 = 56px) plus a small gap. */}
+        <aside className="lg:sticky lg:top-[72px] lg:order-2 lg:self-start">
+          <GroupRatingCard
+            avgRating={media.stats.avgRating}
+            ratingCount={media.stats.ratingCount}
+            ratings={media.ratings}
+          />
+        </aside>
 
-        {media.sessions.length === 0 ? (
-          <p className="text-muted-foreground mt-3 text-sm">No watch sessions recorded yet.</p>
-        ) : (
-          <div className="mt-3 space-y-3">
-            {media.sessions.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                ratings={media.ratings}
-                currentUserId={user?.id ?? null}
-                isModeratorOrAdmin={isModeratorOrAdmin}
-                mediaTitle={media.title}
-                onChanged={handleDataChange}
+        <div className="lg:order-1">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">
+              Watch Sessions
+              {media.sessions.length > 0 && (
+                <span className="text-muted-foreground ml-2 text-sm font-normal">
+                  ({String(media.sessions.length)})
+                </span>
+              )}
+            </h2>
+            <div className="flex items-center gap-2">
+              <AddToWatchlistButton
+                mediaId={media.id}
+                existingEntryId={myWatchlist?.items.find((item) => item.media_id === media.id)?.id}
+                onAdded={() => {
+                  void mutateWatchlist();
+                }}
+                onRemoved={() => {
+                  void mutateWatchlist();
+                }}
               />
-            ))}
+              <CreateSessionDialog
+                mediaId={media.id}
+                mediaTitle={media.title}
+                onCreated={handleDataChange}
+              />
+            </div>
           </div>
-        )}
+
+          {media.sessions.length === 0 ? (
+            <p className="text-muted-foreground mt-3 text-sm">No watch sessions recorded yet.</p>
+          ) : (
+            <div className="mt-3 space-y-3">
+              {media.sessions.map((session) => (
+                <SessionCard
+                  key={session.id}
+                  session={session}
+                  ratings={media.ratings}
+                  currentUserId={user?.id ?? null}
+                  isModeratorOrAdmin={isModeratorOrAdmin}
+                  mediaTitle={media.title}
+                  onChanged={handleDataChange}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </motion.div>
 
       {/* Delete media confirmation */}

@@ -50,6 +50,12 @@
   --color-cdb-movie: var(--cdb-movie);
   --color-cdb-tv: var(--cdb-tv);
   --color-cdb-anime: var(--cdb-anime);
+  /* Foreground-safe variants of the type hues. The base tokens above are tuned
+     as fills on dark; as text on cream they fail AA, so these get a darker
+     light-mode override (same pattern as --cdb-marquee-text). */
+  --color-cdb-movie-text: var(--cdb-movie-text);
+  --color-cdb-tv-text: var(--cdb-tv-text);
+  --color-cdb-anime-text: var(--cdb-anime-text);
   --color-cdb-friends: var(--cdb-friends);
   --color-cdb-success: var(--cdb-success);
   --color-cdb-warning: var(--cdb-warning);
@@ -110,6 +116,11 @@
   --cdb-tv: oklch(0.7 0.16 155);
   --cdb-anime: oklch(0.65 0.22 305);
   --cdb-friends: oklch(0.65 0.22 290);
+  /* Text variants — on dark the base hues read fine, so they alias the base.
+     Light mode darkens them below to clear AA on cream. */
+  --cdb-movie-text: var(--cdb-movie);
+  --cdb-tv-text: var(--cdb-tv);
+  --cdb-anime-text: var(--cdb-anime);
 
   /* ---------- Semantic --------- */
   --cdb-success: oklch(0.7 0.16 155);
@@ -215,6 +226,14 @@
   /* Marquee on cream fails AA when used as foreground text (1.95:1).
      Override the foreground-safe variant to a darker amber that hits AA on cream. */
   --cdb-marquee-text: oklch(0.54 0.16 55);
+
+  /* Same fix for the media-type hues used as badge text. Base values fail AA on
+     cream (movie 2.99, tv 2.42, anime 3.47); these darker lightnesses clear
+     4.5:1 on the lightest card. The badge background still tints the bright base
+     token, so only the text uses these. */
+  --cdb-movie-text: oklch(0.55 0.16 245);
+  --cdb-tv-text: oklch(0.53 0.16 155);
+  --cdb-anime-text: oklch(0.58 0.22 305);
 
   --bg: var(--cdb-cream);
   --bg-elev-1: oklch(0.99 0.012 85);

@@ -23,7 +23,7 @@ export function GameHubContent() {
       >
         {/* Header */}
         <div className="mb-8 text-center">
-          <Gamepad2Icon className="text-primary mx-auto mb-3 size-12" />
+          <Gamepad2Icon className="text-muted-foreground mx-auto mb-3 size-12" />
           <h1 className="text-3xl font-bold">Games</h1>
           <p className="text-muted-foreground mt-2">Challenge yourself or compete with friends</p>
         </div>
@@ -35,7 +35,7 @@ export function GameHubContent() {
               <Card className="hover:border-primary/50 h-full transition-colors">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <game.icon className="text-primary size-6" />
+                    <game.icon className="text-muted-foreground size-6" />
                     <CardTitle className="text-lg">{game.displayName}</CardTitle>
                   </div>
                 </CardHeader>
