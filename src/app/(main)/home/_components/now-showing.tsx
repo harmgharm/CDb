@@ -36,7 +36,7 @@ function StatusPill({ status }: Readonly<{ status: NowShowingItem["status"] }>) 
   );
 }
 
-function NowShowingCard({ item }: Readonly<{ item: NowShowingItem }>) {
+function NowShowingCard({ item, index }: Readonly<{ item: NowShowingItem; index: number }>) {
   const date = formatWatchedDate(item.dateWatched);
   const subline = item.status === "rated" ? "You rated this." : "You still need to rate this.";
 
@@ -49,6 +49,7 @@ function NowShowingCard({ item }: Readonly<{ item: NowShowingItem }>) {
         posterUrl={item.posterUrl}
         title={item.title}
         className="aspect-[2/3] w-[78px] shrink-0"
+        priority={index === 0}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 py-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -107,8 +108,8 @@ export function NowShowing() {
         Now showing
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        {items.map((item) => (
-          <NowShowingCard key={item.sessionId} item={item} />
+        {items.map((item, index) => (
+          <NowShowingCard key={item.sessionId} item={item} index={index} />
         ))}
       </div>
     </section>
