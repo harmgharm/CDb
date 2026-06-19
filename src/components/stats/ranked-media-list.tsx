@@ -45,7 +45,7 @@ export function RankedMediaList({ items, label, showRank = true }: RankedMediaLi
               <MediaTypeBadge type={item.type} />
               <div className="flex items-center gap-0.5">
                 <StarIcon className="size-3 fill-amber-500 text-amber-500" />
-                <span className="text-sm font-medium">{item.avgScore.toFixed(1)}</span>
+                <span className="text-sm font-medium tabular-nums">{item.avgScore.toFixed(1)}</span>
               </div>
             </Link>
           </motion.div>
@@ -88,11 +88,11 @@ export function DivisiveMediaList({ items, label }: DivisiveMediaListProps) {
             >
               <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
               <MediaTypeBadge type={item.type} />
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs tabular-nums">
                 <StarIcon className="mr-0.5 size-2.5 fill-amber-500 text-amber-500" />
                 {item.avgScore.toFixed(1)}
               </Badge>
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs tabular-nums">
                 ±{item.stddev.toFixed(2)}
               </Badge>
             </Link>

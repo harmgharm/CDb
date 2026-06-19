@@ -71,14 +71,16 @@ export function CategoryStatList({ items, label, showScore = false }: CategorySt
                     ease: "easeOut" as const,
                   }}
                 />
-                <span className="relative z-10 flex h-full items-center px-2 text-xs font-medium">
+                <span className="relative z-10 flex h-full items-center px-2 text-xs font-medium tabular-nums">
                   {String(item.count)}
                 </span>
               </div>
               {showScore && item.avgScore !== null && (
                 <div className="flex shrink-0 items-center gap-0.5">
                   <StarIcon className="size-3 fill-amber-500 text-amber-500" />
-                  <span className="text-xs font-medium">{item.avgScore.toFixed(1)}</span>
+                  <span className="text-xs font-medium tabular-nums">
+                    {item.avgScore.toFixed(1)}
+                  </span>
                 </div>
               )}
             </motion.div>

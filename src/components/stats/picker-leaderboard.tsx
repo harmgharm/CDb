@@ -89,7 +89,9 @@ function PickerRow({ picker, rank }: Readonly<{ picker: PickerLeaderboardEntry; 
           {picker.avgPickRating !== null && (
             <div className="flex items-center gap-0.5">
               <StarIcon className="size-3 fill-amber-500 text-amber-500" />
-              <span className="text-sm font-medium">{picker.avgPickRating.toFixed(1)}</span>
+              <span className="text-sm font-medium tabular-nums">
+                {picker.avgPickRating.toFixed(1)}
+              </span>
             </div>
           )}
           {picker.topPicks.length > 0 && (
@@ -118,7 +120,7 @@ function PickerRow({ picker, rank }: Readonly<{ picker: PickerLeaderboardEntry; 
               <MediaTypeBadge type={pick.type} />
               <div className="flex items-center gap-0.5">
                 <StarIcon className="size-2.5 fill-amber-500 text-amber-500" />
-                <span className="text-xs font-medium">{pick.avgScore.toFixed(1)}</span>
+                <span className="text-xs font-medium tabular-nums">{pick.avgScore.toFixed(1)}</span>
               </div>
             </Link>
           ))}
