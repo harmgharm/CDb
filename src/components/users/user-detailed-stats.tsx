@@ -26,7 +26,7 @@ interface UserDetailedStatsProps {
 function UserDetailedStatsSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
           <Skeleton key={index} className="h-20 rounded-lg" />
         ))}
@@ -53,7 +53,7 @@ export function UserDetailedStats({ userId }: UserDetailedStatsProps) {
   return (
     <div className="space-y-4">
       {/* Hero stats row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <HeroStat
           label="Hours Watched"
           value={stats.watchingHabits.hoursWatched}

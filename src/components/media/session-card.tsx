@@ -186,7 +186,7 @@ function RatingRow({ rating, currentUserId, isModeratorOrAdmin, onChanged }: Rat
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-6"
+                className="size-11"
                 onClick={() => {
                   setShowEdit(true);
                 }}
@@ -198,7 +198,7 @@ function RatingRow({ rating, currentUserId, isModeratorOrAdmin, onChanged }: Rat
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-destructive hover:text-destructive size-6"
+                className="text-destructive hover:text-destructive size-11"
                 onClick={() => {
                   setShowDelete(true);
                 }}
@@ -313,7 +313,7 @@ export function SessionCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7"
+                  className="size-11"
                   onClick={() => {
                     setShowEdit(true);
                   }}
@@ -325,7 +325,7 @@ export function SessionCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 size-7"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 size-11"
                   onClick={() => {
                     setShowDelete(true);
                   }}

@@ -24,7 +24,7 @@ import { useGroupDetailedStats } from "@/hooks/use-stats";
 function DetailedStatsSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
           <Skeleton key={index} className="h-20 rounded-lg" />
         ))}
@@ -59,7 +59,7 @@ export function GroupDetailedStats() {
   return (
     <div className="space-y-4">
       {/* Hero stats row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <HeroStat
           label="Watch Streak"
           value={stats.watchingHabits.longestStreak}
@@ -103,7 +103,7 @@ export function GroupDetailedStats() {
 
       {/* Ratings section */}
       <StatsSection title="Ratings" icon={<StarIcon className="size-4" />} defaultOpen>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <RankedMediaList items={stats.ratings.highestRated} label="Highest Rated" />
           <RankedMediaList items={stats.ratings.lowestRated} label="Lowest Rated" />
           <DivisiveMediaList items={stats.ratings.mostDivisive} label="Most Divisive" />

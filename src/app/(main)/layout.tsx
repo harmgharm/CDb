@@ -16,7 +16,7 @@ export default function MainLayout({ children }: Readonly<{ children: React.Reac
             <AppSidebar />
             <SidebarInset>
               <header className="bg-background sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b px-4">
-                <SidebarTrigger className="-ml-1" />
+                <SidebarTrigger className="-ml-1 size-11" />
                 <div className="ml-auto">
                   <NotificationBell />
                 </div>

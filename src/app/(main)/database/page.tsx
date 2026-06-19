@@ -96,7 +96,7 @@ function romanNumeral(value: number): string {
 
 function MediaGridSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {Array.from({ length: 10 }, (_, index) => (
         <div key={index} className="overflow-hidden rounded-lg border">
           <Skeleton className="aspect-[2/3] w-full" />
@@ -279,7 +279,7 @@ export default function DatabasePage() {
               <Button
                 variant={viewMode === "grid" ? "secondary" : "ghost"}
                 size="icon"
-                className="size-8 rounded-r-none"
+                className="size-11 rounded-r-none"
                 onClick={() => {
                   setViewMode("grid");
                 }}
@@ -290,7 +290,7 @@ export default function DatabasePage() {
               <Button
                 variant={viewMode === "list" ? "secondary" : "ghost"}
                 size="icon"
-                className="size-8 rounded-l-none"
+                className="size-11 rounded-l-none"
                 onClick={() => {
                   setViewMode("list");
                 }}
@@ -364,7 +364,7 @@ export default function DatabasePage() {
       {!isLoading && data !== undefined && data.items.length > 0 && (
         <>
           {viewMode === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {data.items.map((media, index) => (
                 <MediaCard key={media.id} media={media} index={index} />
               ))}

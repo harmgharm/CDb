@@ -299,7 +299,7 @@ export function WatchlistCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 opacity-0 transition-opacity group-hover:opacity-100"
+                className="size-11 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <EllipsisVerticalIcon className="size-4" />
               </Button>

@@ -79,7 +79,7 @@ export function NotificationItemRow({
         <button
           type="button"
           onClick={handleDelete}
-          className="text-muted-foreground hover:text-foreground rounded-sm p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+          className="text-muted-foreground hover:text-foreground rounded-sm p-2 opacity-100 transition-opacity sm:p-0.5 sm:opacity-0 sm:group-hover:opacity-100"
           aria-label="Delete notification"
         >
           <XIcon className="size-3.5" />

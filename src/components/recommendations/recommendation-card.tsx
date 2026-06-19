@@ -100,7 +100,7 @@ export function RecommendationCard({ item, index, onDismiss }: RecommendationCar
         {onDismiss !== undefined && (
           <button
             type="button"
-            className="text-muted-foreground hover:text-destructive inline-flex shrink-0 items-center gap-1 text-xs opacity-0 transition-all group-hover:opacity-100"
+            className="text-muted-foreground hover:text-destructive inline-flex shrink-0 items-center gap-1 text-xs opacity-100 transition-all sm:opacity-0 sm:group-hover:opacity-100"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();

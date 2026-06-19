@@ -665,17 +665,24 @@ the tagline utility from Phase 2.
 
 **Acceptance criteria:**
 
-- [ ] Sidebar collapses to a drawer or bottom bar below 900px.
+- [ ] Sidebar collapses to a drawer below 900px (the existing shadcn mobile Sheet drawer, via
+      `MOBILE_BREAKPOINT = 900`). 900 is not arbitrary: the 256px rail plus the content column's
+      ~623px min-width total ~879px, so between 768 and 899px the rail and content cannot both fit
+      and the page scrolls horizontally. The drawer must therefore take over below ~900px, not 768.
 - [ ] Every editorial masthead readable at 375px width.
 - [ ] No horizontal scroll on any page below 900px.
 - [ ] Touch targets ≥ 44px on every interactive element.
 - [ ] Hover-only states have a touch equivalent.
 
-**Open questions:**
+**Open questions (resolved):**
 
-- Drawer vs. bottom bar for the sidebar at narrow widths? Decide when implementing.
-- Do we keep the editorial typography at mobile scale, or fall back to sans for headings? Default:
-  keep serif but clamp aggressively.
+- Drawer vs. bottom bar for the sidebar at narrow widths? **Resolved: drawer.** The shadcn sidebar
+  already ships a `Sheet`-based mobile drawer keyed on `useIsMobile()`; a bottom bar would be a
+  rebuild (out of scope). Keep the drawer; set the breakpoint to 900 (see above — 768 leaves a real
+  horizontal-scroll band at 768-899px).
+- Do we keep the editorial typography at mobile scale, or fall back to sans for headings?
+  **Resolved: keep serif, clamp aggressively.** Verify mastheads at 375px and lower the clamp floor
+  only where a title crowds the layout.
 
 ---
 

@@ -62,7 +62,7 @@ export function RecommendationSection({
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-foreground size-8 shrink-0"
+            className="text-muted-foreground hover:text-foreground size-11 shrink-0"
             onClick={onRefresh}
             disabled={isRefreshing}
           >

@@ -138,7 +138,7 @@ export default function MediaDetailPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* Back button + Admin actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button asChild variant="ghost" size="sm">
           <Link href="/database">
             <ArrowLeftIcon className="mr-1 size-4" />
@@ -146,7 +146,7 @@ export default function MediaDetailPage() {
           </Link>
         </Button>
         {isModeratorOrAdmin && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
@@ -214,7 +214,7 @@ export default function MediaDetailPage() {
             priority
           />
 
-          <div className="flex-1 space-y-3">
+          <div className="min-w-0 flex-1 space-y-3">
             <div>
               {media.directors !== null && media.directors.length > 0 && (
                 <p className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
@@ -401,12 +401,12 @@ export default function MediaDetailPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" as const }}
-        className="grid gap-6 lg:grid-cols-[3fr_1fr]"
+        className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_minmax(0,1fr)]"
       >
         {/* Rating aside — DOM-first so it sits above sessions when stacked;
             reordered to the right column and pinned sticky on large screens.
             top-[72px] clears the sticky app header (h-14 = 56px) plus a small gap. */}
-        <aside className="lg:sticky lg:top-[72px] lg:order-2 lg:self-start">
+        <aside className="min-w-0 lg:sticky lg:top-[72px] lg:order-2 lg:self-start">
           <GroupRatingCard
             avgRating={media.stats.avgRating}
             ratingCount={media.stats.ratingCount}
@@ -414,8 +414,8 @@ export default function MediaDetailPage() {
           />
         </aside>
 
-        <div className="lg:order-1">
-          <div className="flex items-center justify-between">
+        <div className="min-w-0 lg:order-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">
               Watch Sessions
               {media.sessions.length > 0 && (

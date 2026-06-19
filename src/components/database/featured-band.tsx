@@ -29,15 +29,15 @@ function FeaturedMainCard({ media, eyebrow }: Readonly<{ media: FeaturedMedia; e
   return (
     <Link
       href={`/database/${media.id}`}
-      className="bg-card hover:border-cdb-marquee/45 grid grid-cols-[160px_1fr] gap-6 overflow-hidden rounded-xl border p-5 transition-colors sm:grid-cols-[200px_1fr]"
+      className="bg-card hover:border-cdb-marquee/45 grid min-w-0 grid-cols-1 gap-6 overflow-hidden rounded-xl border p-5 transition-colors sm:grid-cols-[200px_minmax(0,1fr)]"
     >
       <MediaPoster
         posterUrl={media.posterUrl}
         title={media.title}
-        className="aspect-[2/3] w-full shadow-lg"
+        className="aspect-[2/3] w-32 shadow-lg sm:w-full"
         priority
       />
-      <div className="flex flex-col gap-2.5 py-1">
+      <div className="flex min-w-0 flex-col gap-2.5 py-1">
         <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.12em] uppercase">
           {eyebrow}
         </p>
@@ -106,7 +106,7 @@ function FeaturedSideCard({ media, rank }: Readonly<{ media: FeaturedMedia; rank
 
 function FeaturedSkeleton() {
   return (
-    <section className="grid gap-[18px] lg:grid-cols-[2fr_1fr]">
+    <section className="grid grid-cols-1 gap-[18px] lg:grid-cols-[2fr_1fr]">
       <Skeleton className="h-[280px] rounded-xl" />
       <div className="flex flex-col gap-2">
         {Array.from({ length: 3 }, (_, index) => (
@@ -133,7 +133,7 @@ export function FeaturedBand() {
     data.scope === "month" ? "Featured · highest rated this month" : "Featured · highest rated";
 
   return (
-    <section className="grid gap-[18px] lg:grid-cols-[2fr_1fr]">
+    <section className="grid grid-cols-1 gap-[18px] lg:grid-cols-[2fr_1fr]">
       <FeaturedMainCard media={main} eyebrow={eyebrow} />
       {data.supporting.length > 0 && (
         <div className="flex flex-col gap-2">

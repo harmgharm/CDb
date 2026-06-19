@@ -180,7 +180,7 @@ export function SubmitRatingDialog({
           <Button
             variant="ghost"
             size="icon"
-            className="size-5"
+            className="size-8"
             title={`Rate for ${onBehalfOf.name}`}
           >
             <StarIcon className="size-3" />
