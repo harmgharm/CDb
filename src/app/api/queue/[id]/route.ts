@@ -39,6 +39,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("Proposal not found", 404);
   }
 
+  // Audit after commit (same as the sessions route): a crash between commit and
+  // these writes can under-report the advance, which we accept rather than
+  // couple audit durability — and audit latency — to the user-facing write.
   await logAudit({
     userId: user.id,
     action: "queue.removed",

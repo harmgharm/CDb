@@ -501,4 +501,36 @@ test.describe.serial("group queue API", () => {
       await member.dispose();
     }
   });
+
+  test("concurrent proposes into an empty queue both succeed with one scheduled pick", async ({
+    request,
+    baseURL,
+  }) => {
+    // Two members propose different titles into a fresh (empty) queue at once.
+    // Both fills race for the empty slot; the advisory lock serializes them so
+    // neither request 500s and exactly one title ends up scheduled.
+    const member = await memberContext(baseURL ?? "http://localhost:3001");
+    try {
+      const [adminRes, memberRes] = await Promise.all([
+        request.post("/api/queue/propose", { data: { mediaId: MEDIA_A } }),
+        member.post("/api/queue/propose", { data: { mediaId: MEDIA_B } }),
+      ]);
+
+      // Neither propose failed (no 23505-driven 500 on the losing fill).
+      expect(adminRes.status()).toBe(201);
+      expect(memberRes.status()).toBe(201);
+
+      // Both proposals exist; exactly one is scheduled, the other proposed.
+      const rows = await db
+        .selectFrom("queue_proposals")
+        .select(["status"])
+        .where("media_id", "in", E2E_QUEUE_MEDIA_IDS)
+        .execute();
+      expect(rows).toHaveLength(2);
+      expect(rows.filter((r) => r.status === "scheduled")).toHaveLength(1);
+      expect(rows.filter((r) => r.status === "proposed")).toHaveLength(1);
+    } finally {
+      await member.dispose();
+    }
+  });
 });

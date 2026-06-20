@@ -321,7 +321,7 @@ export function UpNextQueue() {
             : `Remove "${toRemove.media.title}" from the queue? This also clears its votes.`
         }
         confirmLabel="Remove"
-        pendingLabel="Removing…"
+        pendingLabel="Removing..."
         isDeleting={toRemove !== null && pendingRemovals.has(toRemove.id)}
         onConfirm={confirmRemove}
       />
