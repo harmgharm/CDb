@@ -295,6 +295,34 @@ test.describe.serial("group queue API", () => {
     expect(audit).not.toBeUndefined();
   });
 
+  test("removing the scheduled pick re-fills the slot from the next proposal", async ({
+    request,
+  }) => {
+    const scheduledId = await seedProposal(db, {
+      mediaId: MEDIA_A,
+      status: "scheduled",
+      proposedAt: "2026-01-01T00:00:00Z",
+    });
+    const nextId = await seedProposal(db, {
+      mediaId: MEDIA_B,
+      status: "proposed",
+      proposedAt: "2026-02-01T00:00:00Z",
+    });
+
+    const res = await request.delete(`/api/queue/${scheduledId}`);
+    expect(res.ok()).toBeTruthy();
+
+    // The escape hatch: the next proposal auto-promotes into the empty slot.
+    const promoted = await db
+      .selectFrom("queue_proposals")
+      .select(["id", "scheduled_date"])
+      .where("status", "=", "scheduled")
+      .where("media_id", "in", E2E_QUEUE_MEDIA_IDS)
+      .executeTakeFirstOrThrow();
+    expect(promoted.id).toBe(nextId);
+    expect(promoted.scheduled_date).toBeNull();
+  });
+
   test("logging the scheduled pick advances the queue to the top-voted proposal", async ({
     request,
   }) => {

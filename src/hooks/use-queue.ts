@@ -130,6 +130,14 @@ export interface UseQueueResult {
    * live Ably reconciliation arrive in slice 3; this just writes + refetches.)
    */
   readonly toggleVote: (proposalId: string, hasVoted: boolean) => Promise<void>;
+  /** Proposal IDs with a removal currently in flight (disable their control). */
+  readonly pendingRemovals: ReadonlySet<string>;
+  /**
+   * Remove a proposal from the queue (`DELETE /api/queue/[id]`), then revalidate.
+   * Guarded against concurrent removals of the same proposal. Removing the
+   * scheduled pick is the documented escape hatch — the next proposal auto-fills.
+   */
+  readonly removeProposal: (proposalId: string) => Promise<void>;
 }
 
 const QUEUE_KEY = "/api/queue";
@@ -137,6 +145,7 @@ const QUEUE_KEY = "/api/queue";
 export function useQueue(): UseQueueResult {
   const { data, isLoading, mutate } = useSWR<QueueState>(QUEUE_KEY);
   const [pendingVotes, setPendingVotes] = useState<ReadonlySet<string>>(new Set());
+  const [pendingRemovals, setPendingRemovals] = useState<ReadonlySet<string>>(new Set());
 
   const toggleVote = async (proposalId: string, hasVoted: boolean): Promise<void> => {
     // Ignore a second toggle while one is already in flight for this proposal —
@@ -168,6 +177,30 @@ export function useQueue(): UseQueueResult {
     }
   };
 
+  const removeProposal = async (proposalId: string): Promise<void> => {
+    if (pendingRemovals.has(proposalId)) {
+      return;
+    }
+    setPendingRemovals((previous) => new Set(previous).add(proposalId));
+
+    try {
+      const response = await fetchWithAuth(`/api/queue/${proposalId}`, { method: "DELETE" });
+      const json = (await response.json()) as ApiResponse<unknown>;
+      if (json.error !== null) {
+        toast.error("Couldn't remove the proposal");
+      }
+    } catch {
+      toast.error("Couldn't remove the proposal");
+    } finally {
+      await mutate();
+      setPendingRemovals((previous) => {
+        const next = new Set(previous);
+        next.delete(proposalId);
+        return next;
+      });
+    }
+  };
+
   return {
     scheduled: data?.scheduled ?? null,
     proposals: data?.proposals ?? [],
@@ -175,5 +208,7 @@ export function useQueue(): UseQueueResult {
     pendingVotes,
     refresh: () => mutate(),
     toggleVote,
+    pendingRemovals,
+    removeProposal,
   };
 }

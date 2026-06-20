@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -43,8 +44,10 @@ function result(overrides: Partial<UseQueueResult> = {}): UseQueueResult {
     proposals: [],
     isLoading: false,
     pendingVotes: new Set(),
+    pendingRemovals: new Set(),
     refresh: vi.fn(),
     toggleVote: vi.fn(),
+    removeProposal: vi.fn(),
     ...overrides,
   };
 }
@@ -128,5 +131,47 @@ describe("UpNextQueue", () => {
 
     expect(screen.getByRole("button", { name: /Change date/i })).toBeInTheDocument();
     expect(screen.queryByText(/NO DATE YET/i)).not.toBeInTheDocument();
+  });
+
+  it("removes a proposal after confirming in the dialog", async () => {
+    const user = userEvent.setup();
+    const removeProposal = vi.fn();
+    const proposals = [
+      makeProposal({
+        id: "a",
+        media: { id: "ma", title: "Arcane", type: "anime", posterUrl: null },
+      }),
+    ];
+    mockUseQueue.mockReturnValue(result({ proposals, removeProposal }));
+
+    render(<UpNextQueue />);
+
+    // The row's remove control opens a confirm dialog.
+    await user.click(screen.getByRole("button", { name: /Remove Arcane from the queue/i }));
+    const dialog = screen.getByRole("dialog");
+    // Confirming calls removeProposal with the proposal id.
+    await user.click(within(dialog).getByRole("button", { name: /^Remove$/i }));
+
+    expect(removeProposal).toHaveBeenCalledWith("a");
+  });
+
+  it("does not remove when the confirm dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    const removeProposal = vi.fn();
+    const proposals = [
+      makeProposal({
+        id: "a",
+        media: { id: "ma", title: "Arcane", type: "anime", posterUrl: null },
+      }),
+    ];
+    mockUseQueue.mockReturnValue(result({ proposals, removeProposal }));
+
+    render(<UpNextQueue />);
+
+    await user.click(screen.getByRole("button", { name: /Remove Arcane from the queue/i }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Cancel/i }));
+
+    expect(removeProposal).not.toHaveBeenCalled();
   });
 });

@@ -262,9 +262,26 @@ the dashboard under the editorial header (kit position). Two-column grid:
     `NO DATE YET`, which the sidebar does reuse — see §7c).
 - **Vote list (right):** "Up for the vote" header + "Propose a title" button (opens the import
   dialog); ranked rows (rank number, poster, title, type badge, proposer avatar, thumbs-up vote
-  toggle with live count).
+  toggle with live count). Long lists scroll **within** the card (fixed ~6-row height) so the
+  dashboard layout stays put — the kit's 4 rows were demo data, not a cap.
+- **Remove affordance (not in the kit; spec-granted):** the Decisions Log grants members "remove",
+  and the `DELETE /api/queue/[id]` endpoint exists, but the kit designed no control for it. Each
+  vote-list row (and the scheduled card) carries a **hover-revealed remove icon** (always visible on
+  focus for keyboard/touch a11y) that opens the app's existing `ConfirmDeleteDialog`
+  (`src/components/media/confirm-delete-dialog.tsx`, reused) -> on confirm calls `DELETE`. Removing
+  the scheduled pick is the documented escape hatch (the next proposal auto-fills the slot).
 - **Empty state:** nothing proposed or scheduled -> section stays visible with "Nothing scheduled
   yet, propose something" + Propose CTA.
+
+> **Deferred UI affordances (capability built, control pending).** Two buttons render but aren't yet
+> fully wired, tracked here so they aren't mistaken for done: (1) **"Set date / Change date"** — the
+> `PATCH /api/queue/[id]/schedule` endpoint works, but the button has no `onClick`; it needs a
+> date-picker dialog (a follow-up, not yet sliced). (2) **"Propose a title"** on the vote list —
+> opens the import dialog, which is **slice 4**. The **remove** affordance above is built now (its
+> endpoint
+>
+> - the reusable confirm dialog already exist, so it has no dependency). Grid note: the two columns
+>   are **50/50** (`grid-cols-2` = `1fr 1fr`), matching the kit's current `1fr 1fr`.
 
 ### 7b. Import-dialog Propose button
 

@@ -1,13 +1,33 @@
 "use client";
 
-import { CalendarIcon, CheckIcon, PlusIcon, ThumbsUpIcon } from "lucide-react";
+import { CalendarIcon, CheckIcon, PlusIcon, ThumbsUpIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 
+import { ConfirmDeleteDialog } from "@/components/media/confirm-delete-dialog";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { QueueProposalView, QueueProposer } from "@/hooks/use-queue";
 import { formatScheduledDate, scheduleButtonLabel, useQueue, wonVoteLine } from "@/hooks/use-queue";
+
+/** A subtle remove control that surfaces on hover/focus of its row or card. */
+function RemoveButton({
+  title,
+  onRequestRemove,
+  className,
+}: Readonly<{ title: string; onRequestRemove: () => void; className?: string }>) {
+  return (
+    <button
+      type="button"
+      aria-label={`Remove ${title} from the queue`}
+      onClick={onRequestRemove}
+      className={`text-muted-foreground hover:text-destructive rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 ${className ?? ""}`}
+    >
+      <Trash2Icon className="size-3.5" />
+    </button>
+  );
+}
 
 function SectionShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -40,11 +60,24 @@ function proposerName(proposer: QueueProposer | null): string {
     : proposer.username;
 }
 
-function ScheduledCard({ scheduled }: Readonly<{ scheduled: QueueProposalView }>) {
+function ScheduledCard({
+  scheduled,
+  onRequestRemove,
+}: Readonly<{
+  scheduled: QueueProposalView;
+  onRequestRemove: (proposal: QueueProposalView) => void;
+}>) {
   const wonLine = wonVoteLine(scheduled);
 
   return (
-    <div className="bg-card flex flex-col gap-3.5 rounded-lg border p-3.5">
+    <div className="group bg-card relative flex flex-col gap-3.5 rounded-lg border p-3.5">
+      <RemoveButton
+        title={scheduled.media.title}
+        onRequestRemove={() => {
+          onRequestRemove(scheduled);
+        }}
+        className="absolute top-2 right-2"
+      />
       <div className="relative shrink-0">
         <MediaPoster
           posterUrl={scheduled.media.posterUrl}
@@ -92,14 +125,16 @@ function VoteRow({
   rank,
   isVoting,
   onToggleVote,
+  onRequestRemove,
 }: Readonly<{
   proposal: QueueProposalView;
   rank: number;
   isVoting: boolean;
   onToggleVote: (proposalId: string, hasVoted: boolean) => void;
+  onRequestRemove: (proposal: QueueProposalView) => void;
 }>) {
   return (
-    <div className="flex items-center gap-3 py-2">
+    <div className="group flex items-center gap-3 py-2">
       <span className="text-muted-foreground w-4 shrink-0 text-center font-mono text-sm">
         {rank}
       </span>
@@ -143,6 +178,12 @@ function VoteRow({
         <ThumbsUpIcon className="size-3.5" />
         <span className="tabular-nums">{proposal.voteCount}</span>
       </button>
+      <RemoveButton
+        title={proposal.media.title}
+        onRequestRemove={() => {
+          onRequestRemove(proposal);
+        }}
+      />
     </div>
   );
 }
@@ -171,7 +212,16 @@ function QueueSkeleton() {
 }
 
 export function UpNextQueue() {
-  const { scheduled, proposals, isLoading, pendingVotes, toggleVote } = useQueue();
+  const {
+    scheduled,
+    proposals,
+    isLoading,
+    pendingVotes,
+    toggleVote,
+    pendingRemovals,
+    removeProposal,
+  } = useQueue();
+  const [toRemove, setToRemove] = useState<QueueProposalView | null>(null);
 
   if (isLoading) {
     return (
@@ -193,10 +243,20 @@ export function UpNextQueue() {
     void toggleVote(proposalId, hasVoted);
   };
 
+  const confirmRemove = (): void => {
+    if (toRemove === null) return;
+    void removeProposal(toRemove.id);
+    setToRemove(null);
+  };
+
   return (
     <SectionShell>
       <div className="grid gap-4 lg:grid-cols-2">
-        {scheduled === null ? <EmptyState /> : <ScheduledCard scheduled={scheduled} />}
+        {scheduled === null ? (
+          <EmptyState />
+        ) : (
+          <ScheduledCard scheduled={scheduled} onRequestRemove={setToRemove} />
+        )}
 
         <div className="bg-card flex flex-col rounded-lg border p-3.5">
           <div className="mb-1 flex items-center justify-between">
@@ -223,12 +283,30 @@ export function UpNextQueue() {
                   rank={index + 1}
                   isVoting={pendingVotes.has(proposal.id)}
                   onToggleVote={handleToggleVote}
+                  onRequestRemove={setToRemove}
                 />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={toRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setToRemove(null);
+        }}
+        title="Remove from queue?"
+        description={
+          toRemove === null
+            ? ""
+            : `Remove "${toRemove.media.title}" from the queue? This also clears its votes.`
+        }
+        confirmLabel="Remove"
+        pendingLabel="Removing…"
+        isDeleting={toRemove !== null && pendingRemovals.has(toRemove.id)}
+        onConfirm={confirmRemove}
+      />
     </SectionShell>
   );
 }

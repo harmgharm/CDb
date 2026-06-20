@@ -17,6 +17,10 @@ interface ConfirmDeleteDialogProps {
   readonly description: string;
   readonly isDeleting: boolean;
   readonly onConfirm: () => void;
+  /** Confirm-button label. Defaults to "Delete". */
+  readonly confirmLabel?: string;
+  /** Pending-state label. Defaults to "Deleting...". */
+  readonly pendingLabel?: string;
 }
 
 export function ConfirmDeleteDialog({
@@ -26,6 +30,8 @@ export function ConfirmDeleteDialog({
   description,
   isDeleting,
   onConfirm,
+  confirmLabel = "Delete",
+  pendingLabel = "Deleting...",
 }: ConfirmDeleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -44,7 +50,7 @@ export function ConfirmDeleteDialog({
             Cancel
           </Button>
           <Button variant="destructive" disabled={isDeleting} onClick={onConfirm}>
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? pendingLabel : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
