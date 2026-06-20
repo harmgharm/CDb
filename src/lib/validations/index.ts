@@ -5,6 +5,7 @@ export * from "./games";
 export * from "./media";
 export * from "./notifications";
 export * from "./predictions";
+export * from "./queue";
 export * from "./recommendations";
 export * from "./sessions";
 export * from "./users";

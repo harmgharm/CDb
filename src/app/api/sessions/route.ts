@@ -16,6 +16,8 @@ import {
   createSessionCreatedNotifications,
   createWatchlistFriendWatchedNotifications,
 } from "@/lib/notifications";
+import type { AdvanceResult } from "@/lib/queue/advance";
+import { advanceQueueOnWatch } from "@/lib/queue/advance";
 import {
   invalidateGroupRecommendations,
   invalidateUserRecommendations,
@@ -112,10 +114,11 @@ interface PostSessionCreationOptions {
   mediaTitle: string;
   attendeeIds: string[];
   ratings: InlineRating[] | undefined;
+  advance: AdvanceResult;
 }
 
 async function handlePostSessionCreation(options: PostSessionCreationOptions): Promise<void> {
-  const { user, session, mediaId, mediaTitle, attendeeIds, ratings } = options;
+  const { user, session, mediaId, mediaTitle, attendeeIds, ratings, advance } = options;
   await logAudit({
     userId: user.id,
     action: "session.created",
@@ -123,6 +126,21 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
     entityId: session.id,
     metadata: { mediaId, attendeeCount: attendeeIds.length },
   });
+
+  // The queue advanced because this log was the scheduled pick (Approach A).
+  if (advance.advanced) {
+    await logAudit({
+      userId: user.id,
+      action: "queue.advanced",
+      entityType: "queue_proposal",
+      entityId: advance.watchedProposalId ?? null,
+      metadata: {
+        watchedProposalId: advance.watchedProposalId,
+        scheduledProposalId: advance.scheduledProposalId,
+        sessionId: session.id,
+      },
+    });
+  }
 
   if (ratings !== undefined && ratings.length > 0) {
     await Promise.all(
@@ -222,7 +240,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const session = await withTransaction(async (trx) => {
+  const { newSession: session, advance } = await withTransaction(async (trx) => {
     const newSession = await trx
       .insertInto("watch_sessions")
       .values({
@@ -269,7 +287,11 @@ export async function POST(req: NextRequest) {
       .where("user_id", "in", attendeeIds)
       .execute();
 
-    return newSession;
+    // Advance the group queue if this media is the scheduled pick (Approach A).
+    // Atomic with the log: both commit or both roll back.
+    const advance = await advanceQueueOnWatch(trx, mediaId, newSession.id);
+
+    return { newSession, advance };
   });
 
   // Fire post-creation side effects (audit, cache invalidation, notifications)
@@ -280,6 +302,7 @@ export async function POST(req: NextRequest) {
     mediaTitle: media.title,
     attendeeIds,
     ratings,
+    advance,
   });
 
   return successResponse(session, "Session created", 201);

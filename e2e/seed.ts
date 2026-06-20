@@ -11,7 +11,14 @@ import argon2 from "argon2";
 import { Kysely, PostgresDialect } from "kysely";
 import ws from "ws";
 
-import { E2E_ADMIN, E2E_INVITE_CODE, E2E_MEMBER, E2E_SIGNUP, SHAWSHANK_TMDB_ID } from "./constants";
+import {
+  E2E_ADMIN,
+  E2E_INVITE_CODE,
+  E2E_MEMBER,
+  E2E_QUEUE_MEDIA_IDS,
+  E2E_SIGNUP,
+  SHAWSHANK_TMDB_ID,
+} from "./constants";
 
 neonConfig.webSocketConstructor = ws;
 
@@ -55,11 +62,24 @@ export async function cleanup(): Promise<void> {
     await db.deleteFrom("ratings").where("user_id", "in", userIds).execute();
     await db.deleteFrom("session_attendees").where("user_id", "in", userIds).execute();
 
+    // Queue rows: votes (cascade-safe to clear by proposals on test media), then
+    // proposals on the queue test media. Done before sessions/media below.
+    await db
+      .deleteFrom("queue_votes")
+      .where(
+        "proposal_id",
+        "in",
+        db.selectFrom("queue_proposals").select("id").where("media_id", "in", E2E_QUEUE_MEDIA_IDS),
+      )
+      .execute();
+    await db.deleteFrom("queue_proposals").where("media_id", "in", E2E_QUEUE_MEDIA_IDS).execute();
+
     // Delete sessions created by test users
     await db.deleteFrom("watch_sessions").where("created_by_user_id", "in", userIds).execute();
 
-    // Delete media imported during tests (by known TMDB ID)
+    // Delete media imported during tests (by known TMDB ID + queue test media)
     await db.deleteFrom("media").where("tmdb_id", "=", SHAWSHANK_TMDB_ID).execute();
+    await db.deleteFrom("media").where("id", "in", E2E_QUEUE_MEDIA_IDS).execute();
 
     await db.deleteFrom("audit_log").where("user_id", "in", userIds).execute();
     await db.deleteFrom("refresh_tokens").where("user_id", "in", userIds).execute();

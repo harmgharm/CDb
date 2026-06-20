@@ -54,6 +54,7 @@ Captured from brainstorming. Pin these so implementation sessions don't relitiga
 | Dateless copy              | **"NO DATE YET"** on both the sidebar Up Next card and the dashboard scheduled card                                                                                         | Matched copy (differing wording reads as a bug). Preserves the eyebrow structure so layout doesn't shift between dated and dateless.                                                                                                                                                                            |
 | Contextual schedule button | **"Set date"** when `scheduled_date` is null, **"Change date"** when a date exists                                                                                          | Makes the dateless state advertise its own fix.                                                                                                                                                                                                                                                                 |
 | Watched proposals          | **Persist as history** (status `'watched'`, linked to the `watch_sessions` row)                                                                                             | Feeds the FeaturedBand enrichment ("Picked by", "Won the vote") and the "Won the vote, X to Y" record. Trivial row cost.                                                                                                                                                                                        |
+| Test strategy (slice 1)    | **Extract pure logic + Vitest-unit it; E2E the SQL/route wiring.** NOT a Vitest+real-DB harness                                                                             | The repo has no Vitest-against-real-DB infra (every DB test mocks the client); building one is bigger/riskier than the feature. Matches the existing `predictions/signals` pattern. Full rationale in §8.                                                                                                       |
 
 ---
 
@@ -254,16 +255,46 @@ follow-up slice, described not built now.
 
 ## 8. Testing
 
-Vitest + RTL, matching existing patterns. API/DB tests run against the test Neon branch
-(`pnpm db:migrate:test` / `pnpm test:e2e` infra).
+### Strategy correction (2026-06-20, slice-1 implementation)
 
-- **Unit:** `advanceQueueOnWatch` (promotes top-voted; oldest-proposal tie-break; no-op on off-queue
-  media; empty-queue handling). Ranking/tie-break query.
-- **API:** propose (dup -> no-op returns existing); vote toggle (idempotency via unique constraint);
-  schedule (set/change date); delete + audit log.
-- **Component:** queue section renders scheduled + ranked list; empty state; optimistic vote flip;
-  dateless "NO DATE YET" + contextual button label.
-- **Migration:** up/down round-trip check (matches existing migration test style).
+The original draft of this section said "API/DB tests run against the test Neon branch" and called
+for Vitest unit tests over `advanceQueueOnWatch` and the route handlers directly. **That was a
+mistake — it specced testing infrastructure the repo does not have.** Auditing the actual suite
+before writing tests revealed:
+
+- Every DB-touching Vitest file mocks the client (`vi.mock("@/lib/db", () => ({ db: {} }))`); the
+  established pattern is to **extract pure logic into separately-testable functions** (e.g.
+  `computeConfidence`, `computeGenreSignal` in `src/lib/predictions/`) and unit-test those, while
+  the raw SQL never runs under Vitest.
+- There is **no Vitest-against-real-DB harness** — no per-test DB connection, transaction rollback,
+  or state-reset machinery. `vitest.config.ts` runs jsdom with a trivial setup file.
+- Real DB behavior is exercised only by **Playwright E2E** (`e2e/core-flow.test.ts`) against the
+  `.env.test` Neon branch via `db:migrate:test`.
+
+Building a Vitest+real-DB integration harness (the "most faithful" option) was rejected for slice 1:
+it introduces test infrastructure the repo doesn't have (connection lifecycle, per-test isolation,
+CI wiring) — a larger, riskier change than the feature itself, and out of scope for a foundation
+slice. **Chosen approach: extract pure logic + E2E the wiring**, consistent with how
+`predictions/signals` is already tested.
+
+### What that means concretely
+
+- **Pure-logic unit tests (Vitest, mocked db):** extract the testable decisions out of the SQL into
+  pure functions and test those exhaustively:
+  - `rankProposals(proposals)` — votes DESC, then `proposed_at` ASC (oldest-proposal tie-break).
+  - `pickNextScheduled(proposals)` — who promotes given a ranked set (and `null` when empty).
+  - `decideAdvance({ scheduledMediaId, watchedMediaId })` — the no-op-on-off-queue-media decision.
+  - propose dedup decision (active title -> surface existing) where it can be isolated from the
+    write.
+- **E2E (Playwright, `.env.test` Neon branch):** the SQL/route integration that the unit layer can't
+  reach — partial unique indexes (active-per-media, single-scheduled), vote idempotency via the
+  unique constraint, the `advanceQueueOnWatch` hook firing inside the `POST /api/sessions`
+  transaction, schedule set/change, delete + audit row. These ride the existing E2E infra.
+- **Component (slice 2+):** queue section renders scheduled + ranked list; empty state; optimistic
+  vote flip; dateless "NO DATE YET" + contextual button label.
+- **Migration:** no Vitest up/down harness exists; the round-trip is verified by running
+  `db:migrate:test` up then `db:migrate:down` against the test branch (manual/E2E infra), not a unit
+  test.
 
 ---
 

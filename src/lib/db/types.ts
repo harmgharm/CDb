@@ -27,6 +27,8 @@ export type GameDifficulty = "normal" | "hard";
 export type GameStatus = "lobby" | "active" | "finished";
 export type GameType = "poster_reveal" | "rating_guess" | "year_guess";
 
+export type QueueProposalStatus = "proposed" | "scheduled" | "watched";
+
 export type AuditAction =
   | "user.created"
   | "user.updated"
@@ -67,7 +69,10 @@ export type AuditAction =
   | "game.invited"
   | "user.password_reset"
   | "user.login_succeeded"
-  | "user.login_failed";
+  | "user.login_failed"
+  | "queue.proposed"
+  | "queue.removed"
+  | "queue.advanced";
 
 // ============================================
 // COMMON COLUMN PATTERNS
@@ -441,6 +446,35 @@ export type GamePlayer = Selectable<GamePlayersTable>;
 export type NewGamePlayer = Insertable<GamePlayersTable>;
 
 // ============================================
+
+export interface QueueProposalsTable extends TimestampColumns {
+  id: Generated<string>;
+  media_id: string;
+  proposed_by: string | null;
+  status: Generated<QueueProposalStatus>;
+  scheduled_date: ColumnType<Date, Date | string, Date | string> | null;
+  scheduled_at: Date | null;
+  watched_session_id: string | null;
+  proposed_at: Generated<Date>;
+}
+
+export type QueueProposal = Selectable<QueueProposalsTable>;
+export type NewQueueProposal = Insertable<QueueProposalsTable>;
+export type QueueProposalUpdate = Updateable<QueueProposalsTable>;
+
+// ============================================
+
+export interface QueueVotesTable {
+  id: Generated<string>;
+  proposal_id: string;
+  user_id: string;
+  created_at: Generated<Date>;
+}
+
+export type QueueVote = Selectable<QueueVotesTable>;
+export type NewQueueVote = Insertable<QueueVotesTable>;
+
+// ============================================
 // DATABASE INTERFACE
 // ============================================
 
@@ -464,4 +498,6 @@ export interface Database {
   game_guesses: GameGuessesTable;
   game_leaderboard: GameLeaderboardTable;
   game_players: GamePlayersTable;
+  queue_proposals: QueueProposalsTable;
+  queue_votes: QueueVotesTable;
 }

@@ -34,3 +34,13 @@ export const E2E_INVITE_CODE = {
 };
 
 export const SHAWSHANK_TMDB_ID = 278;
+
+/**
+ * Stable media IDs created and torn down by the queue E2E spec. Fixed UUIDs so
+ * cleanup can target them without depending on what a test happened to insert.
+ */
+export const E2E_QUEUE_MEDIA_IDS = [
+  "20000000-e2e0-4000-a000-000000000001",
+  "20000000-e2e0-4000-a000-000000000002",
+  "20000000-e2e0-4000-a000-000000000003",
+] as const;
