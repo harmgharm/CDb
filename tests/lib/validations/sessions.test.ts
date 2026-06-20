@@ -14,11 +14,14 @@ describe("createSessionSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("coerces date string to Date", () => {
+  it("keeps dateWatched as a YYYY-MM-DD string (no Date coercion)", () => {
+    // A calendar date written to a Postgres `date` column must stay a literal
+    // string — coercing to a Date forces UTC midnight, which a non-UTC server
+    // shifts back a day on store (the off-by-one fixed for the queue too).
     const result = createSessionSchema.safeParse(validSession);
     expect(result.success).toBe(true);
     if (!result.success) throw new Error("unreachable");
-    expect(result.data.dateWatched).toBeInstanceOf(Date);
+    expect(result.data.dateWatched).toBe("2024-01-15");
   });
 
   it("requires at least one attendee", () => {

@@ -15,7 +15,11 @@ const inlineRatingSchema = z.object({
 
 export const createSessionSchema = z.object({
   mediaId: z.uuid("Invalid media ID"),
-  dateWatched: z.coerce.date().nullable().optional(),
+  // Literal "YYYY-MM-DD" string, NOT coerced to a Date — coercion forces UTC
+  // midnight, which a non-UTC server shifts back a day when storing into the
+  // `date` column (off-by-one). The dateFrom/dateTo query filters below stay
+  // z.coerce.date() — they're compared in SQL, not written, so no shift.
+  dateWatched: z.iso.date().nullable().optional(),
   timeWatchedAt: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
@@ -30,7 +34,11 @@ export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
 export const updateSessionSchema = z.object({
   mediaId: z.uuid("Invalid media ID").optional(),
-  dateWatched: z.coerce.date().nullable().optional(),
+  // Literal "YYYY-MM-DD" string, NOT coerced to a Date — coercion forces UTC
+  // midnight, which a non-UTC server shifts back a day when storing into the
+  // `date` column (off-by-one). The dateFrom/dateTo query filters below stay
+  // z.coerce.date() — they're compared in SQL, not written, so no shift.
+  dateWatched: z.iso.date().nullable().optional(),
   timeWatchedAt: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
