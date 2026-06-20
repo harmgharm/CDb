@@ -78,18 +78,32 @@ New Kysely migration `0028-queue-proposals-votes.ts` (next after `0027-media-top
 
 ### `queue_proposals`
 
-| Column               | Type                                                               | Notes                                                        |
-| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `id`                 | uuid pk                                                            |                                                              |
-| `media_id`           | uuid -> `media(id)` ON DELETE CASCADE                              |                                                              |
-| `proposed_by`        | uuid -> `users(id)` ON DELETE SET NULL                             | proposer; SET NULL keeps the proposal if the user is deleted |
-| `status`             | text `'proposed' \| 'scheduled' \| 'watched'` default `'proposed'` | drives the lifecycle                                         |
-| `scheduled_date`     | date null                                                          | set/changed by a member; `null` = "scheduled, no date yet"   |
-| `scheduled_at`       | timestamptz null                                                   | when promoted into the slot (ordering/history)               |
-| `watched_session_id` | uuid null -> `watch_sessions(id)` ON DELETE SET NULL               | links a watched proposal to its real session (Approach A)    |
-| `proposed_at`        | timestamptz default now()                                          | tie-break key                                                |
-| `created_at`         | timestamptz default now()                                          | `TimestampColumns`                                           |
-| `updated_at`         | timestamptz default now()                                          | `TimestampColumns`                                           |
+| Column               | Type                                                               | Notes                                                             |
+| -------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `id`                 | uuid pk                                                            |                                                                   |
+| `media_id`           | uuid -> `media(id)` ON DELETE CASCADE                              |                                                                   |
+| `proposed_by`        | uuid -> `users(id)` ON DELETE SET NULL                             | proposer; SET NULL keeps the proposal if the user is deleted      |
+| `status`             | text `'proposed' \| 'scheduled' \| 'watched'` default `'proposed'` | drives the lifecycle                                              |
+| `scheduled_date`     | date null                                                          | set/changed by a member; `null` = "scheduled, no date yet"        |
+| `scheduled_at`       | timestamptz null                                                   | when promoted into the slot (ordering/history)                    |
+| `watched_session_id` | uuid null -> `watch_sessions(id)` ON DELETE SET NULL               | links a watched proposal to its real session (Approach A)         |
+| `proposed_at`        | timestamptz default now()                                          | tie-break key                                                     |
+| `won_votes`          | integer null                                                       | frozen at promotion: the pick's winning tally (migration 0029)    |
+| `runner_up_votes`    | integer null                                                       | frozen at promotion: the runner-up's tally, 0 if unopposed (0029) |
+| `created_at`         | timestamptz default now()                                          | `TimestampColumns`                                                |
+| `updated_at`         | timestamptz default now()                                          | `TimestampColumns`                                                |
+
+> **`won_votes` / `runner_up_votes` (added 2026-06-20, slice 2 — migration 0029).** The
+> brainstorming overlooked where the dashboard's "Won the vote, X to Y" numbers come from. They
+> can't be a live `COUNT`: both the scheduled pick **and** the runner-up stay votable after
+> promotion (the vote route has no status guard, by design), so a live count drifts away from "the
+> race this pick actually won". So `advanceQueueOnWatch` freezes both tallies onto the promoted row
+> at promotion time via the pure `capturePromotionTally(rankedProposals)` helper. Nullable: only set
+> on promotion. A separate migration (0029) rather than editing 0028 because the test/dev branches
+> had already applied 0028 — editing in place would cause schema drift (Kysely won't re-run an
+> already-applied migration). The scheduled pick remaining votable is intentional (matches the
+> permissive API); the dashboard simply renders no vote control on the scheduled card (kit-matched),
+> so in practice its live count doesn't move.
 
 **Partial unique indexes (DB-enforced invariants):**
 
@@ -130,13 +144,13 @@ typed as a string union; `score`-style `ColumnType` not needed here.
 All under `src/app/api/queue/`. Standard `{ data, error, message }` response shape
 (`src/lib/api/response.ts`), Zod-validated input (`src/lib/validations/`), `requireAuth()`.
 
-| Route                      | Method          | Behavior                                                                                                                                                                                                                                                                  |
-| -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/api/queue`               | `GET`           | Returns `{ scheduled, proposals }`. `scheduled`: the scheduled pick (proposer, media, `scheduledDate`, vote tally) or `null`. `proposals`: ranked list (votes DESC, then `proposed_at` ASC), each with media, proposer, `voteCount`, and `hasVoted` for the current user. |
-| `/api/queue/propose`       | `POST`          | Body `{ mediaId }`. Creates a `proposed` row. If an active proposal for that media exists, **no-op that returns the existing one** (surfaced to the UI as already-proposed). Audit-logged (`queue.proposed`).                                                             |
-| `/api/queue/[id]/vote`     | `POST`/`DELETE` | Toggle the current user's vote (insert/delete the `queue_votes` row). Idempotent via the unique constraint.                                                                                                                                                               |
-| `/api/queue/[id]/schedule` | `PATCH`         | Body `{ scheduledDate }`. Sets/changes the date on the scheduled pick ("Set date" / "Change date").                                                                                                                                                                       |
-| `/api/queue/[id]`          | `DELETE`        | Removes a proposal (any member). Audit-logged (`queue.removed`).                                                                                                                                                                                                          |
+| Route                      | Method          | Behavior                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/queue`               | `GET`           | Returns `{ scheduled, proposals }`. `scheduled`: the scheduled pick (proposer, media, `scheduledDate`, live `voteCount`, and the frozen `wonVotes` / `runnerUpVotes` promotion tally) or `null`. `proposals`: ranked list (votes DESC, then `proposed_at` ASC), each with media, proposer, `voteCount`, and `hasVoted` for the current user. |
+| `/api/queue/propose`       | `POST`          | Body `{ mediaId }`. Creates a `proposed` row. If an active proposal for that media exists, **no-op that returns the existing one** (surfaced to the UI as already-proposed). Audit-logged (`queue.proposed`).                                                                                                                                |
+| `/api/queue/[id]/vote`     | `POST`/`DELETE` | Toggle the current user's vote (insert/delete the `queue_votes` row). Idempotent via the unique constraint.                                                                                                                                                                                                                                  |
+| `/api/queue/[id]/schedule` | `PATCH`         | Body `{ scheduledDate }`. Sets/changes the date on the scheduled pick ("Set date" / "Change date").                                                                                                                                                                                                                                          |
+| `/api/queue/[id]`          | `DELETE`        | Removes a proposal (any member). Audit-logged (`queue.removed`).                                                                                                                                                                                                                                                                             |
 
 ### The advance-on-watch hook (Approach A)
 
@@ -218,6 +232,13 @@ the dashboard under the editorial header (kit position). Two-column grid:
 - **Scheduled card (left):** poster + "Locked in" badge; eyebrow `SCHEDULED · {date | NO DATE YET}`;
   title; media-type badge + "Proposed by {name}"; "Won the vote, X to Y" line; contextual **Set date
   / Change date** button.
+  - **Won-the-vote copy (slice 2 refinement):** `X to Y` from the frozen
+    `won_votes`/`runner_up_votes` tally. When the two are **equal** — the oldest-proposal tie-break
+    can promote a pick with the same count as the runner-up — the line instead reads **"Won on the
+    tie-break, N each"** ("Won the vote, 2 to 2" reads as a contradiction). This line is
+    **dashboard-only**: the kit's sidebar Up Next card (`Shell.jsx`) shows eyebrow + title +
+    "Proposed by" only, never the won-vote line, so there is no matched-copy obligation across
+    surfaces for it (unlike `NO DATE YET`, which the sidebar does reuse — see §7c).
 - **Vote list (right):** "Up for the vote" header + "Propose a title" button (opens the import
   dialog); ranked rows (rank number, poster, title, type badge, proposer avatar, thumbs-up vote
   toggle with live count).

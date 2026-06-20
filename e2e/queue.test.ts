@@ -265,11 +265,14 @@ test.describe.serial("group queue API", () => {
     // Tie on votes (2 each) broken by oldest proposal -> C promotes, not B.
     const promoted = await db
       .selectFrom("queue_proposals")
-      .select(["id", "status", "scheduled_date"])
+      .select(["id", "status", "scheduled_date", "won_votes", "runner_up_votes"])
       .where("status", "=", "scheduled")
       .executeTakeFirstOrThrow();
     expect(promoted.id).toBe(olderTie);
     expect(promoted.scheduled_date).toBeNull(); // promoted dateless
+    // Promotion tally frozen: C won with 2, runner-up B also had 2.
+    expect(promoted.won_votes).toBe(2);
+    expect(promoted.runner_up_votes).toBe(2);
 
     // The advance was audit-logged.
     const audit = await db

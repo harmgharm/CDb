@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { RankableProposal } from "@/lib/queue/ranking";
-import { decideAdvance, pickNextScheduled, rankProposals } from "@/lib/queue/ranking";
+import {
+  capturePromotionTally,
+  decideAdvance,
+  pickNextScheduled,
+  rankProposals,
+} from "@/lib/queue/ranking";
 
 function makeProposal(overrides: Partial<RankableProposal> = {}): RankableProposal {
   return {
@@ -107,5 +112,51 @@ describe("decideAdvance", () => {
 
   it("is a no-op when there is no scheduled pick", () => {
     expect(decideAdvance({ scheduledMediaId: null, watchedMediaId: "m1" })).toBe(false);
+  });
+});
+
+describe("capturePromotionTally", () => {
+  it("captures the winner's and runner-up's vote counts", () => {
+    const winner = makeProposal({ id: "winner", voteCount: 5 });
+    const runnerUp = makeProposal({ id: "runner-up", voteCount: 3 });
+    const third = makeProposal({ id: "third", voteCount: 1 });
+
+    // Order shouldn't matter — it ranks internally.
+    expect(capturePromotionTally([third, winner, runnerUp])).toEqual({
+      wonVotes: 5,
+      runnerUpVotes: 3,
+    });
+  });
+
+  it("reports a zero runner-up when the winner is the only proposal", () => {
+    const onlyOne = makeProposal({ id: "only", voteCount: 4 });
+
+    expect(capturePromotionTally([onlyOne])).toEqual({ wonVotes: 4, runnerUpVotes: 0 });
+  });
+
+  it("returns null when there is nothing to promote", () => {
+    expect(capturePromotionTally([])).toBeNull();
+  });
+
+  it("uses the ranked runner-up (tie-break aware), not input order", () => {
+    const winner = makeProposal({ id: "winner", voteCount: 5 });
+    // Two tie on 2 votes; the older one is the true runner-up.
+    const newerTie = makeProposal({
+      id: "newer",
+      voteCount: 2,
+      proposedAt: new Date("2026-02-01T00:00:00Z"),
+    });
+    const olderTie = makeProposal({
+      id: "older",
+      voteCount: 2,
+      proposedAt: new Date("2026-01-01T00:00:00Z"),
+    });
+
+    // Both ties have 2 votes, so runnerUpVotes is 2 regardless of which —
+    // the point is it comes from the ranked #2, consistent with promotion.
+    expect(capturePromotionTally([newerTie, winner, olderTie])).toEqual({
+      wonVotes: 5,
+      runnerUpVotes: 2,
+    });
   });
 });

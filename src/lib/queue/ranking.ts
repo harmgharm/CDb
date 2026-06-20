@@ -39,10 +39,42 @@ export function pickNextScheduled<T extends RankableProposal>(proposals: readonl
  * Whether logging a watch of `watchedMediaId` should advance the queue: only
  * when it matches the currently-scheduled pick. Logging an off-queue watch (or
  * any watch while nothing is scheduled) leaves the queue untouched.
+ *
+ * The production advance path (`advanceQueueOnWatch`) inlines this same check as
+ * a `WHERE status = 'scheduled'` read + media_id comparison so it can lock the
+ * row in one round-trip; this pure mirror keeps the decision documented and
+ * unit-testable.
  */
 export function decideAdvance(options: {
   scheduledMediaId: string | null;
   watchedMediaId: string;
 }): boolean {
   return options.scheduledMediaId !== null && options.scheduledMediaId === options.watchedMediaId;
+}
+
+export interface PromotionTally {
+  /** The promoted pick's vote count, frozen at promotion time. */
+  wonVotes: number;
+  /** The runner-up's vote count at promotion, or 0 if it ran unopposed. */
+  runnerUpVotes: number;
+}
+
+/**
+ * The vote tally to freeze onto a pick when it is promoted: the winner's count
+ * and the ranked runner-up's count. Frozen because both proposals stay votable
+ * after promotion, so a live `COUNT` would drift away from "the race it won".
+ * Returns `null` when there is nothing to promote.
+ */
+export function capturePromotionTally(
+  proposals: readonly RankableProposal[],
+): PromotionTally | null {
+  const ranked = rankProposals(proposals);
+  const winner = ranked[0];
+  if (winner === undefined) {
+    return null;
+  }
+  return {
+    wonVotes: winner.voteCount,
+    runnerUpVotes: ranked[1]?.voteCount ?? 0,
+  };
 }

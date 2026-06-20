@@ -456,6 +456,9 @@ export interface QueueProposalsTable extends TimestampColumns {
   scheduled_at: Date | null;
   watched_session_id: string | null;
   proposed_at: Generated<Date>;
+  /** Frozen at promotion: the winning and runner-up vote counts. */
+  won_votes: number | null;
+  runner_up_votes: number | null;
 }
 
 export type QueueProposal = Selectable<QueueProposalsTable>;

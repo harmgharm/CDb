@@ -4,11 +4,13 @@ import { GroupDetailedStats } from "./_components/group-detailed-stats";
 import { GroupStats } from "./_components/group-stats";
 import { NowShowing } from "./_components/now-showing";
 import { StatStrip } from "./_components/stat-strip";
+import { UpNextQueue } from "./_components/up-next-queue";
 
 export default function HomePage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <DashboardHeader />
+      <UpNextQueue />
       <NowShowing />
       <StatStrip />
       <GroupStats />

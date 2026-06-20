@@ -14,7 +14,7 @@
 
 import type { DatabaseTransaction } from "@/lib/db/transaction";
 
-import { pickNextScheduled } from "./ranking";
+import { capturePromotionTally, pickNextScheduled } from "./ranking";
 
 export interface AdvanceResult {
   /** Whether the logged media was the scheduled pick (i.e. the queue advanced). */
@@ -74,22 +74,31 @@ export async function advanceQueueOnWatch(
     .groupBy(["queue_proposals.id", "queue_proposals.proposed_at"])
     .execute();
 
-  const next = pickNextScheduled(
-    candidates.map((c) => ({
-      id: c.id,
-      proposedAt: c.proposedAt,
-      voteCount: Number(c.voteCount),
-    })),
-  );
+  const rankable = candidates.map((c) => ({
+    id: c.id,
+    proposedAt: c.proposedAt,
+    voteCount: Number(c.voteCount),
+  }));
+  const next = pickNextScheduled(rankable);
 
   // 3. No proposals remain — the slot is left empty (drives the empty state).
   if (!next) {
     return { advanced: true, watchedProposalId: scheduled.id, scheduledProposalId: null };
   }
 
+  // Freeze the winning + runner-up tally so "Won the vote, X to Y" stays
+  // historical (both proposals remain votable after promotion).
+  const tally = capturePromotionTally(rankable);
+
   await trx
     .updateTable("queue_proposals")
-    .set({ status: "scheduled", scheduled_at: new Date(), scheduled_date: null })
+    .set({
+      status: "scheduled",
+      scheduled_at: new Date(),
+      scheduled_date: null,
+      won_votes: tally?.wonVotes ?? null,
+      runner_up_votes: tally?.runnerUpVotes ?? null,
+    })
     .where("id", "=", next.id)
     .execute();
 

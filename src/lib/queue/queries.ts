@@ -32,6 +32,9 @@ export interface QueueProposalView {
   proposedAt: Date;
   voteCount: number;
   hasVoted: boolean;
+  /** Frozen promotion tally (scheduled rows only); null on proposed rows. */
+  wonVotes: number | null;
+  runnerUpVotes: number | null;
   media: QueueMedia;
   proposer: QueueProposer | null;
 }
@@ -48,6 +51,8 @@ interface ProposalRow {
   proposed_at: Date;
   voteCount: string | number | bigint;
   hasVoted: boolean;
+  won_votes: number | null;
+  runner_up_votes: number | null;
   media_id: string;
   media_title: string;
   media_type: MediaType;
@@ -66,6 +71,8 @@ function toView(row: ProposalRow): QueueProposalView {
     proposedAt: row.proposed_at,
     voteCount: Number(row.voteCount),
     hasVoted: row.hasVoted,
+    wonVotes: row.won_votes,
+    runnerUpVotes: row.runner_up_votes,
     media: {
       id: row.media_id,
       title: row.media_title,
@@ -99,6 +106,8 @@ export async function getQueueState(currentUserId: string): Promise<QueueState> 
       "queue_proposals.status as status",
       "queue_proposals.scheduled_date as scheduled_date",
       "queue_proposals.proposed_at as proposed_at",
+      "queue_proposals.won_votes as won_votes",
+      "queue_proposals.runner_up_votes as runner_up_votes",
       "queue_proposals.media_id as media_id",
       "media.title as media_title",
       "media.type as media_type",
