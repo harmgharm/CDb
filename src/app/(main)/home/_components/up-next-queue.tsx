@@ -213,7 +213,9 @@ export function UpNextQueue() {
               Nothing up for the vote yet. Propose a title to get the next pick going.
             </p>
           ) : (
-            <div className="divide-border flex flex-col divide-y">
+            // Cap the visible height so a long queue scrolls *within* this box
+            // rather than pushing the dashboard down. ~6 rows before scrolling.
+            <div className="divide-border -mr-1 flex max-h-[420px] flex-col divide-y overflow-y-auto pr-1">
               {proposals.map((proposal, index) => (
                 <VoteRow
                   key={proposal.id}
