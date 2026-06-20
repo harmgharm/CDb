@@ -4,6 +4,7 @@ import type { RankableProposal } from "@/lib/queue/ranking";
 import {
   capturePromotionTally,
   decideAdvance,
+  decideFill,
   pickNextScheduled,
   rankProposals,
 } from "@/lib/queue/ranking";
@@ -158,5 +159,42 @@ describe("capturePromotionTally", () => {
       wonVotes: 5,
       runnerUpVotes: 2,
     });
+  });
+});
+
+describe("decideFill", () => {
+  it("returns null when the slot is already occupied (no re-promotion)", () => {
+    const candidate = makeProposal({ id: "top", voteCount: 9 });
+    // Even with a high-vote candidate, an occupied slot is left stable.
+    expect(decideFill({ hasScheduled: true, candidates: [candidate] })).toBeNull();
+  });
+
+  it("returns null when the slot is empty but there are no proposals", () => {
+    expect(decideFill({ hasScheduled: false, candidates: [] })).toBeNull();
+  });
+
+  it("fills an empty slot with the top-ranked proposal", () => {
+    const top = makeProposal({ id: "top", voteCount: 4 });
+    const other = makeProposal({ id: "other", voteCount: 1 });
+    expect(decideFill({ hasScheduled: false, candidates: [other, top] })?.id).toBe("top");
+  });
+
+  it("fills an empty slot even when the top proposal has zero votes", () => {
+    const only = makeProposal({ id: "only", voteCount: 0 });
+    expect(decideFill({ hasScheduled: false, candidates: [only] })?.id).toBe("only");
+  });
+
+  it("uses the oldest-proposal tie-break when filling", () => {
+    const newer = makeProposal({
+      id: "newer",
+      voteCount: 2,
+      proposedAt: new Date("2026-02-01T00:00:00Z"),
+    });
+    const older = makeProposal({
+      id: "older",
+      voteCount: 2,
+      proposedAt: new Date("2026-01-01T00:00:00Z"),
+    });
+    expect(decideFill({ hasScheduled: false, candidates: [newer, older] })?.id).toBe("older");
   });
 });

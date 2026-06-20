@@ -100,6 +100,14 @@ export function wonVoteLine(tally: {
   if (tally.wonVotes === null || tally.runnerUpVotes === null) {
     return null;
   }
+  // Promoted with no votes in play (0 to 0). This is the empty-slot bootstrap —
+  // typically the literal first proposal, but also any later auto-fill where no
+  // candidate had a vote. Either way there was no contest to "win", so frame it
+  // as taking the slot rather than winning a vote. (The stored tally can't tell
+  // "no runner-up" from "runner-up had 0 votes"; both read fine as this.)
+  if (tally.wonVotes === 0 && tally.runnerUpVotes === 0) {
+    return "First in the queue";
+  }
   if (tally.wonVotes === tally.runnerUpVotes) {
     return `Won on the tie-break, ${String(tally.wonVotes)} each`;
   }

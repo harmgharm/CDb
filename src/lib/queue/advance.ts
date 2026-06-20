@@ -14,7 +14,7 @@
 
 import type { DatabaseTransaction } from "@/lib/db/transaction";
 
-import { capturePromotionTally, pickNextScheduled } from "./ranking";
+import { promoteTopProposal } from "./promote";
 
 export interface AdvanceResult {
   /** Whether the logged media was the scheduled pick (i.e. the queue advanced). */
@@ -61,50 +61,14 @@ export async function advanceQueueOnWatch(
     .where("id", "=", scheduled.id)
     .execute();
 
-  // 2. Promote the next top-voted proposal (votes DESC, oldest proposal wins).
-  const candidates = await trx
-    .selectFrom("queue_proposals")
-    .leftJoin("queue_votes", "queue_votes.proposal_id", "queue_proposals.id")
-    .select((eb) => [
-      "queue_proposals.id as id",
-      "queue_proposals.proposed_at as proposedAt",
-      eb.fn.count("queue_votes.id").as("voteCount"),
-    ])
-    .where("queue_proposals.status", "=", "proposed")
-    .groupBy(["queue_proposals.id", "queue_proposals.proposed_at"])
-    .execute();
-
-  const rankable = candidates.map((c) => ({
-    id: c.id,
-    proposedAt: c.proposedAt,
-    voteCount: Number(c.voteCount),
-  }));
-  const next = pickNextScheduled(rankable);
-
-  // 3. No proposals remain — the slot is left empty (drives the empty state).
-  if (!next) {
-    return { advanced: true, watchedProposalId: scheduled.id, scheduledProposalId: null };
-  }
-
-  // Freeze the winning + runner-up tally so "Won the vote, X to Y" stays
-  // historical (both proposals remain votable after promotion).
-  const tally = capturePromotionTally(rankable);
-
-  await trx
-    .updateTable("queue_proposals")
-    .set({
-      status: "scheduled",
-      scheduled_at: new Date(),
-      scheduled_date: null,
-      won_votes: tally?.wonVotes ?? null,
-      runner_up_votes: tally?.runnerUpVotes ?? null,
-    })
-    .where("id", "=", next.id)
-    .execute();
+  // 2. Promote the next top-voted proposal into the now-empty slot (shared
+  //    primitive: votes DESC, oldest tie-break, frozen tally). Returns null when
+  //    no proposals remain, leaving the slot empty (drives the empty state).
+  const scheduledProposalId = await promoteTopProposal(trx);
 
   return {
     advanced: true,
     watchedProposalId: scheduled.id,
-    scheduledProposalId: next.id,
+    scheduledProposalId,
   };
 }

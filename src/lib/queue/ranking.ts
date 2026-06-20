@@ -36,6 +36,23 @@ export function pickNextScheduled<T extends RankableProposal>(proposals: readonl
 }
 
 /**
+ * Which proposal (if any) should fill the scheduled slot right now. The slot is
+ * filled from the top proposal *only when it is empty* — an occupied slot is
+ * left stable, so the scheduled pick never changes just because the vote ranking
+ * shifted (it only changes when the current pick is logged watched). Returns
+ * `null` when the slot is occupied or there is nothing to promote.
+ */
+export function decideFill<T extends RankableProposal>(options: {
+  hasScheduled: boolean;
+  candidates: readonly T[];
+}): T | null {
+  if (options.hasScheduled) {
+    return null;
+  }
+  return pickNextScheduled(options.candidates);
+}
+
+/**
  * Whether logging a watch of `watchedMediaId` should advance the queue: only
  * when it matches the currently-scheduled pick. Logging an off-queue watch (or
  * any watch while nothing is scheduled) leaves the queue untouched.

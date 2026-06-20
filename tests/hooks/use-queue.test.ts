@@ -47,4 +47,10 @@ describe("wonVoteLine", () => {
     // as the runner-up. "Won the vote, 2 to 2" reads like a contradiction.
     expect(wonVoteLine({ wonVotes: 2, runnerUpVotes: 2 })).toBe("Won on the tie-break, 2 each");
   });
+
+  it("reads 'First in the queue' for an unopposed auto-scheduled bootstrap pick", () => {
+    // The first proposal on an empty queue auto-fills the slot with 0 votes and
+    // no real contest — there was no vote to "win".
+    expect(wonVoteLine({ wonVotes: 0, runnerUpVotes: 0 })).toBe("First in the queue");
+  });
 });

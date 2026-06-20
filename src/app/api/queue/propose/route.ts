@@ -11,7 +11,9 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
 import type { QueueProposal } from "@/lib/db/types";
+import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
 import { proposeSchema } from "@/lib/validations/queue";
 
 function findActiveProposal(mediaId: string): Promise<QueueProposal | undefined> {
@@ -49,12 +51,19 @@ export async function POST(req: NextRequest) {
   }
 
   let created: QueueProposal;
+  let scheduledProposalId: string | null;
   try {
-    created = await db
-      .insertInto("queue_proposals")
-      .values({ media_id: mediaId, proposed_by: user.id, status: "proposed" })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    // Create the proposal and, in the same transaction, fill the scheduled slot
+    // if it's empty (the first proposal on a fresh queue schedules itself).
+    ({ created, scheduledProposalId } = await withTransaction(async (trx) => {
+      const row = await trx
+        .insertInto("queue_proposals")
+        .values({ media_id: mediaId, proposed_by: user.id, status: "proposed" })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      const fill = await ensureScheduledFilled(trx);
+      return { created: row, scheduledProposalId: fill.scheduledProposalId };
+    }));
   } catch (error) {
     // Lost a race against a concurrent proposer — surface the winner.
     if (isUniqueViolation(error)) {
@@ -73,6 +82,17 @@ export async function POST(req: NextRequest) {
     entityId: created.id,
     metadata: { mediaId },
   });
+
+  // A fill promoted a proposal into an empty slot — record the auto-schedule.
+  if (scheduledProposalId !== null) {
+    await logAudit({
+      userId: user.id,
+      action: "queue.advanced",
+      entityType: "queue_proposal",
+      entityId: scheduledProposalId,
+      metadata: { scheduledProposalId, reason: "slot_filled_on_propose" },
+    });
+  }
 
   return successResponse(created, "Proposed", 201);
 }

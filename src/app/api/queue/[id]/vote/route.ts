@@ -11,7 +11,9 @@ import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
-import { db, isUniqueViolation } from "@/lib/db";
+import { db } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
+import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -43,14 +45,18 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("Proposal not found", 404);
   }
 
-  try {
-    await db.insertInto("queue_votes").values({ proposal_id: id, user_id: user.id }).execute();
-  } catch (error) {
-    // Already voted — idempotent, fall through to return the current count.
-    if (!isUniqueViolation(error)) {
-      throw error;
-    }
-  }
+  await withTransaction(async (trx) => {
+    // ON CONFLICT DO NOTHING keeps the insert idempotent without raising 23505 —
+    // a thrown unique violation would poison the surrounding transaction and
+    // abort the ensureScheduledFilled call below.
+    await trx
+      .insertInto("queue_votes")
+      .values({ proposal_id: id, user_id: user.id })
+      .onConflict((oc) => oc.constraint("queue_votes_proposal_user_unique").doNothing())
+      .execute();
+    // A vote may be the first activity on a queue with an empty slot — fill it.
+    await ensureScheduledFilled(trx);
+  });
 
   return successResponse({ proposalId: id, voteCount: await countVotes(id), hasVoted: true });
 }
@@ -63,11 +69,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("Proposal not found", 404);
   }
 
-  await db
-    .deleteFrom("queue_votes")
-    .where("proposal_id", "=", id)
-    .where("user_id", "=", user.id)
-    .execute();
+  await withTransaction(async (trx) => {
+    await trx
+      .deleteFrom("queue_votes")
+      .where("proposal_id", "=", id)
+      .where("user_id", "=", user.id)
+      .execute();
+    // Keep the slot-filled invariant enforced on every write.
+    await ensureScheduledFilled(trx);
+  });
 
   return successResponse({ proposalId: id, voteCount: await countVotes(id), hasVoted: false });
 }

@@ -136,6 +136,76 @@ test.describe.serial("group queue API", () => {
     expect(Number(count.c)).toBe(1);
   });
 
+  test("the first proposal on an empty queue auto-fills the scheduled slot", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/queue/propose", { data: { mediaId: MEDIA_A } });
+    expect(res.status()).toBe(201);
+    const body = (await res.json()) as { data: { id: string } };
+
+    // The fresh proposal was promoted into the (dateless) scheduled slot.
+    const row = await db
+      .selectFrom("queue_proposals")
+      .select(["status", "scheduled_date"])
+      .where("id", "=", body.data.id)
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("scheduled");
+    expect(row.scheduled_date).toBeNull();
+  });
+
+  test("a later proposal joins the vote list and does not become a second scheduled pick", async ({
+    request,
+  }) => {
+    await request.post("/api/queue/propose", { data: { mediaId: MEDIA_A } }); // auto-scheduled
+    const second = await request.post("/api/queue/propose", { data: { mediaId: MEDIA_B } });
+    const secondId = ((await second.json()) as { data: { id: string } }).data.id;
+
+    // Second proposal stays proposed; still exactly one scheduled pick.
+    const row = await db
+      .selectFrom("queue_proposals")
+      .select("status")
+      .where("id", "=", secondId)
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe("proposed");
+
+    const scheduledCount = await db
+      .selectFrom("queue_proposals")
+      .select((eb) => eb.fn.countAll().as("c"))
+      .where("status", "=", "scheduled")
+      .where("media_id", "in", E2E_QUEUE_MEDIA_IDS)
+      .executeTakeFirstOrThrow();
+    expect(Number(scheduledCount.c)).toBe(1);
+  });
+
+  test("voting a list item above the scheduled pick does NOT re-promote (slot stable)", async ({
+    request,
+  }) => {
+    // A auto-schedules; B joins the list. Pile votes on B so it outranks A.
+    const a = await request.post("/api/queue/propose", { data: { mediaId: MEDIA_A } });
+    const aId = ((await a.json()) as { data: { id: string } }).data.id;
+    const b = await request.post("/api/queue/propose", { data: { mediaId: MEDIA_B } });
+    const bId = ((await b.json()) as { data: { id: string } }).data.id;
+
+    await request.post(`/api/queue/${bId}/vote`);
+
+    // A is still the scheduled pick despite B now having more votes.
+    const scheduled = await db
+      .selectFrom("queue_proposals")
+      .select(["id"])
+      .where("status", "=", "scheduled")
+      .where("media_id", "in", E2E_QUEUE_MEDIA_IDS)
+      .executeTakeFirstOrThrow();
+    expect(scheduled.id).toBe(aId);
+
+    // B is still merely proposed.
+    const bRow = await db
+      .selectFrom("queue_proposals")
+      .select("status")
+      .where("id", "=", bId)
+      .executeTakeFirstOrThrow();
+    expect(bRow.status).toBe("proposed");
+  });
+
   test("vote toggle is idempotent via the unique constraint", async ({ request }) => {
     const id = await seedProposal(db, {
       mediaId: MEDIA_A,
