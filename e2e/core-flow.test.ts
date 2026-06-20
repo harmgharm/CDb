@@ -88,8 +88,11 @@ test.describe.serial("core flow", () => {
   test("verify movie appears in database", async ({ page }) => {
     await page.goto("/database");
 
-    // Wait for page to load
-    await expect(page.getByRole("heading", { name: "Database" })).toBeVisible({ timeout: 10_000 });
+    // Wait for page to load. The database page is the editorial "The collection"
+    // masthead (Phase 7+), which renders the title across two responsive <h1>s.
+    await expect(page.getByRole("heading", { name: /collection/i }).first()).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Search for the movie
     await page.getByPlaceholder("Search titles...").fill("Shawshank");

@@ -29,14 +29,20 @@ test.describe("authenticated user", () => {
     await page.goto("/home");
     await page.getByRole("link", { name: "Database", exact: true }).click();
     await page.waitForURL("/database");
-    await expect(page.getByRole("heading", { name: "Database" })).toBeVisible({ timeout: 10_000 });
+    // Editorial masthead heading is "The collection" (Phase 7+), not "Database".
+    await expect(page.getByRole("heading", { name: /collection/i }).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("can navigate to users page", async ({ page }) => {
     await page.goto("/home");
     await page.getByRole("link", { name: "Users", exact: true }).click();
     await page.waitForURL("/users");
-    await expect(page.getByRole("heading", { name: "Users" })).toBeVisible({ timeout: 10_000 });
+    // Editorial masthead heading is "The cast" (Phase 7+), not "Users".
+    await expect(page.getByRole("heading", { name: /cast/i }).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });
 
