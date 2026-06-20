@@ -244,11 +244,25 @@ test.describe.serial("group queue API", () => {
       proposedAt: "2026-01-02T00:00:00Z",
     });
 
-    // Set a date.
+    // Set a date — and assert it persists as the SAME calendar day (no TZ
+    // off-by-one from coercing the date string through a Date).
     const set = await request.patch(`/api/queue/${scheduledId}/schedule`, {
       data: { scheduledDate: "2026-07-01" },
     });
     expect(set.ok()).toBeTruthy();
+    const dated = await db
+      .selectFrom("queue_proposals")
+      .select("scheduled_date")
+      .where("id", "=", scheduledId)
+      .executeTakeFirstOrThrow();
+    // The stored calendar day must still be July 1, not June 30 (no TZ shift).
+    // The driver returns the `date` column as a local-midnight Date; read its
+    // local Y-M-D, which is the calendar day Postgres holds.
+    const d = new Date(dated.scheduled_date as string);
+    const ymd = `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+    expect(ymd).toBe("2026-07-01");
 
     // Clear it back to dateless.
     const clear = await request.patch(`/api/queue/${scheduledId}/schedule`, {

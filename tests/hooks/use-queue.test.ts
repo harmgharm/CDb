@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { formatScheduledDate, scheduleButtonLabel, wonVoteLine } from "@/hooks/use-queue";
+import {
+  formatScheduledDate,
+  scheduleButtonLabel,
+  toDateInputValue,
+  wonVoteLine,
+} from "@/hooks/use-queue";
+
+describe("toDateInputValue", () => {
+  it("returns an empty string for a dateless pick", () => {
+    expect(toDateInputValue(null)).toBe("");
+  });
+
+  it("converts the ISO-timestamp wire shape to a YYYY-MM-DD input value", () => {
+    expect(toDateInputValue("2026-07-01T00:00:00.000Z")).toBe("2026-07-01");
+  });
+
+  it("passes a bare date through unchanged", () => {
+    expect(toDateInputValue("2026-07-01")).toBe("2026-07-01");
+  });
+});
 
 describe("formatScheduledDate", () => {
   it("returns the dateless sentinel when there is no date", () => {

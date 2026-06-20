@@ -48,6 +48,7 @@ function result(overrides: Partial<UseQueueResult> = {}): UseQueueResult {
     refresh: vi.fn(),
     toggleVote: vi.fn(),
     removeProposal: vi.fn(),
+    setScheduledDate: vi.fn(),
     ...overrides,
   };
 }
@@ -173,5 +174,45 @@ describe("UpNextQueue", () => {
     await user.click(within(dialog).getByRole("button", { name: /Cancel/i }));
 
     expect(removeProposal).not.toHaveBeenCalled();
+  });
+
+  it("sets a date on the scheduled pick via the schedule dialog", async () => {
+    const user = userEvent.setup();
+    const setScheduledDate = vi.fn();
+    const scheduled = makeProposal({ id: "sched", status: "scheduled", scheduledDate: null });
+    mockUseQueue.mockReturnValue(result({ scheduled, setScheduledDate }));
+
+    render(<UpNextQueue />);
+
+    // Open the schedule dialog from the scheduled card's date button.
+    await user.click(screen.getByRole("button", { name: /Set date/i }));
+    const dialog = screen.getByRole("dialog");
+
+    // Pick a date and save.
+    const input = within(dialog).getByLabelText(/date/i);
+    await user.clear(input);
+    await user.type(input, "2026-07-01");
+    await user.click(within(dialog).getByRole("button", { name: /^Save$/i }));
+
+    expect(setScheduledDate).toHaveBeenCalledWith("sched", "2026-07-01");
+  });
+
+  it("clears the date back to dateless via the schedule dialog", async () => {
+    const user = userEvent.setup();
+    const setScheduledDate = vi.fn();
+    const scheduled = makeProposal({
+      id: "sched",
+      status: "scheduled",
+      scheduledDate: "2026-07-01T00:00:00.000Z",
+    });
+    mockUseQueue.mockReturnValue(result({ scheduled, setScheduledDate }));
+
+    render(<UpNextQueue />);
+
+    await user.click(screen.getByRole("button", { name: /Change date/i }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Clear date/i }));
+
+    expect(setScheduledDate).toHaveBeenCalledWith("sched", null);
   });
 });

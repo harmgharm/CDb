@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { QueueProposalView, QueueProposer } from "@/hooks/use-queue";
 import { formatScheduledDate, scheduleButtonLabel, useQueue, wonVoteLine } from "@/hooks/use-queue";
 
+import { SetDateDialog } from "./set-date-dialog";
+
 /** A subtle remove control that surfaces on hover/focus of its row or card. */
 function RemoveButton({
   title,
@@ -63,9 +65,11 @@ function proposerName(proposer: QueueProposer | null): string {
 function ScheduledCard({
   scheduled,
   onRequestRemove,
+  onRequestSchedule,
 }: Readonly<{
   scheduled: QueueProposalView;
   onRequestRemove: (proposal: QueueProposalView) => void;
+  onRequestSchedule: (proposal: QueueProposalView) => void;
 }>) {
   const wonLine = wonVoteLine(scheduled);
 
@@ -110,6 +114,9 @@ function ScheduledCard({
           )}
           <button
             type="button"
+            onClick={() => {
+              onRequestSchedule(scheduled);
+            }}
             className="hover:border-cdb-marquee/55 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
           >
             <CalendarIcon className="size-3" /> {scheduleButtonLabel(scheduled.scheduledDate)}
@@ -220,8 +227,10 @@ export function UpNextQueue() {
     toggleVote,
     pendingRemovals,
     removeProposal,
+    setScheduledDate,
   } = useQueue();
   const [toRemove, setToRemove] = useState<QueueProposalView | null>(null);
+  const [toSchedule, setToSchedule] = useState<QueueProposalView | null>(null);
 
   if (isLoading) {
     return (
@@ -249,13 +258,22 @@ export function UpNextQueue() {
     setToRemove(null);
   };
 
+  const saveScheduledDate = (date: string | null): void => {
+    if (toSchedule === null) return;
+    void setScheduledDate(toSchedule.id, date);
+  };
+
   return (
     <SectionShell>
       <div className="grid gap-4 lg:grid-cols-2">
         {scheduled === null ? (
           <EmptyState />
         ) : (
-          <ScheduledCard scheduled={scheduled} onRequestRemove={setToRemove} />
+          <ScheduledCard
+            scheduled={scheduled}
+            onRequestRemove={setToRemove}
+            onRequestSchedule={setToSchedule}
+          />
         )}
 
         <div className="bg-card flex flex-col rounded-lg border p-3.5">
@@ -306,6 +324,17 @@ export function UpNextQueue() {
         pendingLabel="Removing…"
         isDeleting={toRemove !== null && pendingRemovals.has(toRemove.id)}
         onConfirm={confirmRemove}
+      />
+
+      <SetDateDialog
+        key={toSchedule?.id ?? "none"}
+        open={toSchedule !== null}
+        onOpenChange={(open) => {
+          if (!open) setToSchedule(null);
+        }}
+        mediaTitle={toSchedule?.media.title ?? ""}
+        currentDate={toSchedule?.scheduledDate ?? null}
+        onSave={saveScheduledDate}
       />
     </SectionShell>
   );

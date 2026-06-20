@@ -84,6 +84,16 @@ export function scheduleButtonLabel(scheduledDate: string | null): string {
 }
 
 /**
+ * The value for a native `<input type="date">` (YYYY-MM-DD) from a scheduled
+ * date, or "" when dateless. Both the ISO-timestamp wire shape
+ * ("2026-07-01T00:00:00.000Z") and a bare date already start with the date part,
+ * so the first 10 chars are the date — no `Date` round-trip (and no TZ pitfall).
+ */
+export function toDateInputValue(scheduledDate: string | null): string {
+  return scheduledDate === null ? "" : scheduledDate.slice(0, 10);
+}
+
+/**
  * The "Won the vote, X to Y" line for the scheduled card, from the frozen
  * promotion tally. Null when no tally was captured (e.g. a directly-seeded
  * scheduled pick that never went through a promotion).
@@ -138,6 +148,12 @@ export interface UseQueueResult {
    * scheduled pick is the documented escape hatch — the next proposal auto-fills.
    */
   readonly removeProposal: (proposalId: string) => Promise<void>;
+  /**
+   * Set or clear the scheduled pick's date (`PATCH /api/queue/[id]/schedule`),
+   * then revalidate. `date` is "YYYY-MM-DD" to set, or `null` to clear back to
+   * the dateless "NO DATE YET" state.
+   */
+  readonly setScheduledDate: (proposalId: string, date: string | null) => Promise<void>;
 }
 
 const QUEUE_KEY = "/api/queue";
@@ -201,6 +217,24 @@ export function useQueue(): UseQueueResult {
     }
   };
 
+  const setScheduledDate = async (proposalId: string, date: string | null): Promise<void> => {
+    try {
+      const response = await fetchWithAuth(`/api/queue/${proposalId}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledDate: date }),
+      });
+      const json = (await response.json()) as ApiResponse<unknown>;
+      if (json.error !== null) {
+        toast.error("Couldn't update the date");
+      }
+    } catch {
+      toast.error("Couldn't update the date");
+    } finally {
+      await mutate();
+    }
+  };
+
   return {
     scheduled: data?.scheduled ?? null,
     proposals: data?.proposals ?? [],
@@ -210,5 +244,6 @@ export function useQueue(): UseQueueResult {
     toggleVote,
     pendingRemovals,
     removeProposal,
+    setScheduledDate,
   };
 }

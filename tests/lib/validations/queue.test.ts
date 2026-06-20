@@ -20,11 +20,13 @@ describe("proposeSchema", () => {
 });
 
 describe("scheduleSchema", () => {
-  it("accepts an ISO date string and coerces it to a Date", () => {
+  it("keeps a YYYY-MM-DD date as a plain string (no Date coercion)", () => {
+    // A calendar date has no time/zone — coercing to a Date shifts it across a
+    // non-UTC server's midnight (off-by-one). Keep it as the literal string.
     const result = scheduleSchema.safeParse({ scheduledDate: "2026-07-01" });
     expect(result.success).toBe(true);
     if (!result.success) throw new Error("unreachable");
-    expect(result.data.scheduledDate).toBeInstanceOf(Date);
+    expect(result.data.scheduledDate).toBe("2026-07-01");
   });
 
   it("accepts null to clear the date (back to dateless)", () => {
@@ -39,7 +41,11 @@ describe("scheduleSchema", () => {
     expect(scheduleSchema.safeParse({}).success).toBe(false);
   });
 
-  it("rejects an unparseable date", () => {
+  it("rejects a non-date string", () => {
     expect(scheduleSchema.safeParse({ scheduledDate: "not-a-date" }).success).toBe(false);
+  });
+
+  it("rejects a malformed date shape", () => {
+    expect(scheduleSchema.safeParse({ scheduledDate: "2026-7-1" }).success).toBe(false);
   });
 });
