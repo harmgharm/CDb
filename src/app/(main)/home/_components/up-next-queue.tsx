@@ -240,27 +240,6 @@ export function UpNextQueue() {
     setImportOpen(true);
   };
 
-  if (isLoading) {
-    return (
-      <SectionShell>
-        <QueueSkeleton />
-      </SectionShell>
-    );
-  }
-
-  if (scheduled === null && proposals.length === 0) {
-    return (
-      <SectionShell>
-        <EmptyState onPropose={openImport} />
-        <ImportMediaDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          onSuccess={() => void refresh()}
-        />
-      </SectionShell>
-    );
-  }
-
   const handleToggleVote = (proposalId: string, hasVoted: boolean): void => {
     void toggleVote(proposalId, hasVoted);
   };
@@ -276,8 +255,18 @@ export function UpNextQueue() {
     void setScheduledDate(toSchedule.id, date);
   };
 
-  return (
-    <SectionShell>
+  // Loading and fully-empty are body-only variants; the shell + the dialogs
+  // (which any state can open) render once below, so there's a single mount of
+  // each dialog regardless of which body shows.
+  const isEmpty = scheduled === null && proposals.length === 0;
+
+  let body: React.ReactNode;
+  if (isLoading) {
+    body = <QueueSkeleton />;
+  } else if (isEmpty) {
+    body = <EmptyState onPropose={openImport} />;
+  } else {
+    body = (
       <div className="grid gap-4 lg:grid-cols-2">
         {scheduled === null ? (
           <EmptyState onPropose={openImport} />
@@ -322,6 +311,12 @@ export function UpNextQueue() {
           )}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <SectionShell>
+      {body}
 
       <ConfirmDeleteDialog
         open={toRemove !== null}
