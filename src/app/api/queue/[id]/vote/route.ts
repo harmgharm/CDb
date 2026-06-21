@@ -13,7 +13,9 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
+import { publishToQueue } from "@/lib/notifications";
 import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
+import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -58,7 +60,11 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     await ensureScheduledFilled(trx);
   });
 
-  return successResponse({ proposalId: id, voteCount: await countVotes(id), hasVoted: true });
+  const voteCount = await countVotes(id);
+  // Broadcast the new tally so other clients revalidate (the actor flips
+  // optimistically). Fire-and-forget: a dropped vote re-syncs on next load.
+  publishToQueue(QUEUE_EVENTS.voted, { proposalId: id, voteCount });
+  return successResponse({ proposalId: id, voteCount, hasVoted: true });
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
@@ -79,5 +85,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     await ensureScheduledFilled(trx);
   });
 
-  return successResponse({ proposalId: id, voteCount: await countVotes(id), hasVoted: false });
+  const voteCount = await countVotes(id);
+  publishToQueue(QUEUE_EVENTS.voted, { proposalId: id, voteCount });
+  return successResponse({ proposalId: id, voteCount, hasVoted: false });
 }

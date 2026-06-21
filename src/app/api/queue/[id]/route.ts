@@ -10,7 +10,9 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { withTransaction } from "@/lib/db/transaction";
+import { publishToQueue } from "@/lib/notifications";
 import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
+import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -59,6 +61,11 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
       metadata: { scheduledProposalId: result.filled, reason: "slot_filled_on_remove" },
     });
   }
+
+  // Broadcast the removal so every client revalidates. A single `removed` event
+  // covers an escape-hatch re-fill too — clients refetch the full state, which
+  // already reflects any promotion into the freed slot.
+  publishToQueue(QUEUE_EVENTS.removed, { proposalId: result.deleted.id });
 
   return successResponse({ id: result.deleted.id }, "Proposal removed");
 }

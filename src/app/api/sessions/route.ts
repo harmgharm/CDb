@@ -15,9 +15,11 @@ import {
   createRatePendingNotifications,
   createSessionCreatedNotifications,
   createWatchlistFriendWatchedNotifications,
+  publishToQueueAsync,
 } from "@/lib/notifications";
 import type { AdvanceResult } from "@/lib/queue/advance";
 import { advanceQueueOnWatch } from "@/lib/queue/advance";
+import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 import {
   invalidateGroupRecommendations,
   invalidateUserRecommendations,
@@ -139,6 +141,14 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
         scheduledProposalId: advance.scheduledProposalId,
         sessionId: session.id,
       },
+    });
+
+    // Broadcast the advance so every client revalidates off a stale scheduled
+    // pick. Awaited (not fire-and-forget): a dropped advance is high-stakes and
+    // a serverless function can terminate before an unawaited publish lands.
+    await publishToQueueAsync(QUEUE_EVENTS.advanced, {
+      watchedId: advance.watchedProposalId ?? null,
+      scheduledId: advance.scheduledProposalId ?? null,
     });
   }
 

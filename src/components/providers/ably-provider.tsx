@@ -11,8 +11,10 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useSWRConfig } from "swr";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { QUEUE_KEY } from "@/hooks/use-queue";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
+import { QUEUE_CHANNEL, QUEUE_EVENTS } from "@/lib/queue/realtime";
 
 const PRESENCE_CHANNEL = "presence:group";
 
@@ -125,6 +127,32 @@ function NotificationListener({ channelName }: Readonly<{ channelName: string }>
 }
 
 /**
+ * Listens on the group queue channel and revalidates the queue SWR cache when
+ * any queue event arrives. Renders nothing. Must be rendered inside a
+ * ChannelProvider for "group:queue".
+ *
+ * Lives here (inside the browser-only ChannelProvider) rather than in useQueue()
+ * because useChannel throws without an Ably client in context — which is the
+ * case during the static prerender of /home and when logged out. Revalidates by
+ * SWR key so it stays decoupled from any useQueue() instance. Payloads are
+ * "something changed, refetch" triggers; ranking truth lives only in the GET.
+ */
+function QueueListener() {
+  const { mutate } = useSWRConfig();
+
+  const revalidate = (): void => {
+    void mutate(QUEUE_KEY);
+  };
+  useChannel({ channelName: QUEUE_CHANNEL }, QUEUE_EVENTS.proposed, revalidate);
+  useChannel({ channelName: QUEUE_CHANNEL }, QUEUE_EVENTS.voted, revalidate);
+  useChannel({ channelName: QUEUE_CHANNEL }, QUEUE_EVENTS.advanced, revalidate);
+  useChannel({ channelName: QUEUE_CHANNEL }, QUEUE_EVENTS.scheduled, revalidate);
+  useChannel({ channelName: QUEUE_CHANNEL }, QUEUE_EVENTS.removed, revalidate);
+
+  return null;
+}
+
+/**
  * Enters presence on the group channel with user metadata.
  * Must be rendered inside a ChannelProvider for "presence:group".
  */
@@ -191,7 +219,14 @@ export function AblyProvider({ children }: Readonly<{ children: React.ReactNode 
       </ChannelProvider>
       <ChannelProvider channelName={PRESENCE_CHANNEL}>
         <PresenceEntry />
-        {children}
+        {/* Group queue broadcasts (slice 3). QueueListener subscribes here (the
+            browser-only ChannelProvider) and revalidates the queue SWR key;
+            wrapping children keeps the dashboard queue section and the sidebar
+            Up Next (slice 5) in channel scope for any future direct use. */}
+        <ChannelProvider channelName={QUEUE_CHANNEL}>
+          <QueueListener />
+          {children}
+        </ChannelProvider>
       </ChannelProvider>
     </AblyReactProvider>
   );

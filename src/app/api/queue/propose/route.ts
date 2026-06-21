@@ -13,7 +13,9 @@ import { logAudit, requireAuth } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { QueueProposal } from "@/lib/db/types";
+import { publishToQueue } from "@/lib/notifications";
 import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
+import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 import { proposeSchema } from "@/lib/validations/queue";
 
 function findActiveProposal(mediaId: string): Promise<QueueProposal | undefined> {
@@ -93,6 +95,12 @@ export async function POST(req: NextRequest) {
       metadata: { scheduledProposalId, reason: "slot_filled_on_propose" },
     });
   }
+
+  // Broadcast so every client revalidates the canonical GET (fire-and-forget; a
+  // dropped publish re-syncs on next load). A single `proposed` event covers an
+  // auto-fill too: clients refetch the full state, which already reflects the
+  // promotion. (`advanced` is reserved for the watch path's watched->promote.)
+  publishToQueue(QUEUE_EVENTS.proposed, { proposalId: created.id, mediaId });
 
   return successResponse(created, "Proposed", 201);
 }

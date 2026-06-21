@@ -8,6 +8,7 @@
 import Ably from "ably";
 
 import { env } from "@/lib/env";
+import { QUEUE_CHANNEL } from "@/lib/queue/realtime";
 
 // Lazy singleton — Ably.Rest is lightweight, no persistent connection
 let ablyClient: Ably.Rest | null = null;
@@ -61,6 +62,38 @@ export async function publishToGameAsync(
 }
 
 /**
+ * Publish an event to the group queue channel (fire-and-forget).
+ *
+ * Used for the low-stakes queue events (proposed/voted/scheduled/removed): a
+ * dropped publish re-syncs on the next load. The high-stakes `queue:advanced`
+ * uses the awaited variant below.
+ */
+export function publishToQueue(event: string, data: unknown): void {
+  const client = getAblyClient();
+  const channel = client.channels.get(QUEUE_CHANNEL);
+  void channel.publish(event, data).catch((error: unknown) => {
+    console.error(`Failed to publish ${event} to ${QUEUE_CHANNEL}:`, error);
+  });
+}
+
+/**
+ * Publish an event to the group queue channel and await delivery.
+ *
+ * Use for `queue:advanced`, where fire-and-forget risks the serverless function
+ * terminating before the publish HTTP request completes — leaving everyone on a
+ * stale scheduled pick.
+ */
+export async function publishToQueueAsync(event: string, data: unknown): Promise<void> {
+  const client = getAblyClient();
+  const channel = client.channels.get(QUEUE_CHANNEL);
+  try {
+    await channel.publish(event, data);
+  } catch (error: unknown) {
+    console.error(`Failed to publish ${event} to ${QUEUE_CHANNEL}:`, error);
+  }
+}
+
+/**
  * Create a signed token request scoped to a user's channel (subscribe-only).
  * Returned to the client via /api/ably/auth so the API key is never exposed.
  */
@@ -72,6 +105,7 @@ export async function createTokenRequest(userId: string): Promise<Ably.TokenRequ
       [`user:${userId}`]: ["subscribe"],
       "presence:group": ["presence", "subscribe"],
       "game:*": ["publish", "subscribe", "presence"],
+      [QUEUE_CHANNEL]: ["subscribe"],
     },
   });
 }

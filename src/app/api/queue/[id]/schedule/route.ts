@@ -10,6 +10,8 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { publishToQueue } from "@/lib/notifications";
+import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 import { scheduleSchema } from "@/lib/validations/queue";
 
 interface RouteParams {
@@ -37,6 +39,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .executeTakeFirst();
 
   if (updated !== undefined) {
+    // Broadcast the date change; the validated input carries the literal
+    // "YYYY-MM-DD" (or null), avoiding a TZ round-trip through the stored Date.
+    publishToQueue(QUEUE_EVENTS.scheduled, {
+      proposalId: id,
+      scheduledDate: parsed.data.scheduledDate,
+    });
     return successResponse(updated, "Schedule updated");
   }
 

@@ -534,3 +534,18 @@ test.describe.serial("group queue API", () => {
     }
   });
 });
+
+test.describe("group queue real-time (slice 3)", () => {
+  test("the issued Ably token grants subscribe on the group:queue channel", async ({ request }) => {
+    // Clients subscribe to the live queue channel with the scoped token from
+    // /api/ably/auth — without this grant the browser can't receive queue events.
+    const res = await request.get("/api/ably/auth");
+    expect(res.ok()).toBeTruthy();
+
+    const body = (await res.json()) as { data: { capability: string } };
+    // Ably serializes `capability` as a JSON string of { channel: [ops] }.
+    const capability = JSON.parse(body.data.capability) as Record<string, string[]>;
+
+    expect(capability["group:queue"]).toContain("subscribe");
+  });
+});

@@ -1,4 +1,4 @@
-export { createTokenRequest, publishToUser } from "./ably";
+export { createTokenRequest, publishToQueue, publishToQueueAsync, publishToUser } from "./ably";
 export { cleanupOldNotifications } from "./cleanup";
 export {
   createNotification,

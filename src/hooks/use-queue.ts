@@ -6,8 +6,15 @@
  * as ISO strings over JSON, so the client view types them as strings (the route
  * selects `Date`).
  *
- * Real-time (Ably subscription) and optimistic vote flips are intentionally NOT
- * here yet — they land in slice 3. For now a vote calls the API and revalidates.
+ * Real-time (slice 3): the `group:queue` Ably subscription is NOT here — it
+ * lives in `QueueListener` (ably-provider.tsx), which revalidates this SWR key
+ * on any event. (`useChannel` throws during the static prerender of /home and
+ * when logged out, where no Ably client is in context, so the subscription must
+ * stay inside the browser-only ChannelProvider.) Payloads are "something
+ * changed, refetch" triggers, never patched into the cache — ranking truth lives
+ * only in the GET. The one exception is the actor's own vote, which this hook
+ * flips optimistically (`applyVoteFlip`) for an instant thumbs-up; the broadcast
+ * then reconciles.
  */
 
 import { useState } from "react";
@@ -124,6 +131,57 @@ export function wonVoteLine(tally: {
   return `Won the vote, ${String(tally.wonVotes)} to ${String(tally.runnerUpVotes)}`;
 }
 
+/**
+ * Re-rank the vote list the same way the server does: votes DESC, then oldest
+ * proposal (`proposed_at` ASC) as the tie-break. `proposedAt` is an ISO-8601
+ * string, whose lexicographic order matches chronological order, so it can be
+ * compared as a string with no `Date` round-trip. Returns a new array.
+ */
+function rankProposalViews(proposals: readonly QueueProposalView[]): readonly QueueProposalView[] {
+  return proposals.toSorted((a, b) => {
+    if (a.voteCount !== b.voteCount) {
+      return b.voteCount - a.voteCount;
+    }
+    return a.proposedAt.localeCompare(b.proposedAt);
+  });
+}
+
+/**
+ * Optimistically apply the actor's own vote toggle to the cached queue state:
+ * flip `hasVoted` on the target proposal and nudge its `voteCount` by ±1, then
+ * re-rank the vote list (a vote can reorder it). The scheduled pick stays in its
+ * slot — its count updates in place but it never moves into the list. Returns a
+ * new state (no mutation); `undefined` in -> `undefined` out (nothing to flip),
+ * and an unknown id leaves the state unchanged. The Ably broadcast then
+ * reconciles every client (including this one) against server truth.
+ */
+export function applyVoteFlip(
+  state: QueueState | undefined,
+  proposalId: string,
+  nextHasVoted: boolean,
+): QueueState | undefined {
+  if (state === undefined) {
+    return undefined;
+  }
+
+  const flip = (proposal: QueueProposalView): QueueProposalView => {
+    if (proposal.id !== proposalId) {
+      return proposal;
+    }
+    const delta = nextHasVoted ? 1 : -1;
+    return {
+      ...proposal,
+      hasVoted: nextHasVoted,
+      voteCount: Math.max(0, proposal.voteCount + delta),
+    };
+  };
+
+  const scheduled = state.scheduled === null ? null : flip(state.scheduled);
+  const proposals = rankProposalViews(state.proposals.map((p) => flip(p)));
+
+  return { scheduled, proposals };
+}
+
 export interface UseQueueResult {
   readonly scheduled: QueueProposalView | null;
   readonly proposals: readonly QueueProposalView[];
@@ -156,12 +214,20 @@ export interface UseQueueResult {
   readonly setScheduledDate: (proposalId: string, date: string | null) => Promise<void>;
 }
 
-const QUEUE_KEY = "/api/queue";
+/** The SWR key for the canonical queue state — shared with QueueListener. */
+export const QUEUE_KEY = "/api/queue";
 
 export function useQueue(): UseQueueResult {
   const { data, isLoading, mutate } = useSWR<QueueState>(QUEUE_KEY);
   const [pendingVotes, setPendingVotes] = useState<ReadonlySet<string>>(new Set());
   const [pendingRemovals, setPendingRemovals] = useState<ReadonlySet<string>>(new Set());
+
+  // Real-time note: the `group:queue` Ably subscription is NOT here. `useChannel`
+  // throws when no ChannelProvider/Ably client is in context, which happens
+  // during the static prerender of `/home` (and when logged out, where
+  // AblyProvider renders children with no provider). So the subscription lives in
+  // QueueListener, rendered only inside the browser-only ChannelProvider, and it
+  // revalidates this SWR key by key — exactly the NotificationListener pattern.
 
   const toggleVote = async (proposalId: string, hasVoted: boolean): Promise<void> => {
     // Ignore a second toggle while one is already in flight for this proposal —
@@ -170,6 +236,11 @@ export function useQueue(): UseQueueResult {
       return;
     }
     setPendingVotes((previous) => new Set(previous).add(proposalId));
+
+    // Optimistically flip the actor's own vote for an instant thumbs-up (and a
+    // possible re-rank). No revalidation yet — the fetch's `finally` reconciles
+    // against server truth, and the broadcast reconciles every other client.
+    void mutate((current) => applyVoteFlip(current, proposalId, !hasVoted), { revalidate: false });
 
     try {
       const response = await fetchWithAuth(`/api/queue/${proposalId}/vote`, {
@@ -183,7 +254,8 @@ export function useQueue(): UseQueueResult {
       // Network failure — fetchWithAuth rejects (HTTP errors don't).
       toast.error("Couldn't update your vote");
     } finally {
-      // Always reconcile against server truth, then clear the pending flag.
+      // Always reconcile against server truth (rolls back a failed optimistic
+      // flip), then clear the pending flag.
       await mutate();
       setPendingVotes((previous) => {
         const next = new Set(previous);
