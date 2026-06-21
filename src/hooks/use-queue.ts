@@ -319,3 +319,41 @@ export function useQueue(): UseQueueResult {
     setScheduledDate,
   };
 }
+
+/** Outcome of a propose call — distinguishes a fresh create from a dedup no-op. */
+export interface ProposeOutcome {
+  /** True when the proposal already existed (dedup no-op), false on create. */
+  readonly alreadyProposed: boolean;
+}
+
+/**
+ * One-shot action hook for proposing a title to the group queue by `mediaId`
+ * (`POST /api/queue/propose`). Returns the dedup-aware outcome so callers can
+ * tell "added to the queue" from "already in the queue", or `null` on failure.
+ * Mirrors `useMediaImport`'s shape (isPending + error + action).
+ */
+export function useProposeToQueue() {
+  const [isProposing, setIsProposing] = useState(false);
+
+  const propose = async (mediaId: string): Promise<ProposeOutcome | null> => {
+    setIsProposing(true);
+    try {
+      const response = await fetchWithAuth("/api/queue/propose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId }),
+      });
+      const json = (await response.json()) as ApiResponse<{ alreadyProposed: boolean }>;
+      if (json.error !== null) {
+        return null;
+      }
+      return { alreadyProposed: json.data.alreadyProposed };
+    } catch {
+      return null;
+    } finally {
+      setIsProposing(false);
+    }
+  };
+
+  return { isProposing, propose };
+}

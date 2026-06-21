@@ -118,13 +118,18 @@ test.describe.serial("group queue API", () => {
   test("propose creates a proposal, then dedups to a no-op", async ({ request }) => {
     const first = await request.post("/api/queue/propose", { data: { mediaId: MEDIA_A } });
     expect(first.status()).toBe(201);
-    const firstBody = (await first.json()) as { data: { id: string } };
+    const firstBody = (await first.json()) as { data: { id: string; alreadyProposed: boolean } };
+    // A fresh create reports alreadyProposed=false (the structured dedup flag the
+    // UI keys on, instead of string-matching the message — slice-1 review note).
+    expect(firstBody.data.alreadyProposed).toBe(false);
 
     const second = await request.post("/api/queue/propose", { data: { mediaId: MEDIA_A } });
     // Dedup: 200 (not 201) and the SAME proposal id returned.
     expect(second.status()).toBe(200);
-    const secondBody = (await second.json()) as { data: { id: string } };
+    const secondBody = (await second.json()) as { data: { id: string; alreadyProposed: boolean } };
     expect(secondBody.data.id).toBe(firstBody.data.id);
+    // The dedup no-op reports alreadyProposed=true.
+    expect(secondBody.data.alreadyProposed).toBe(true);
 
     // The partial unique index held: exactly one active proposal for this media.
     const count = await db
@@ -335,6 +340,111 @@ test.describe.serial("group queue API", () => {
       .executeTakeFirstOrThrow();
     expect(promoted.id).toBe(nextId);
     expect(promoted.scheduled_date).toBeNull();
+  });
+
+  test("removing a proposal reclaims its orphaned media row", async ({ request }) => {
+    // MEDIA_A is referenced ONLY by this proposal (no sessions, no watchlist) —
+    // an import-then-propose orphan. Removing the proposal should delete it.
+    const id = await seedProposal(db, {
+      mediaId: MEDIA_A,
+      status: "proposed",
+      proposedAt: "2026-01-01T00:00:00Z",
+    });
+
+    const res = await request.delete(`/api/queue/${id}`);
+    expect(res.ok()).toBeTruthy();
+
+    const media = await db
+      .selectFrom("media")
+      .select("id")
+      .where("id", "=", MEDIA_A)
+      .executeTakeFirst();
+    expect(media).toBeUndefined();
+
+    // Audit trail for the vanished media row.
+    const audit = await db
+      .selectFrom("audit_log")
+      .select("id")
+      .where("action", "=", "media.deleted")
+      .where("entity_id", "=", MEDIA_A)
+      .executeTakeFirst();
+    expect(audit).not.toBeUndefined();
+  });
+
+  test("removing a proposal keeps media that a watch session references", async ({ request }) => {
+    const id = await seedProposal(db, {
+      mediaId: MEDIA_A,
+      status: "proposed",
+      proposedAt: "2026-01-01T00:00:00Z",
+    });
+    // A logged session references MEDIA_A — deleting media would cascade-destroy
+    // the session, so the orphan guard must keep the media row.
+    await db
+      .insertInto("watch_sessions")
+      .values({ media_id: MEDIA_A, date_watched: "2026-01-02", picked_by_user_id: E2E_ADMIN.id })
+      .execute();
+
+    const res = await request.delete(`/api/queue/${id}`);
+    expect(res.ok()).toBeTruthy();
+
+    const media = await db
+      .selectFrom("media")
+      .select("id")
+      .where("id", "=", MEDIA_A)
+      .executeTakeFirst();
+    expect(media).not.toBeUndefined();
+  });
+
+  test("removing a proposal keeps media that a watchlist entry references", async ({ request }) => {
+    const id = await seedProposal(db, {
+      mediaId: MEDIA_A,
+      status: "proposed",
+      proposedAt: "2026-01-01T00:00:00Z",
+    });
+    // Someone has MEDIA_A on their watchlist by media_id (an imported entry).
+    // watchlist.media_id is ON DELETE CASCADE, so reclaiming the media would
+    // silently nuke their bookmark — the orphan guard must keep the media row.
+    await db
+      .insertInto("watchlist")
+      .values({ media_id: MEDIA_A, user_id: E2E_ADMIN.id, status: "planning" })
+      .execute();
+
+    const res = await request.delete(`/api/queue/${id}`);
+    expect(res.ok()).toBeTruthy();
+
+    const media = await db
+      .selectFrom("media")
+      .select("id")
+      .where("id", "=", MEDIA_A)
+      .executeTakeFirst();
+    expect(media).not.toBeUndefined();
+  });
+
+  test("deleting media that is the scheduled pick re-fills the slot", async ({ request }) => {
+    // MEDIA_A scheduled, MEDIA_B the next proposal. Admin deletes MEDIA_A out
+    // from under the queue — the FK cascade removes A's proposal; the slot must
+    // re-fill from B (the cascade alone would leave it empty).
+    await seedProposal(db, {
+      mediaId: MEDIA_A,
+      status: "scheduled",
+      proposedAt: "2026-01-01T00:00:00Z",
+    });
+    const nextId = await seedProposal(db, {
+      mediaId: MEDIA_B,
+      status: "proposed",
+      proposedAt: "2026-02-01T00:00:00Z",
+    });
+
+    const res = await request.delete(`/api/media/${MEDIA_A}`);
+    expect(res.ok()).toBeTruthy();
+
+    const scheduled = await db
+      .selectFrom("queue_proposals")
+      .select("id")
+      .where("status", "=", "scheduled")
+      .where("media_id", "in", E2E_QUEUE_MEDIA_IDS)
+      .executeTakeFirstOrThrow();
+    expect(scheduled.id).toBe(nextId);
   });
 
   test("logging the scheduled pick advances the queue to the top-voted proposal", async ({

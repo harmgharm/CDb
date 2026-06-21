@@ -46,10 +46,12 @@ export async function POST(req: NextRequest) {
     return errorResponse("Media not found", 404);
   }
 
-  // Already actively queued -> no-op, return the existing proposal.
+  // Already actively queued -> no-op, return the existing proposal. The
+  // `alreadyProposed` flag lets the UI distinguish dedup from create without
+  // string-matching the message (slice-1 review note; slice 4 is the consumer).
   const existing = await findActiveProposal(mediaId);
   if (existing !== undefined) {
-    return successResponse(existing, "Already proposed");
+    return successResponse({ ...existing, alreadyProposed: true }, "Already proposed");
   }
 
   let created: QueueProposal;
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest) {
     if (isUniqueViolation(error)) {
       const winner = await findActiveProposal(mediaId);
       if (winner !== undefined) {
-        return successResponse(winner, "Already proposed");
+        return successResponse({ ...winner, alreadyProposed: true }, "Already proposed");
       }
     }
     throw error;
@@ -102,5 +104,5 @@ export async function POST(req: NextRequest) {
   // promotion. (`advanced` is reserved for the watch path's watched->promote.)
   publishToQueue(QUEUE_EVENTS.proposed, { proposalId: created.id, mediaId });
 
-  return successResponse(created, "Proposed", 201);
+  return successResponse({ ...created, alreadyProposed: false }, "Proposed", 201);
 }

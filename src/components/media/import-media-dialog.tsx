@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useMediaImport, useMediaSearch } from "@/hooks/use-media";
+import { useProposeToQueue, useQueue } from "@/hooks/use-queue";
 import { useCreateSession } from "@/hooks/use-sessions";
 import { useUserList } from "@/hooks/use-users";
 import { useAddToWatchlist, useWatchlist } from "@/hooks/use-watchlist";
@@ -74,11 +75,15 @@ export function ImportMediaDialog({
   const { isImporting, importError, importMedia } = useMediaImport();
   const { createSession, isCreating } = useCreateSession();
   const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
+  const { propose, isProposing } = useProposeToQueue();
+  const { scheduled, proposals, refresh: refreshQueue } = useQueue();
   const { data: myWatchlist, mutate: mutateWatchlist } = useWatchlist(
     currentUser === null ? {} : { userId: currentUser.id, limit: 100 },
   );
   // Track items added during this dialog session (SWR may not have refreshed yet)
   const [locallyAdded, setLocallyAdded] = useState<Set<string>>(new Set());
+  // Same, for titles proposed to the group queue during this dialog session.
+  const [locallyProposed, setLocallyProposed] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Auto-search when dialog mounts with an initialQuery.
@@ -99,6 +104,15 @@ export function ImportMediaDialog({
   }, [existingMediaMap, importedMap]);
 
   const watchlistLookup = buildWatchlistLookup(myWatchlist);
+
+  // The set of media ids currently active in the group queue (scheduled pick +
+  // open proposals). A search row matching one renders the "Proposed" state.
+  const queuedMediaIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (scheduled !== null) ids.add(scheduled.media.id);
+    for (const proposal of proposals) ids.add(proposal.media.id);
+    return ids;
+  }, [scheduled, proposals]);
 
   const resetSessionForm = useCallback(() => {
     setSessionOpen(false);
@@ -144,8 +158,12 @@ export function ImportMediaDialog({
     [query, search],
   );
 
-  const handleImport = useCallback(
-    async (result: MediaSearchResult) => {
+  // Bare import: import the media row and record it locally, WITHOUT popping the
+  // post-import session form. Returns the imported id (or null). Shared by the
+  // explicit Import button (which then opens the form) and the Propose path
+  // (which must import an external title first but must NOT open the form).
+  const importResult = useCallback(
+    async (result: MediaSearchResult): Promise<string | null> => {
       const params: { type: string; tmdbId?: number; malId?: number } = {
         type: result.type,
       };
@@ -157,15 +175,26 @@ export function ImportMediaDialog({
       }
 
       const imported = await importMedia(params);
+      if (imported === null) {
+        return null;
+      }
+      const key = `${result.source}-${String(result.externalId)}`;
+      setImportedMap((previous) => new Map([...previous, [key, imported.id]]));
+      onSuccess();
+      return imported.id;
+    },
+    [importMedia, onSuccess],
+  );
 
-      if (imported !== null) {
-        const key = `${result.source}-${String(result.externalId)}`;
-        setImportedMap((previous) => new Map([...previous, [key, imported.id]]));
+  const handleImport = useCallback(
+    async (result: MediaSearchResult) => {
+      const importedId = await importResult(result);
+
+      if (importedId !== null) {
         toast.success(`Imported "${result.title}"`);
-        onSuccess();
 
         // Show session form for this media
-        setSessionTarget({ mediaId: imported.id, title: result.title });
+        setSessionTarget({ mediaId: importedId, title: result.title });
         setSessionForm((previous) => ({
           ...previous,
           attendeeIds: currentUser === null ? [] : [currentUser.id],
@@ -173,7 +202,7 @@ export function ImportMediaDialog({
         setSessionOpen(true);
       }
     },
-    [importMedia, onSuccess, currentUser],
+    [importResult, currentUser],
   );
 
   function buildSessionParams(target: { mediaId: string }) {
@@ -262,6 +291,27 @@ export function ImportMediaDialog({
     toast.success("Added to watchlist");
   }
 
+  async function handlePropose(result: MediaSearchResult, importedMediaId: string | undefined) {
+    // The queue needs a real media row. If the result isn't imported yet, import
+    // it first (without popping the session form), then propose the new id.
+    const mediaId = importedMediaId ?? (await importResult(result));
+    if (mediaId === null) {
+      toast.error("Couldn't import that title to propose it");
+      return;
+    }
+
+    const outcome = await propose(mediaId);
+    if (outcome === null) {
+      toast.error("Couldn't propose that title");
+      return;
+    }
+
+    const key = `${result.source}-${String(result.externalId)}`;
+    setLocallyProposed((previous) => new Set([...previous, key]));
+    void refreshQueue();
+    toast.success(outcome.alreadyProposed ? "Already in the queue" : "Proposed to the group");
+  }
+
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
       if (!isOpen) {
@@ -270,6 +320,7 @@ export function ImportMediaDialog({
         clearResults();
         resetSessionForm();
         setLocallyAdded(new Set());
+        setLocallyProposed(new Set());
       }
       onOpenChange(isOpen);
     },
@@ -378,8 +429,12 @@ export function ImportMediaDialog({
             watchlistLookup={watchlistLookup}
             isAddingToWatchlist={isAddingToWatchlist}
             isImporting={isImporting}
+            queuedMediaIds={queuedMediaIds}
+            locallyProposed={locallyProposed}
+            isProposing={isProposing}
             onImport={handleImport}
             onAddToWatchlist={handleAddToWatchlist}
+            onPropose={handlePropose}
             onNavigate={(mediaId) => {
               handleOpenChange(false);
               router.push(`/database/${mediaId}`);

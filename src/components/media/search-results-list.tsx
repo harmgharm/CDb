@@ -9,6 +9,7 @@ import {
   DatabaseIcon,
   DownloadIcon,
   LoaderIcon,
+  UsersIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -52,6 +53,25 @@ function isAlreadyWatchlisted(
   return lookup.malIds.has(result.externalId);
 }
 
+/**
+ * Whether a result is already in the group's active queue. The queue keys on a
+ * real `media_id`, so this can only match a row that's been imported (in the DB)
+ * — an un-imported external result has no id to match and is always proposable.
+ * `locallyProposed` covers titles proposed during this dialog session before the
+ * queue SWR cache has refreshed.
+ */
+function isAlreadyProposed(options: {
+  importedMediaId: string | undefined;
+  queuedMediaIds: ReadonlySet<string>;
+  locallyProposed: ReadonlySet<string>;
+  key: string;
+}): boolean {
+  if (options.locallyProposed.has(options.key)) return true;
+  return (
+    options.importedMediaId !== undefined && options.queuedMediaIds.has(options.importedMediaId)
+  );
+}
+
 interface SearchResultsListProps {
   readonly isSearching: boolean;
   readonly query: string;
@@ -61,8 +81,17 @@ interface SearchResultsListProps {
   readonly watchlistLookup: WatchlistLookup;
   readonly isAddingToWatchlist: boolean;
   readonly isImporting: boolean;
+  /** Active-queue media ids — a row matching one renders the "Proposed" state. */
+  readonly queuedMediaIds: ReadonlySet<string>;
+  /** Result keys proposed during this dialog session (before SWR refreshes). */
+  readonly locallyProposed: ReadonlySet<string>;
+  readonly isProposing: boolean;
   readonly onImport: (result: MediaSearchResult) => Promise<void>;
   readonly onAddToWatchlist: (
+    result: MediaSearchResult,
+    importedMediaId: string | undefined,
+  ) => Promise<void>;
+  readonly onPropose: (
     result: MediaSearchResult,
     importedMediaId: string | undefined,
   ) => Promise<void>;
@@ -134,8 +163,12 @@ export function SearchResultsList({
   watchlistLookup,
   isAddingToWatchlist,
   isImporting,
+  queuedMediaIds,
+  locallyProposed,
+  isProposing,
   onImport,
   onAddToWatchlist,
+  onPropose,
   onNavigate,
 }: SearchResultsListProps) {
   const [previewResult, setPreviewResult] = useState<MediaSearchResult | null>(null);
@@ -173,6 +206,12 @@ export function SearchResultsList({
         const isImported = importedMediaId !== undefined;
         const alreadyWatchlisted =
           locallyAdded.has(key) || isAlreadyWatchlisted(result, importedMediaId, watchlistLookup);
+        const alreadyProposed = isAlreadyProposed({
+          importedMediaId,
+          queuedMediaIds,
+          locallyProposed,
+          key,
+        });
 
         const isFromDatabase = result.existingMediaId !== undefined;
 
@@ -242,6 +281,26 @@ export function SearchResultsList({
                 >
                   <BookmarkPlusIcon className="mr-1 size-3" />
                   Watchlist
+                </Button>
+              )}
+              {alreadyProposed ? (
+                <Button size="sm" variant="outline" className="cdb-imp-proposed" disabled>
+                  <CheckIcon className="mr-1 size-3" />
+                  Proposed
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isProposing}
+                  title="Propose to the group vote"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void onPropose(result, importedMediaId);
+                  }}
+                >
+                  <UsersIcon className="mr-1 size-3" />
+                  Propose
                 </Button>
               )}
               <ImportStatusButton

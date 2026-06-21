@@ -10,6 +10,10 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth, requireModerator } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
+import { publishToQueue } from "@/lib/notifications";
+import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
+import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 import type { UpdateMediaInput } from "@/lib/validations/media";
 import { updateMediaSchema } from "@/lib/validations/media";
 
@@ -221,7 +225,24 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return errorResponse("Media not found", 404);
   }
 
-  await db.deleteFrom("media").where("id", "=", id).execute();
+  // Deleting media FK-cascades away any queue proposal for it. If that proposal
+  // was the scheduled pick, the slot is now empty and the cascade bypassed
+  // ensureScheduledFilled — so re-fill it in the same transaction. Capture the
+  // proposal id up front (before the cascade erases it) for an honest broadcast.
+  // The active-per-media unique index means at most one such row.
+  const activeProposal = await db
+    .selectFrom("queue_proposals")
+    .select("id")
+    .where("media_id", "=", id)
+    .where("status", "in", ["proposed", "scheduled"])
+    .executeTakeFirst();
+
+  await withTransaction(async (trx) => {
+    await trx.deleteFrom("media").where("id", "=", id).execute();
+    if (activeProposal !== undefined) {
+      await ensureScheduledFilled(trx);
+    }
+  });
 
   await logAudit({
     userId: admin.id,
@@ -230,6 +251,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     entityId: id,
     metadata: { title: media.title },
   });
+
+  // A queued title was deleted out from under the queue — tell clients to
+  // revalidate; the GET reflects the cascade removal and any slot re-fill.
+  if (activeProposal !== undefined) {
+    publishToQueue(QUEUE_EVENTS.removed, { proposalId: activeProposal.id });
+  }
 
   return successResponse(null, "Media deleted");
 }
