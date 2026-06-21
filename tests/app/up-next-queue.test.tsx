@@ -20,6 +20,13 @@ vi.mock("next/image", () => ({
   default: ({ src, alt }: { src: string; alt: string }) => React.createElement("img", { src, alt }),
 }));
 
+// Stub the import dialog — it pulls in the whole app's hook/provider tree, which
+// is out of scope here. This suite verifies the queue section's own rendering;
+// the dialog's Propose flow is covered by its own tests + live verification.
+vi.mock("@/components/media/import-media-dialog", () => ({
+  ImportMediaDialog: () => null,
+}));
+
 import { UpNextQueue } from "@/app/(main)/home/_components/up-next-queue";
 
 function makeProposal(overrides: Partial<QueueProposalView> = {}): QueueProposalView {

@@ -4,6 +4,7 @@ import { CalendarIcon, CheckIcon, PlusIcon, ThumbsUpIcon, Trash2Icon } from "luc
 import { useState } from "react";
 
 import { ConfirmDeleteDialog } from "@/components/media/confirm-delete-dialog";
+import { ImportMediaDialog } from "@/components/media/import-media-dialog";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -195,12 +196,13 @@ function VoteRow({
   );
 }
 
-function EmptyState() {
+function EmptyState({ onPropose }: Readonly<{ onPropose: () => void }>) {
   return (
     <div className="bg-card flex flex-col items-center gap-3 rounded-lg border p-8 text-center">
       <p className="text-muted-foreground text-sm">Nothing scheduled yet, propose something.</p>
       <button
         type="button"
+        onClick={onPropose}
         className="bg-cdb-marquee text-cdb-ink inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium"
       >
         <PlusIcon className="size-3.5" /> Propose a title
@@ -228,9 +230,15 @@ export function UpNextQueue() {
     pendingRemovals,
     removeProposal,
     setScheduledDate,
+    refresh,
   } = useQueue();
   const [toRemove, setToRemove] = useState<QueueProposalView | null>(null);
   const [toSchedule, setToSchedule] = useState<QueueProposalView | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+
+  const openImport = (): void => {
+    setImportOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -243,7 +251,12 @@ export function UpNextQueue() {
   if (scheduled === null && proposals.length === 0) {
     return (
       <SectionShell>
-        <EmptyState />
+        <EmptyState onPropose={openImport} />
+        <ImportMediaDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onSuccess={() => void refresh()}
+        />
       </SectionShell>
     );
   }
@@ -267,7 +280,7 @@ export function UpNextQueue() {
     <SectionShell>
       <div className="grid gap-4 lg:grid-cols-2">
         {scheduled === null ? (
-          <EmptyState />
+          <EmptyState onPropose={openImport} />
         ) : (
           <ScheduledCard
             scheduled={scheduled}
@@ -281,6 +294,7 @@ export function UpNextQueue() {
             <h3 className="font-display text-lg font-normal">Up for the vote</h3>
             <button
               type="button"
+              onClick={openImport}
               className="text-cdb-marquee inline-flex items-center gap-1 text-xs font-medium"
             >
               <PlusIcon className="size-3" /> Propose a title
@@ -335,6 +349,12 @@ export function UpNextQueue() {
         mediaTitle={toSchedule?.media.title ?? ""}
         currentDate={toSchedule?.scheduledDate ?? null}
         onSave={saveScheduledDate}
+      />
+
+      <ImportMediaDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => void refresh()}
       />
     </SectionShell>
   );
