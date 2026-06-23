@@ -88,7 +88,7 @@ async function findInDatabase(input: PredictionRequestInput): Promise<ResolvedMe
     releaseYear: row.release_year,
     genres: row.genres,
     directors: row.directors ?? [],
-    cast: (row.top_cast)?.map((c) => c.name) ?? [],
+    cast: row.top_cast?.map((c) => c.name) ?? [],
     overview: row.synopsis,
     runtimeMinutes: row.runtime_minutes,
     episodeCount: row.episode_count,
