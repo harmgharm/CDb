@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { notFound, useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 import {
@@ -34,6 +34,7 @@ import { UserDetailedStats } from "@/components/users/user-detailed-stats";
 import { WatchlistSection } from "@/components/watchlist";
 import { useOnlineUsers } from "@/hooks/use-online-users";
 import { useUserList, useUserProfile, useUserStats } from "@/hooks/use-users";
+import { resolveDetailState } from "@/lib/api/detail-state";
 import { type ProfileTab, resolveProfileTab } from "@/lib/users/profile-tabs";
 import type { UserProfile } from "@/types/user-responses";
 
@@ -125,18 +126,40 @@ function ProfileSkeleton() {
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const { user: currentUser } = useAuth();
-  const { data: profile, isLoading: profileLoading } = useUserProfile(params.id);
+  const {
+    data: profile,
+    error: profileError,
+    mutate: mutateProfile,
+  } = useUserProfile(params.id) as {
+    data: ReturnType<typeof useUserProfile>["data"];
+    error: Error | undefined;
+    mutate: ReturnType<typeof useUserProfile>["mutate"];
+  };
 
-  if (profileLoading) {
+  const detailState = resolveDetailState({
+    hasData: profile !== undefined,
+    error: profileError,
+  });
+
+  if (detailState === "loading") {
     return <ProfileSkeleton />;
   }
 
-  if (profile === undefined) {
+  if (detailState === "not-found") {
+    // Confirmed-missing user (the API returned 404) — render the branded (main)
+    // 404 inside the app shell (sidebar + AblyProvider stay mounted).
+    notFound();
+  }
+
+  if (detailState === "error" || profile === undefined) {
+    // A transient failure (500 / network), NOT a confirmed 404 — offer a retry
+    // rather than wrongly claiming the profile doesn't exist. (`profile ===
+    // undefined` is unreachable once state is "ready", but narrows the type.)
     return (
       <div className="mx-auto max-w-5xl py-16 text-center">
-        <p className="text-muted-foreground text-lg">We couldn&apos;t find that profile.</p>
-        <Button asChild variant="outline" className="mt-4">
-          <Link href="/users">Back to cast</Link>
+        <p className="text-muted-foreground text-lg">Couldn&apos;t load this profile.</p>
+        <Button variant="outline" className="mt-4" onClick={() => void mutateProfile()}>
+          Try again
         </Button>
       </div>
     );

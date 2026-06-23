@@ -15,7 +15,7 @@ import {
 import * as motion from "motion/react-client";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -35,6 +35,7 @@ import { useMediaDetail } from "@/hooks/use-media";
 import { useSingleMediaRefresh } from "@/hooks/use-media-refresh";
 import { useDeleteMedia } from "@/hooks/use-sessions";
 import { useWatchlist, useWatchlistGroupCounts } from "@/hooks/use-watchlist";
+import { resolveDetailState } from "@/lib/api/detail-state";
 
 function formatMoney(value: string): string {
   const amount = Number(value);
@@ -76,12 +77,10 @@ export default function MediaDetailPage() {
   const {
     data: media,
     error: fetchError,
-    isLoading,
     mutate,
   } = useMediaDetail(params.id) as {
     data: ReturnType<typeof useMediaDetail>["data"];
     error: Error | undefined;
-    isLoading: boolean;
     mutate: ReturnType<typeof useMediaDetail>["mutate"];
   };
   const { deleteMedia, isDeleting: isDeletingMedia } = useDeleteMedia();
@@ -120,16 +119,27 @@ export default function MediaDetailPage() {
     }
   }
 
-  if (isLoading || (media === undefined && fetchError === undefined)) {
+  const detailState = resolveDetailState({ hasData: media !== undefined, error: fetchError });
+
+  if (detailState === "loading") {
     return <DetailSkeleton />;
   }
 
-  if (media === undefined) {
+  if (detailState === "not-found") {
+    // Confirmed-missing id (the API returned 404) — render the branded (main)
+    // 404 inside the app shell (keeps the sidebar + AblyProvider mounted).
+    notFound();
+  }
+
+  if (detailState === "error" || media === undefined) {
+    // A transient failure (500 / network), NOT a confirmed 404 — offer a retry
+    // rather than wrongly claiming the title doesn't exist. (`media === undefined`
+    // is unreachable once state is "ready", but narrows the type for TS.)
     return (
       <div className="mx-auto max-w-5xl py-16 text-center">
-        <p className="text-muted-foreground text-lg">Media not found</p>
-        <Button asChild variant="outline" className="mt-4">
-          <Link href="/database">Back to database</Link>
+        <p className="text-muted-foreground text-lg">Couldn&apos;t load this title.</p>
+        <Button variant="outline" className="mt-4" onClick={() => void mutate()}>
+          Try again
         </Button>
       </div>
     );
