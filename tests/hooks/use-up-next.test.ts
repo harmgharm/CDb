@@ -1,12 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import type { QueueProposalView } from "@/hooks/use-queue";
-import { resolveUpNext, selectUpNext, type UpNextLoading } from "@/hooks/use-up-next";
+import {
+  resolveUpNext,
+  selectUpNext,
+  type UpNextLoading,
+  type UpNextSources,
+} from "@/hooks/use-up-next";
 import type { WatchlistItem } from "@/types/watchlist-responses";
 
 /** All-settled loading flags by default; override individual sources per test. */
 function loadingFlags(overrides: Partial<UpNextLoading> = {}): UpNextLoading {
   return { queueLoading: false, watchingLoading: false, planningLoading: false, ...overrides };
+}
+
+/** Empty sources by default; override the field(s) a test exercises. */
+function sources(overrides: Partial<UpNextSources> = {}): UpNextSources {
+  return {
+    scheduled: null,
+    watchingItem: undefined,
+    planningItem: undefined,
+    userId: "u1",
+    ...overrides,
+  };
 }
 
 function makeWatchlistItem(overrides: Partial<WatchlistItem> = {}): WatchlistItem {
@@ -45,15 +61,17 @@ function makeScheduled(overrides: Partial<QueueProposalView> = {}): QueueProposa
 
 describe("selectUpNext", () => {
   it("returns nothing when there is no scheduled pick and the watchlist is empty", () => {
-    expect(selectUpNext(null, undefined, undefined)).toEqual({ data: null, source: null });
+    expect(selectUpNext(sources())).toEqual({ data: null, source: null });
   });
 
   describe("priority order", () => {
     it("prefers the scheduled queue pick over both watchlist entries", () => {
       const result = selectUpNext(
-        makeScheduled(),
-        makeWatchlistItem({ title: "Watching" }),
-        makeWatchlistItem({ title: "Planning", status: "planning" }),
+        sources({
+          scheduled: makeScheduled(),
+          watchingItem: makeWatchlistItem({ title: "Watching" }),
+          planningItem: makeWatchlistItem({ title: "Planning", status: "planning" }),
+        }),
       );
 
       expect(result.source).toBe("queue");
@@ -62,9 +80,10 @@ describe("selectUpNext", () => {
 
     it("falls through to the top watching entry when there is no scheduled pick", () => {
       const result = selectUpNext(
-        null,
-        makeWatchlistItem({ title: "Watching" }),
-        makeWatchlistItem({ title: "Planning", status: "planning" }),
+        sources({
+          watchingItem: makeWatchlistItem({ title: "Watching" }),
+          planningItem: makeWatchlistItem({ title: "Planning", status: "planning" }),
+        }),
       );
 
       expect(result.source).toBe("in-progress");
@@ -73,9 +92,7 @@ describe("selectUpNext", () => {
 
     it("falls through to the top planning entry when nothing is scheduled or watching", () => {
       const result = selectUpNext(
-        null,
-        undefined,
-        makeWatchlistItem({ title: "Planning", status: "planning" }),
+        sources({ planningItem: makeWatchlistItem({ title: "Planning", status: "planning" }) }),
       );
 
       expect(result.source).toBe("watchlist");
@@ -86,9 +103,11 @@ describe("selectUpNext", () => {
   describe("queue source", () => {
     it("links to the scheduled pick's media detail page", () => {
       const result = selectUpNext(
-        makeScheduled({ media: { id: "abc", title: "X", type: "tv", posterUrl: null } }),
-        undefined,
-        undefined,
+        sources({
+          scheduled: makeScheduled({
+            media: { id: "abc", title: "X", type: "tv", posterUrl: null },
+          }),
+        }),
       );
 
       expect(result.data?.href).toBe("/database/abc");
@@ -96,16 +115,16 @@ describe("selectUpNext", () => {
 
     it("carries through the title, poster, and media type", () => {
       const result = selectUpNext(
-        makeScheduled({
-          media: {
-            id: "m1",
-            title: "Akira",
-            type: "anime",
-            posterUrl: "https://example.test/a.jpg",
-          },
+        sources({
+          scheduled: makeScheduled({
+            media: {
+              id: "m1",
+              title: "Akira",
+              type: "anime",
+              posterUrl: "https://example.test/a.jpg",
+            },
+          }),
         }),
-        undefined,
-        undefined,
       );
 
       expect(result.data).toMatchObject({
@@ -119,27 +138,25 @@ describe("selectUpNext", () => {
     it("builds a dated eyebrow that reuses the dashboard date format", () => {
       // 2026-07-01 is a Wednesday — same formatting as the dashboard scheduled card.
       const result = selectUpNext(
-        makeScheduled({ scheduledDate: "2026-07-01" }),
-        undefined,
-        undefined,
+        sources({ scheduled: makeScheduled({ scheduledDate: "2026-07-01" }) }),
       );
 
       expect(result.data?.eyebrow).toBe("UP NEXT · Wed · Jul 1");
     });
 
     it("reuses the matched NO DATE YET sentinel in the eyebrow for a dateless pick", () => {
-      const result = selectUpNext(makeScheduled({ scheduledDate: null }), undefined, undefined);
+      const result = selectUpNext(sources({ scheduled: makeScheduled({ scheduledDate: null }) }));
 
       expect(result.data?.eyebrow).toBe("UP NEXT · NO DATE YET");
     });
 
     it("exposes the proposer's display name for the 'Proposed by' line", () => {
       const result = selectUpNext(
-        makeScheduled({
-          proposer: { id: "u2", username: "harmgharm", displayName: "Harm", avatarUrl: null },
+        sources({
+          scheduled: makeScheduled({
+            proposer: { id: "u2", username: "harmgharm", displayName: "Harm", avatarUrl: null },
+          }),
         }),
-        undefined,
-        undefined,
       );
 
       expect(result.data?.proposedBy).toBe("Harm");
@@ -147,18 +164,18 @@ describe("selectUpNext", () => {
 
     it("falls back to the username when the proposer has no display name", () => {
       const result = selectUpNext(
-        makeScheduled({
-          proposer: { id: "u2", username: "harmgharm", displayName: null, avatarUrl: null },
+        sources({
+          scheduled: makeScheduled({
+            proposer: { id: "u2", username: "harmgharm", displayName: null, avatarUrl: null },
+          }),
         }),
-        undefined,
-        undefined,
       );
 
       expect(result.data?.proposedBy).toBe("harmgharm");
     });
 
     it("reads 'someone' when the proposer was deleted", () => {
-      const result = selectUpNext(makeScheduled({ proposer: null }), undefined, undefined);
+      const result = selectUpNext(sources({ scheduled: makeScheduled({ proposer: null }) }));
 
       expect(result.data?.proposedBy).toBe("someone");
     });
@@ -166,20 +183,37 @@ describe("selectUpNext", () => {
 
   describe("watchlist sources carry no queue-only fields", () => {
     it("leaves eyebrow and proposedBy undefined for the watching source", () => {
-      const result = selectUpNext(null, makeWatchlistItem(), undefined);
+      const result = selectUpNext(sources({ watchingItem: makeWatchlistItem() }));
 
       expect(result.data?.eyebrow).toBeUndefined();
       expect(result.data?.proposedBy).toBeUndefined();
     });
 
-    it("routes an unimported watchlist entry to the watchlist page", () => {
+    it("routes an unimported watchlist entry to the current user's profile watchlist tab", () => {
       const result = selectUpNext(
-        null,
-        makeWatchlistItem({ media_id: null, tmdb_id: 123 }),
-        undefined,
+        sources({
+          watchingItem: makeWatchlistItem({ media_id: null, tmdb_id: 123 }),
+          userId: "me-123",
+        }),
       );
 
-      expect(result.data?.href).toBe("/watchlist");
+      expect(result.data?.href).toBe("/users/me-123?tab=watchlist");
+    });
+
+    it("routes an imported watchlist entry to its media detail page (not the profile)", () => {
+      const result = selectUpNext(
+        sources({ watchingItem: makeWatchlistItem({ media_id: "m-abc" }), userId: "me-123" }),
+      );
+
+      expect(result.data?.href).toBe("/database/m-abc");
+    });
+
+    it("falls back to the roster when the user id is unknown for an unimported entry", () => {
+      const result = selectUpNext(
+        sources({ watchingItem: makeWatchlistItem({ media_id: null }), userId: undefined }),
+      );
+
+      expect(result.data?.href).toBe("/users");
     });
   });
 });
@@ -193,7 +227,7 @@ describe("resolveUpNext", () => {
     // null scheduled pick (queue not in yet) and would pick the watchlist item —
     // but the queue could still resolve with a higher-priority scheduled pick.
     // Committing now would flash the watchlist item, then pop to the queue.
-    const selection = selectUpNext(null, watchingItem, undefined);
+    const selection = selectUpNext(sources({ watchingItem }));
 
     const resolved = resolveUpNext(selection, loadingFlags({ queueLoading: true }));
 
@@ -203,7 +237,7 @@ describe("resolveUpNext", () => {
   });
 
   it("returns the queue pick immediately even while the watchlist is still loading", () => {
-    const selection = selectUpNext(queueItem, undefined, undefined);
+    const selection = selectUpNext(sources({ scheduled: queueItem }));
 
     const resolved = resolveUpNext(selection, loadingFlags({ watchingLoading: true }));
 
@@ -212,7 +246,7 @@ describe("resolveUpNext", () => {
   });
 
   it("returns the watchlist source once the queue has settled with no scheduled pick", () => {
-    const selection = selectUpNext(null, watchingItem, undefined);
+    const selection = selectUpNext(sources({ watchingItem }));
 
     const resolved = resolveUpNext(selection, loadingFlags());
 
@@ -221,7 +255,7 @@ describe("resolveUpNext", () => {
   });
 
   it("waits when the queue settled empty but a watchlist request is still loading", () => {
-    const selection = selectUpNext(null, undefined, undefined);
+    const selection = selectUpNext(sources());
 
     const resolved = resolveUpNext(selection, loadingFlags({ planningLoading: true }));
 
@@ -230,7 +264,7 @@ describe("resolveUpNext", () => {
   });
 
   it("reports nothing (not loading) once everything has settled empty", () => {
-    const selection = selectUpNext(null, undefined, undefined);
+    const selection = selectUpNext(sources());
 
     const resolved = resolveUpNext(selection, loadingFlags());
 

@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 import {
   MagazineCoverBackdrop,
@@ -33,6 +34,7 @@ import { UserDetailedStats } from "@/components/users/user-detailed-stats";
 import { WatchlistSection } from "@/components/watchlist";
 import { useOnlineUsers } from "@/hooks/use-online-users";
 import { useUserList, useUserProfile, useUserStats } from "@/hooks/use-users";
+import { type ProfileTab, resolveProfileTab } from "@/lib/users/profile-tabs";
 import type { UserProfile } from "@/types/user-responses";
 
 function getInitials(displayName: string | null, username: string): string {
@@ -142,8 +144,12 @@ export default function UserProfilePage() {
 
   const isOwnProfile = currentUser?.id === profile.id;
 
+  // ProfileView reads `?tab=` via useSearchParams, which must sit under a
+  // Suspense boundary in the App Router (it opts the subtree into CSR).
   return (
-    <ProfileView profile={profile} isOwnProfile={isOwnProfile} authReady={currentUser !== null} />
+    <Suspense fallback={<ProfileSkeleton />}>
+      <ProfileView profile={profile} isOwnProfile={isOwnProfile} authReady={currentUser !== null} />
+    </Suspense>
   );
 }
 
@@ -176,6 +182,27 @@ function ProfileView({
   // Roster position is decorative, so read the list from SWR cache without
   // triggering a fetch — it populates once the roster page has been visited.
   const { data: roster } = useUserList({ revalidateOnMount: false, revalidateIfStale: false });
+
+  // The active tab is driven by the `?tab=` query param so a tab is deep-linkable
+  // (e.g. the sidebar's watchlist fallback links to `?tab=watchlist`). Switching
+  // a tab syncs the param back via `replace` so it stays shareable without
+  // spamming browser history.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = resolveProfileTab(searchParams.get("tab"));
+
+  const handleTabChange = (tab: string): void => {
+    const params = new URLSearchParams(searchParams);
+    if (tab === "overview") {
+      // Keep the canonical profile URL clean — the default tab needs no param.
+      params.delete("tab");
+    } else {
+      params.set("tab", tab as ProfileTab);
+    }
+    const query = params.toString();
+    router.replace(query.length > 0 ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // Display-only roster position from the cached list. Null until it loads.
   const rosterIndex = roster?.findIndex((u) => u.id === profile.id) ?? -1;
@@ -249,8 +276,8 @@ function ProfileView({
           ))}
         </div>
 
-        {/* Tabbed content */}
-        <Tabs defaultValue="overview">
+        {/* Tabbed content — active tab mirrors the `?tab=` query param. */}
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="overview">
               <LayoutDashboardIcon className="size-4" />

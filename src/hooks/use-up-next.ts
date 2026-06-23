@@ -49,13 +49,26 @@ function buildKey(userId: string, status: WatchlistStatus): string {
   return `/api/watchlist?${params.toString()}`;
 }
 
-function toUpNextItem(entry: WatchlistItem): UpNextItem {
+/**
+ * The link target for a watchlist entry: its media detail page when imported,
+ * otherwise the current user's own profile with the Watchlist tab open (an
+ * unimported entry has no detail page — the personal watchlist lives in a tab on
+ * `/users/[id]`). Falls back to the roster if the user id is somehow unknown.
+ */
+function watchlistHref(entry: WatchlistItem, userId: string | undefined): string {
+  if (entry.media_id !== null) {
+    return `/database/${entry.media_id}`;
+  }
+  return userId === undefined ? "/users" : `/users/${userId}?tab=watchlist`;
+}
+
+function toUpNextItem(entry: WatchlistItem, userId: string | undefined): UpNextItem {
   return {
     mediaId: entry.media_id,
     title: entry.title,
     posterUrl: entry.poster_url,
     mediaType: entry.media_type,
-    href: entry.media_id === null ? "/watchlist" : `/database/${entry.media_id}`,
+    href: watchlistHref(entry, userId),
   };
 }
 
@@ -88,19 +101,25 @@ function toQueueUpNextItem(scheduled: QueueProposalView): UpNextItem {
  * wins when present, then the top watching entry, then the top planning entry.
  * Extracted from the hook so the priority order is testable without SWR or React.
  */
-export function selectUpNext(
-  scheduled: QueueProposalView | null,
-  watchingItem: WatchlistItem | undefined,
-  planningItem: WatchlistItem | undefined,
-): UpNextSelection {
+/** Inputs to the Up Next priority pick: the queue's scheduled slot, the user's
+ *  top watching/planning watchlist entries, and the user id (for href building). */
+export interface UpNextSources {
+  readonly scheduled: QueueProposalView | null;
+  readonly watchingItem: WatchlistItem | undefined;
+  readonly planningItem: WatchlistItem | undefined;
+  readonly userId: string | undefined;
+}
+
+export function selectUpNext(sources: UpNextSources): UpNextSelection {
+  const { scheduled, watchingItem, planningItem, userId } = sources;
   if (scheduled !== null) {
     return { data: toQueueUpNextItem(scheduled), source: "queue" };
   }
   if (watchingItem !== undefined) {
-    return { data: toUpNextItem(watchingItem), source: "in-progress" };
+    return { data: toUpNextItem(watchingItem, userId), source: "in-progress" };
   }
   if (planningItem !== undefined) {
-    return { data: toUpNextItem(planningItem), source: "watchlist" };
+    return { data: toUpNextItem(planningItem, userId), source: "watchlist" };
   }
   return { data: null, source: null };
 }
@@ -152,7 +171,12 @@ export function useUpNext(): UseUpNextResult {
     return { data: null, source: null, isLoading: false };
   }
 
-  const selection = selectUpNext(scheduled, watching.data?.items[0], planning.data?.items[0]);
+  const selection = selectUpNext({
+    scheduled,
+    watchingItem: watching.data?.items[0],
+    planningItem: planning.data?.items[0],
+    userId,
+  });
   return resolveUpNext(selection, {
     queueLoading,
     watchingLoading: watching.isLoading,
