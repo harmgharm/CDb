@@ -371,7 +371,10 @@
 
 @utility cdb-grain {
   position: absolute;
-  inset: 0;
+  /* Overflow the bounds by more than the animation's max ±8px translate, so the
+     shifting texture never pulls an edge inside the (clipped) parent and exposes
+     an un-grained seam at the corners. The overhang is clipped by overflow:hidden. */
+  inset: -12px;
   pointer-events: none;
   opacity: var(--cdb-grain-opacity, 0.22);
   mix-blend-mode: overlay;
