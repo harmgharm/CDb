@@ -2,10 +2,12 @@
  * Hooks for session and rating mutations
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import useSWRInfinite from "swr/infinite";
 
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
+import type { TimelineEntry, TimelinePayload } from "@/types/timeline-responses";
 
 interface InlineRating {
   readonly userId: string;
@@ -258,4 +260,94 @@ export function useUpdateRating() {
   );
 
   return { updateRating, isUpdating };
+}
+
+// ============================================
+// Timeline view (Database)
+// ============================================
+
+const TIMELINE_PAGE_SIZE = 20;
+
+export interface TimelineFilters {
+  type?: string;
+  search?: string;
+  /** Chronological order. Omitted defaults to the API's newest-first. */
+  order?: "asc" | "desc";
+}
+
+/**
+ * Build the SWR key for timeline page `index`. Returns null to stop paging once
+ * the previous page reported no more results (this is `useSWRInfinite`'s
+ * "reached the end" signal). Pure and exported for tests.
+ */
+export function timelinePageKey(
+  index: number,
+  previousPage: TimelinePayload | null,
+  filters: TimelineFilters,
+): string | null {
+  if (previousPage !== null && !previousPage.hasMore) {
+    return null;
+  }
+  const params = new URLSearchParams({ include: "timeline" });
+  if (filters.type !== undefined && filters.type.length > 0) {
+    params.set("type", filters.type);
+  }
+  if (filters.search !== undefined && filters.search.length > 0) {
+    params.set("search", filters.search);
+  }
+  if (filters.order !== undefined) {
+    params.set("order", filters.order);
+  }
+  params.set("page", String(index + 1));
+  params.set("limit", String(TIMELINE_PAGE_SIZE));
+  return `/api/sessions?${params.toString()}`;
+}
+
+/** Concatenate all loaded pages into one ordered entry list. Pure, for tests. */
+export function flattenTimelinePages(
+  pages: readonly TimelinePayload[] | undefined,
+): TimelineEntry[] {
+  if (pages === undefined) {
+    return [];
+  }
+  return pages.flatMap((p) => p.items);
+}
+
+/**
+ * Loads the watch-session diary for the timeline view, one page at a time.
+ * `loadMore()` appends the next page (no scroll/replace); type + search filter
+ * the underlying sessions. Pass `enabled: false` (e.g. while the grid/list view
+ * is active) to skip the request entirely until the timeline is shown.
+ */
+export function useSessionsTimeline(filters: TimelineFilters, enabled = true) {
+  const { data, error, size, setSize, isLoading, isValidating } = useSWRInfinite<
+    TimelinePayload,
+    Error
+  >(
+    (index, previous: TimelinePayload | null) =>
+      enabled ? timelinePageKey(index, previous, filters) : null,
+    { revalidateFirstPage: false },
+  );
+
+  const items = useMemo(() => flattenTimelinePages(data), [data]);
+  const hasMore = data?.at(-1)?.hasMore ?? false;
+  const groupSize = data?.[0]?.groupSize ?? 0;
+  // size > items-while-fetching: a new page key is in flight but its data hasn't
+  // arrived yet, so the Load more button shows a spinner instead of re-firing.
+  const isLoadingMore = isValidating && data !== undefined && size > data.length;
+
+  const loadMore = useCallback(() => {
+    void setSize((current) => current + 1);
+  }, [setSize]);
+
+  return {
+    items,
+    groupSize,
+    hasMore,
+    loadMore,
+    isLoading: isLoading && data === undefined,
+    isLoadingMore,
+    isEmpty: !isLoading && items.length === 0,
+    error,
+  };
 }

@@ -7,6 +7,7 @@ import { sql } from "kysely";
 import { successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { deriveWeeksSince } from "@/lib/sessions/timeline";
 import { fetchAvgRating, fetchHoursWatched } from "@/lib/stats/queries";
 
 export async function GET() {
@@ -137,16 +138,12 @@ export async function GET() {
   // Hours watched + average rating
   const [hoursWatched, avgRating] = await Promise.all([fetchHoursWatched(), fetchAvgRating()]);
 
-  // Whole weeks since the group's first logged session (>= 1, so "week one"
-  // reads naturally). Null when no sessions have a watch date yet.
+  // Whole weeks since the group's first logged session. Shares deriveWeeksSince
+  // with the timeline's "Wk N" labels so the masthead footnote and the timeline
+  // rail agree at every week boundary (1-based; week one reads naturally).
   const firstWatched = firstSession?.date_watched ?? null;
   const weeksSinceFirstSession =
-    firstWatched === null
-      ? null
-      : Math.max(
-          1,
-          Math.floor((Date.now() - new Date(firstWatched).getTime()) / (7 * 24 * 60 * 60 * 1000)),
-        );
+    firstWatched === null ? null : deriveWeeksSince(new Date(firstWatched).getTime(), Date.now());
 
   return successResponse({
     mediaWatched: Object.fromEntries(mediaCounts.map((m) => [m.type, Number(m.count)])),

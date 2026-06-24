@@ -24,6 +24,7 @@ import {
   invalidateGroupRecommendations,
   invalidateUserRecommendations,
 } from "@/lib/recommendations";
+import { fetchSessionTimeline } from "@/lib/sessions/timeline-query";
 import { createSessionSchema, sessionQuerySchema } from "@/lib/validations/sessions";
 
 export async function GET(req: NextRequest) {
@@ -35,7 +36,16 @@ export async function GET(req: NextRequest) {
     return errorResponse("Invalid query parameters", 400);
   }
 
-  const { mediaId, userId, pickedBy, dateFrom, dateTo, page, limit } = parsed.data;
+  const { mediaId, userId, pickedBy, type, search, dateFrom, dateTo, page, limit, include, order } =
+    parsed.data;
+
+  // Timeline view: the diary payload (attendees, per-session rating, take).
+  // Opt-in so existing callers keep the lean session-list shape.
+  if (include === "timeline") {
+    const payload = await fetchSessionTimeline({ type, search, order, page, limit });
+    return successResponse(payload);
+  }
+
   const offset = (page - 1) * limit;
 
   let query = db

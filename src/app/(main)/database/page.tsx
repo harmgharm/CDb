@@ -1,9 +1,18 @@
 "use client";
 
-import { GridIcon, ListIcon, LoaderIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CalendarIcon,
+  GridIcon,
+  ListIcon,
+  LoaderIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  XIcon,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { DatabaseTimeline, TimelineSkeleton } from "@/components/database/database-timeline";
 import { FeaturedBand } from "@/components/database/featured-band";
 import type { FilterSegment } from "@/components/editorial/conversational-filters";
 import { ConversationalFilters } from "@/components/editorial/conversational-filters";
@@ -15,11 +24,15 @@ import { MediaTable } from "@/components/media/media-table";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDebouncedSearch } from "@/hooks/use-debounced-search";
 import { useMediaList } from "@/hooks/use-media";
 import { useMediaRefresh } from "@/hooks/use-media-refresh";
+import { useSessionsTimeline } from "@/hooks/use-sessions";
 import { useDashboardStats } from "@/hooks/use-stats";
+import { type DatabaseView, useStoredView } from "@/hooks/use-stored-view";
+import type { MediaListResponse } from "@/types/media-responses";
 
-type ViewMode = "grid" | "list";
+type ViewMode = DatabaseView;
 
 /** The Database page's filter state (formerly exported from media-filters.tsx). */
 interface MediaFilterValues {
@@ -50,6 +63,19 @@ const SORT_OPTIONS = [
   { value: "release_year", word: "release year", ariaLabel: "release year", order: "desc" },
 ] as const;
 
+// Option lists for <ConversationalFilters>, precomputed once (the segments
+// themselves are rebuilt per render because their onSelect closes over state).
+const TYPE_FILTER_OPTIONS = TYPE_OPTIONS.map((o) => ({
+  value: o.value,
+  word: o.word,
+  ariaLabel: o.ariaLabel,
+}));
+const SORT_FILTER_OPTIONS = SORT_OPTIONS.map((o) => ({
+  value: o.value,
+  word: o.word,
+  ariaLabel: o.ariaLabel,
+}));
+
 // Preserves the original page default exactly (date added, newest first); the
 // conversational sentence is presentation only and must not change state.
 const DEFAULT_FILTERS: MediaFilterValues = {
@@ -58,6 +84,86 @@ const DEFAULT_FILTERS: MediaFilterValues = {
   sortBy: "created_at",
   sortOrder: "desc",
 };
+
+/**
+ * Build the conversational filter sentence segments. Each `onSelect` delegates
+ * to `onChange` (the page's debounced handler). In timeline view the sort
+ * segment is dropped (the diary is always chronological); type stays in both.
+ */
+function buildFilterSegments(
+  filters: MediaFilterValues,
+  isTimeline: boolean,
+  onChange: (next: MediaFilterValues) => void,
+): FilterSegment[] {
+  const typeSegment: FilterSegment = {
+    key: "type",
+    options: TYPE_FILTER_OPTIONS,
+    activeValue: filters.type,
+    mode: "toggle",
+    onSelect: (value) => {
+      onChange({ ...filters, type: value });
+    },
+  };
+  if (isTimeline) {
+    return [typeSegment];
+  }
+  const sortSegment: FilterSegment = {
+    key: "sort",
+    label: "sorted by",
+    options: SORT_FILTER_OPTIONS,
+    activeValue: filters.sortBy,
+    mode: "cycle",
+    onSelect: (value) => {
+      const next = SORT_OPTIONS.find((o) => o.value === value) ?? SORT_OPTIONS[0];
+      onChange({ ...filters, sortBy: next.value, sortOrder: next.order });
+    },
+  };
+  return [typeSegment, sortSegment];
+}
+
+/**
+ * The asc/desc arrow for the conversational filter sentence. In grid/list it
+ * flips the active sort field's direction; in timeline it flips the diary's
+ * chronological order (asc = oldest-first, desc = newest-first). Both views map
+ * to the same `filters.sortOrder`, so the arrow stays consistent when switching.
+ */
+function buildSortDirection(
+  filters: MediaFilterValues,
+  onChange: (next: MediaFilterValues) => void,
+  isTimeline: boolean,
+) {
+  const ascending = filters.sortOrder === "asc";
+  const timelineAria = ascending
+    ? "Oldest first. Activate to show newest first."
+    : "Newest first. Activate to show oldest first.";
+  const sortAria = ascending
+    ? "Sorted ascending. Activate to sort descending."
+    : "Sorted descending. Activate to sort ascending.";
+  return {
+    value: ascending ? ("asc" as const) : ("desc" as const),
+    onToggle: () => {
+      onChange({ ...filters, sortOrder: ascending ? "desc" : "asc" });
+    },
+    ariaLabel: isTimeline ? timelineAria : sortAria,
+  };
+}
+
+/**
+ * Continuation line under the lede ("48 titles, 12 weeks in."). Kept off the
+ * lede so it pops in additively (titles from the media list, weeks from the
+ * dashboard stats) rather than reflowing the lede on load. Reads as prose, so
+ * comma-joined (not middot-separated).
+ */
+function buildFootnote(total: number | undefined, weeks: number | null): string | undefined {
+  const parts: string[] = [];
+  if (total !== undefined) {
+    parts.push(`${String(total)} titles`);
+  }
+  if (weeks !== null) {
+    parts.push(`${String(weeks)} weeks in`);
+  }
+  return parts.length > 0 ? `${parts.join(", ")}.` : undefined;
+}
 
 /** Roman-numeral year + month label for the issue line, e.g. "June · MMXXVI". */
 function issueDateLabel(): string {
@@ -120,15 +226,183 @@ function MediaListSkeleton() {
   );
 }
 
+interface FiltersActive {
+  readonly hasSearch: boolean;
+  readonly hasType: boolean;
+}
+
+interface MediaArchiveProps {
+  readonly view: "grid" | "list";
+  readonly data: MediaListResponse | undefined;
+  readonly isLoading: boolean;
+  readonly page: number;
+  readonly onPageChange: (page: number) => void;
+  readonly filtersActive: FiltersActive;
+  readonly onAddMedia: () => void;
+}
+
+/** Grid / list archive body (the media catalog views). */
+function MediaArchive({
+  view,
+  data,
+  isLoading,
+  page,
+  onPageChange,
+  filtersActive,
+  onAddMedia,
+}: MediaArchiveProps) {
+  if (isLoading) {
+    return view === "grid" ? <MediaGridSkeleton /> : <MediaListSkeleton />;
+  }
+
+  if (data === undefined || data.items.length === 0) {
+    const filtered = filtersActive.hasSearch || filtersActive.hasType;
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground text-lg">No media found</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {filtered
+            ? "Try adjusting your filters."
+            : "Import some movies, shows, or anime to get started!"}
+        </p>
+        {!filtered && (
+          <Button className="mt-4" onClick={onAddMedia}>
+            <PlusIcon className="mr-2 size-4" />
+            Add Media
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {view === "grid" ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {data.items.map((media, index) => (
+            <MediaCard key={media.id} media={media} index={index} />
+          ))}
+        </div>
+      ) : (
+        <MediaTable items={data.items} />
+      )}
+      <MediaPagination page={page} totalPages={data.totalPages} onPageChange={onPageChange} />
+    </>
+  );
+}
+
+interface ViewToggleProps {
+  readonly view: ViewMode;
+  readonly onChange: (view: ViewMode) => void;
+}
+
+/** Grid / list / timeline segmented toggle. */
+function ViewToggle({ view, onChange }: ViewToggleProps) {
+  const buttons = [
+    { mode: "grid" as const, Icon: GridIcon, label: "Grid view", rounding: "rounded-r-none" },
+    { mode: "list" as const, Icon: ListIcon, label: "List view", rounding: "rounded-none" },
+    {
+      mode: "timeline" as const,
+      Icon: CalendarIcon,
+      label: "Timeline view",
+      rounding: "rounded-l-none",
+    },
+  ];
+  return (
+    <div className="flex items-center rounded-md border">
+      {buttons.map(({ mode, Icon, label, rounding }) => (
+        <Button
+          key={mode}
+          variant={view === mode ? "secondary" : "ghost"}
+          size="icon"
+          className={`size-11 ${rounding}`}
+          onClick={() => {
+            onChange(mode);
+          }}
+        >
+          <Icon className="size-4" />
+          <span className="sr-only">{label}</span>
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+interface RefreshControlsProps {
+  readonly progress: ReturnType<typeof useMediaRefresh>["progress"];
+  readonly onRefresh: () => void;
+  readonly onCancel: () => void;
+}
+
+/** Moderator/admin database-refresh button and in-progress indicator. */
+function RefreshControls({ progress, onRefresh, onCancel }: RefreshControlsProps) {
+  if (!progress.isRunning) {
+    return (
+      <Button variant="outline" onClick={onRefresh}>
+        <RefreshCwIcon className="mr-2 size-4" />
+        Refresh database
+      </Button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground text-sm">
+        <LoaderIcon className="mr-1 inline size-3 animate-spin" />
+        {progress.total > 0
+          ? `Refreshing ${String(progress.completed)}/${String(progress.total)}...`
+          : "Refreshing..."}
+      </span>
+      <Button variant="outline" size="sm" onClick={onCancel}>
+        <XIcon className="mr-1 size-3" />
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+interface TimelineArchiveProps {
+  readonly timeline: ReturnType<typeof useSessionsTimeline>;
+  readonly filtersActive: FiltersActive;
+}
+
+/** Timeline archive body (the watch-session diary). */
+function TimelineArchive({ timeline, filtersActive }: TimelineArchiveProps) {
+  if (timeline.isLoading) {
+    return <TimelineSkeleton />;
+  }
+
+  if (timeline.isEmpty) {
+    const filtered = filtersActive.hasSearch || filtersActive.hasType;
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <p className="text-muted-foreground text-lg">No sessions yet</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {filtered ? "Try adjusting your filters." : "Log a movie night to start the timeline."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <DatabaseTimeline
+      items={timeline.items}
+      groupSize={timeline.groupSize}
+      hasMore={timeline.hasMore}
+      isLoadingMore={timeline.isLoadingMore}
+      onLoadMore={timeline.loadMore}
+    />
+  );
+}
+
 export default function DatabasePage() {
   const { user } = useAuth();
   const { progress, startRefresh, cancelRefresh } = useMediaRefresh();
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  // View is a personal preference, persisted across visits (last-used wins).
+  const [viewMode, setViewMode] = useStoredView();
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<MediaFilterValues>(DEFAULT_FILTERS);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const { debounced: debouncedSearch, schedule: scheduleSearch } = useDebouncedSearch();
   const { data: dashboardStats } = useDashboardStats();
 
   const { data, isLoading, mutate } = useMediaList({
@@ -140,32 +414,28 @@ export default function DatabasePage() {
     limit: 20,
   });
 
-  // Clean up debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current !== undefined) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
+  // Timeline reads the watch-session diary (type + search filter it; the
+  // direction arrow sets oldest/newest order). The `enabled` gate skips the
+  // request entirely until the timeline view is active, so grid/list visitors
+  // never fetch it.
+  const timeline = useSessionsTimeline(
+    {
+      type: filters.type.length > 0 ? filters.type : undefined,
+      search: debouncedSearch.length > 0 ? debouncedSearch : undefined,
+      order: filters.sortOrder === "asc" ? "asc" : "desc",
+    },
+    viewMode === "timeline",
+  );
 
-  const handleFilterChange = useCallback((newFilters: MediaFilterValues) => {
-    setFilters(newFilters);
-    setPage(1);
-
-    // Debounce search, apply other filters immediately
-    if (debounceRef.current !== undefined) {
-      clearTimeout(debounceRef.current);
-    }
-
-    if (newFilters.search.length === 0) {
-      setDebouncedSearch("");
-    } else {
-      debounceRef.current = setTimeout(() => {
-        setDebouncedSearch(newFilters.search);
-      }, 400);
-    }
-  }, []);
+  const handleFilterChange = useCallback(
+    (newFilters: MediaFilterValues) => {
+      setFilters(newFilters);
+      setPage(1);
+      // Search is debounced; type/sort changes apply immediately via setFilters.
+      scheduleSearch(newFilters.search);
+    },
+    [scheduleSearch],
+  );
 
   const handleImportSuccess = useCallback(() => {
     void mutate();
@@ -185,58 +455,26 @@ export default function DatabasePage() {
     }
   }, [startRefresh, mutate]);
 
-  // Conversational filter sentence. Each segment delegates to handleFilterChange
-  // so the underlying state path (debounce, page reset) stays identical to the
-  // previous <MediaFilters> presentation.
+  const isTimeline = viewMode === "timeline";
+
+  // The timeline is inherently chronological, so the sort segment (and its
+  // direction toggle) drop out there; type + search stay live.
   const filterSegments: FilterSegment[] = useMemo(
-    () => [
-      {
-        key: "type",
-        options: TYPE_OPTIONS.map((o) => ({
-          value: o.value,
-          word: o.word,
-          ariaLabel: o.ariaLabel,
-        })),
-        activeValue: filters.type,
-        mode: "toggle",
-        onSelect: (value) => {
-          handleFilterChange({ ...filters, type: value });
-        },
-      },
-      {
-        key: "sort",
-        label: "sorted by",
-        options: SORT_OPTIONS.map((o) => ({
-          value: o.value,
-          word: o.word,
-          ariaLabel: o.ariaLabel,
-        })),
-        activeValue: filters.sortBy,
-        mode: "cycle",
-        onSelect: (value) => {
-          const next = SORT_OPTIONS.find((o) => o.value === value) ?? SORT_OPTIONS[0];
-          handleFilterChange({ ...filters, sortBy: next.value, sortOrder: next.order });
-        },
-      },
-    ],
-    [filters, handleFilterChange],
+    () => buildFilterSegments(filters, isTimeline, handleFilterChange),
+    [filters, handleFilterChange, isTimeline],
   );
 
   const issueNumber = dashboardStats?.totalSessions ?? null;
   const eyebrow = issueNumber === null ? "CDb" : `CDb · Issue #${String(issueNumber)}`;
 
-  // Continuation line under the lede. Kept off the lede so it pops in additively
-  // (titles from the media list, weeks from the dashboard stats) rather than
-  // reflowing the lede on load and on every filter toggle. Reads as prose to
-  // match the lede's serif styling, so comma-joined (not middot-separated).
-  const footnoteParts: string[] = [];
-  if (data !== undefined) {
-    footnoteParts.push(`${String(data.total)} titles`);
-  }
-  if (dashboardStats?.weeksSinceFirstSession != null) {
-    footnoteParts.push(`${String(dashboardStats.weeksSinceFirstSession)} weeks in`);
-  }
-  const footnote = footnoteParts.length > 0 ? `${footnoteParts.join(", ")}.` : undefined;
+  const footnote = buildFootnote(data?.total, dashboardStats?.weeksSinceFirstSession ?? null);
+
+  const sortDirection = buildSortDirection(filters, handleFilterChange, isTimeline);
+
+  const filtersActive: FiltersActive = {
+    hasSearch: filters.search.length > 0,
+    hasType: filters.type.length > 0,
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -254,19 +492,7 @@ export default function DatabasePage() {
       <ConversationalFilters
         lead="The full archive"
         segments={filterSegments}
-        direction={{
-          value: filters.sortOrder === "asc" ? "asc" : "desc",
-          onToggle: () => {
-            handleFilterChange({
-              ...filters,
-              sortOrder: filters.sortOrder === "asc" ? "desc" : "asc",
-            });
-          },
-          ariaLabel:
-            filters.sortOrder === "asc"
-              ? "Sorted ascending. Activate to sort descending."
-              : "Sorted descending. Activate to sort ascending.",
-        }}
+        direction={sortDirection}
         search={{
           value: filters.search,
           onChange: (value) => {
@@ -275,54 +501,15 @@ export default function DatabasePage() {
         }}
         actions={
           <>
-            <div className="flex items-center rounded-md border">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="icon"
-                className="size-11 rounded-r-none"
-                onClick={() => {
-                  setViewMode("grid");
-                }}
-              >
-                <GridIcon className="size-4" />
-                <span className="sr-only">Grid view</span>
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="icon"
-                className="size-11 rounded-l-none"
-                onClick={() => {
-                  setViewMode("list");
-                }}
-              >
-                <ListIcon className="size-4" />
-                <span className="sr-only">List view</span>
-              </Button>
-            </div>
-            {isModeratorOrAdmin && !progress.isRunning && (
-              <Button
-                variant="outline"
-                onClick={() => {
+            <ViewToggle view={viewMode} onChange={setViewMode} />
+            {isModeratorOrAdmin && (
+              <RefreshControls
+                progress={progress}
+                onRefresh={() => {
                   void handleRefresh();
                 }}
-              >
-                <RefreshCwIcon className="mr-2 size-4" />
-                Refresh database
-              </Button>
-            )}
-            {isModeratorOrAdmin && progress.isRunning && (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-sm">
-                  <LoaderIcon className="mr-1 inline size-3 animate-spin" />
-                  {progress.total > 0
-                    ? `Refreshing ${String(progress.completed)}/${String(progress.total)}...`
-                    : "Refreshing..."}
-                </span>
-                <Button variant="outline" size="sm" onClick={cancelRefresh}>
-                  <XIcon className="mr-1 size-3" />
-                  Cancel
-                </Button>
-              </div>
+                onCancel={cancelRefresh}
+              />
             )}
             <Button
               onClick={() => {
@@ -336,45 +523,20 @@ export default function DatabasePage() {
         }
       />
 
-      {isLoading && viewMode === "grid" && <MediaGridSkeleton />}
-      {isLoading && viewMode === "list" && <MediaListSkeleton />}
-
-      {!isLoading && data?.items.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16">
-          <p className="text-muted-foreground text-lg">No media found</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {filters.search.length > 0 || filters.type.length > 0
-              ? "Try adjusting your filters."
-              : "Import some movies, shows, or anime to get started!"}
-          </p>
-          {filters.search.length === 0 && filters.type.length === 0 && (
-            <Button
-              className="mt-4"
-              onClick={() => {
-                setImportOpen(true);
-              }}
-            >
-              <PlusIcon className="mr-2 size-4" />
-              Add Media
-            </Button>
-          )}
-        </div>
-      )}
-
-      {!isLoading && data !== undefined && data.items.length > 0 && (
-        <>
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {data.items.map((media, index) => (
-                <MediaCard key={media.id} media={media} index={index} />
-              ))}
-            </div>
-          ) : (
-            <MediaTable items={data.items} />
-          )}
-
-          <MediaPagination page={page} totalPages={data.totalPages} onPageChange={setPage} />
-        </>
+      {isTimeline ? (
+        <TimelineArchive timeline={timeline} filtersActive={filtersActive} />
+      ) : (
+        <MediaArchive
+          view={viewMode === "list" ? "list" : "grid"}
+          data={data}
+          isLoading={isLoading}
+          page={page}
+          onPageChange={setPage}
+          filtersActive={filtersActive}
+          onAddMedia={() => {
+            setImportOpen(true);
+          }}
+        />
       )}
 
       <ImportMediaDialog

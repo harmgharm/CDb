@@ -4,6 +4,8 @@
 
 import { z } from "zod";
 
+import { mediaTypeSchema } from "@/lib/validations/media";
+
 const inlineRatingSchema = z.object({
   userId: z.uuid("Invalid user ID"),
   score: z
@@ -70,10 +72,17 @@ export const sessionQuerySchema = z.object({
   mediaId: z.uuid().optional(),
   userId: z.uuid().optional(),
   pickedBy: z.uuid().optional(),
+  type: mediaTypeSchema.optional(),
+  search: z.string().optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  // Opt-in: augment each session with the diary fields the timeline view needs
+  // (attendees, per-session rating, resolved take). Absent for existing callers.
+  include: z.literal("timeline").optional(),
+  // Timeline chronological order. Defaults to newest-first.
+  order: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export type SessionQueryInput = z.infer<typeof sessionQuerySchema>;

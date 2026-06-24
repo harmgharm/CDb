@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { createSessionSchema, ratingSchema, updateRatingSchema } from "@/lib/validations/sessions";
+import {
+  createSessionSchema,
+  ratingSchema,
+  sessionQuerySchema,
+  updateRatingSchema,
+} from "@/lib/validations/sessions";
 
 describe("createSessionSchema", () => {
   const validSession = {
@@ -136,6 +141,59 @@ describe("ratingSchema", () => {
   it("rejects invalid session UUID", () => {
     const result = ratingSchema.safeParse({ ...validRating, sessionId: "bad-id" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("sessionQuerySchema", () => {
+  it("accepts a type filter limited to the known media types", () => {
+    const result = sessionQuerySchema.safeParse({ type: "anime" });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.type).toBe("anime");
+  });
+
+  it("rejects an unknown type filter", () => {
+    const result = sessionQuerySchema.safeParse({ type: "documentary" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a search string", () => {
+    const result = sessionQuerySchema.safeParse({ search: "atlas" });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.search).toBe("atlas");
+  });
+
+  it("accepts the timeline include flag", () => {
+    const result = sessionQuerySchema.safeParse({ include: "timeline" });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.include).toBe("timeline");
+  });
+
+  it("leaves include undefined when omitted", () => {
+    const result = sessionQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.include).toBeUndefined();
+  });
+
+  it("defaults the timeline order to desc (newest first)", () => {
+    const result = sessionQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.order).toBe("desc");
+  });
+
+  it("accepts an explicit asc order", () => {
+    const result = sessionQuerySchema.safeParse({ order: "asc" });
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("unreachable");
+    expect(result.data.order).toBe("asc");
+  });
+
+  it("rejects an unknown order value", () => {
+    expect(sessionQuerySchema.safeParse({ order: "sideways" }).success).toBe(false);
   });
 });
 
