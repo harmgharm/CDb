@@ -10,7 +10,12 @@
 
 import { successResponse } from "@/lib/api/response";
 import { requireAuth } from "@/lib/auth";
-import { fetchFeaturedMedia, formatFeaturedMedia } from "@/lib/stats/featured";
+import {
+  attachFeaturedLineage,
+  fetchFeaturedLineage,
+  fetchFeaturedMedia,
+  formatFeaturedMedia,
+} from "@/lib/stats/featured";
 import type { FeaturedResponse } from "@/types/detailed-stats";
 
 // 1 headline + 3 supporting cards.
@@ -31,10 +36,16 @@ export async function GET() {
 
   const formatted = formatFeaturedMedia(rows);
 
+  // Enrich with the queue's picker/attendee lineage (the kit's "Picked by" line
+  // + attendee stack). Only the headline card renders it, but attaching to all
+  // rows keeps the formatter and the lineage merge uniform.
+  const lineage = await fetchFeaturedLineage(formatted.map((m) => m.id));
+  const enriched = attachFeaturedLineage(formatted, lineage);
+
   const result: FeaturedResponse = {
     scope,
-    main: formatted[0] ?? null,
-    supporting: formatted.slice(1),
+    main: enriched[0] ?? null,
+    supporting: enriched.slice(1),
   };
 
   return successResponse(result);

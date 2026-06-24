@@ -5,9 +5,55 @@ import Link from "next/link";
 
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeatured } from "@/hooks/use-featured";
-import type { FeaturedMedia } from "@/types/detailed-stats";
+import type { FeaturedMedia, FeaturedPerson } from "@/types/detailed-stats";
+
+const MAX_AVATARS = 4;
+
+function personName(person: FeaturedPerson): string {
+  return person.displayName ?? person.username;
+}
+
+function personInitials(person: FeaturedPerson): string {
+  return personName(person)
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+/** Overlapping avatar stack of the canonical session's attendees (kit: feat-stack). */
+function AttendeeStack({ attendees }: Readonly<{ attendees: readonly FeaturedPerson[] }>) {
+  if (attendees.length === 0) {
+    return null;
+  }
+
+  const shown = attendees.slice(0, MAX_AVATARS);
+  const overflow = attendees.length - shown.length;
+
+  return (
+    <AvatarGroup className="ml-auto" data-size="sm">
+      {shown.map((person) => (
+        <Avatar key={person.username} size="sm" title={personName(person)}>
+          {person.avatarUrl !== null && (
+            <AvatarImage src={person.avatarUrl} alt={personName(person)} />
+          )}
+          <AvatarFallback>{personInitials(person)}</AvatarFallback>
+        </Avatar>
+      ))}
+      {overflow > 0 && <AvatarGroupCount>+{overflow}</AvatarGroupCount>}
+    </AvatarGroup>
+  );
+}
 
 function runtimeLabel(media: FeaturedMedia): string | null {
   if (media.type === "movie") {
@@ -58,6 +104,15 @@ function FeaturedMainCard({ media, eyebrow }: Readonly<{ media: FeaturedMedia; e
               <span>{runtime}</span>
             </>
           )}
+          {media.picker !== null && (
+            <>
+              <MetaSeparator />
+              <span>
+                Picked by{" "}
+                <span className="text-foreground font-medium">{personName(media.picker)}</span>
+              </span>
+            </>
+          )}
         </div>
         <div className="mt-auto flex items-center gap-3.5 border-t pt-4">
           <span className="font-display text-cdb-marquee text-[56px] leading-none tracking-[-0.03em] tabular-nums">
@@ -69,6 +124,7 @@ function FeaturedMainCard({ media, eyebrow }: Readonly<{ media: FeaturedMedia; e
               {media.ratingCount} {media.ratingCount === 1 ? "rating" : "ratings"}
             </div>
           </div>
+          <AttendeeStack attendees={media.attendees} />
         </div>
       </div>
     </Link>

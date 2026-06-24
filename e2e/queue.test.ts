@@ -24,6 +24,8 @@ neonConfig.webSocketConstructor = ws;
 
 const [MEDIA_A, MEDIA_B, MEDIA_C] = E2E_QUEUE_MEDIA_IDS;
 
+const byName = (a: string, b: string): number => a.localeCompare(b);
+
 type TestDb = Kysely<Record<string, Record<string, unknown>>>;
 
 function createDb(): TestDb {
@@ -680,5 +682,151 @@ test.describe("group queue real-time (slice 3)", () => {
     const capability = JSON.parse(body.data.capability) as Record<string, string[]>;
 
     expect(capability["group:queue"]).toContain("subscribe");
+  });
+});
+
+/**
+ * FeaturedBand picker/attendee enrichment (slice 6 part B).
+ *
+ * The featured endpoint reads picker + attendees from the queue's canonical
+ * session lineage: a `watched` proposal's `watched_session_id` names the session
+ * whose `picked_by_user_id` and `session_attendees` surface on the card. This
+ * exercises that SQL wiring (the pure tie-break is unit-tested separately).
+ */
+test.describe.serial("featured band queue lineage (slice 6)", () => {
+  let db: TestDb;
+
+  test.beforeAll(() => {
+    db = createDb();
+  });
+
+  test.afterAll(async () => {
+    await resetQueue(db);
+    await db.destroy();
+  });
+
+  test.beforeEach(async () => {
+    await resetQueue(db);
+  });
+
+  test("featured response carries the picker + attendees from the canonical watched session", async ({
+    request,
+  }) => {
+    // Seed MEDIA_A as a rated, queue-watched title: a session picked by the
+    // member and attended by both, two ratings (the featured query needs >=2),
+    // and a watched proposal linking that session as canonical.
+    const session = (await db
+      .insertInto("watch_sessions")
+      .values({
+        media_id: MEDIA_A,
+        date_watched: "2026-04-01",
+        picked_by_user_id: E2E_MEMBER.id,
+        created_by_user_id: E2E_ADMIN.id,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow()) as { id: string };
+
+    await db
+      .insertInto("session_attendees")
+      .values([
+        { session_id: session.id, user_id: E2E_ADMIN.id },
+        { session_id: session.id, user_id: E2E_MEMBER.id },
+      ])
+      .execute();
+
+    await db
+      .insertInto("ratings")
+      .values([
+        { session_id: session.id, user_id: E2E_ADMIN.id, score: 10 },
+        { session_id: session.id, user_id: E2E_MEMBER.id, score: 10 },
+      ])
+      .execute();
+
+    // A watched proposal links the session as the canonical pick.
+    await db
+      .insertInto("queue_proposals")
+      .values({
+        media_id: MEDIA_A,
+        proposed_by: E2E_MEMBER.id,
+        status: "watched",
+        watched_session_id: session.id,
+        proposed_at: "2026-03-01T00:00:00Z",
+      })
+      .execute();
+
+    const res = await request.get("/api/stats/featured");
+    expect(res.ok()).toBeTruthy();
+    const body = (await res.json()) as {
+      data: {
+        main: {
+          id: string;
+          picker: { username: string } | null;
+          attendees: { username: string }[];
+        } | null;
+        supporting: {
+          id: string;
+          picker: { username: string } | null;
+          attendees: { username: string }[];
+        }[];
+      };
+    };
+
+    // Find our seeded title wherever it ranked (main or supporting).
+    const all = [body.data.main, ...body.data.supporting].filter((m) => m !== null);
+    const seeded = all.find((m) => m.id === MEDIA_A);
+    expect(seeded).toBeDefined();
+
+    // Picker is the session's picked_by_user_id (the member), not the proposer
+    // by coincidence — both are the member here, but the source is the session.
+    expect(seeded?.picker?.username).toBe(E2E_MEMBER.username);
+
+    // Both attendees come through.
+    const attendeeUsernames = (seeded?.attendees ?? []).map((a) => a.username).toSorted(byName);
+    expect(attendeeUsernames).toEqual([E2E_ADMIN.username, E2E_MEMBER.username].toSorted(byName));
+  });
+
+  test("a featured title with no watched proposal shows no picker/attendees", async ({
+    request,
+  }) => {
+    // Same rated session, but NO watched queue proposal — the off-queue / history
+    // case. The card must degrade: null picker, empty attendees.
+    const session = (await db
+      .insertInto("watch_sessions")
+      .values({
+        media_id: MEDIA_B,
+        date_watched: "2026-04-02",
+        picked_by_user_id: E2E_ADMIN.id,
+        created_by_user_id: E2E_ADMIN.id,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow()) as { id: string };
+
+    await db
+      .insertInto("session_attendees")
+      .values([{ session_id: session.id, user_id: E2E_ADMIN.id }])
+      .execute();
+
+    await db
+      .insertInto("ratings")
+      .values([
+        { session_id: session.id, user_id: E2E_ADMIN.id, score: 9 },
+        { session_id: session.id, user_id: E2E_MEMBER.id, score: 9 },
+      ])
+      .execute();
+
+    const res = await request.get("/api/stats/featured");
+    expect(res.ok()).toBeTruthy();
+    const body = (await res.json()) as {
+      data: {
+        main: { id: string; picker: unknown; attendees: unknown[] } | null;
+        supporting: { id: string; picker: unknown; attendees: unknown[] }[];
+      };
+    };
+
+    const all = [body.data.main, ...body.data.supporting].filter((m) => m !== null);
+    const seeded = all.find((m) => m.id === MEDIA_B);
+    expect(seeded).toBeDefined();
+    expect(seeded?.picker).toBeNull();
+    expect(seeded?.attendees).toEqual([]);
   });
 });

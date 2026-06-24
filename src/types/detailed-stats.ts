@@ -67,6 +67,13 @@ export interface DivisiveMedia {
   stddev: number;
 }
 
+/** A person on the featured card — the picker, or an attendee in the stack. */
+export interface FeaturedPerson {
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
 /** Featured media entry for the Database editorial band */
 export interface FeaturedMedia {
   id: string;
@@ -78,6 +85,15 @@ export interface FeaturedMedia {
   releaseYear: number | null;
   runtimeMinutes: number | null;
   episodeCount: number | null;
+  /**
+   * Who picked the title and who attended, read from the canonical session the
+   * group queue records (the most recent watched proposal's `watched_session_id`).
+   * `picker` is null and `attendees` is empty when the title has no watched
+   * queue proposal (logged off-queue, or pre-queue history) — the card then
+   * omits the "Picked by" line and the attendee stack.
+   */
+  picker: FeaturedPerson | null;
+  attendees: FeaturedPerson[];
 }
 
 /**
