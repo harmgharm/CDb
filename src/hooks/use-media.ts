@@ -114,6 +114,13 @@ export function useMediaSearch() {
 interface ImportedMedia {
   id: string;
   title: string;
+  /**
+   * True when the title was already in the database and the existing row was
+   * returned (the import endpoint no-ops a duplicate instead of erroring). Lets
+   * callers skip the "freshly imported" UX (session-log form, "Imported" toast)
+   * for a title that was already present.
+   */
+  alreadyExisted: boolean;
 }
 
 export function useMediaImport() {

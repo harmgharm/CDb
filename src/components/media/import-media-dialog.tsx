@@ -159,11 +159,13 @@ export function ImportMediaDialog({
   );
 
   // Bare import: import the media row and record it locally, WITHOUT popping the
-  // post-import session form. Returns the imported id (or null). Shared by the
-  // explicit Import button (which then opens the form) and the Propose path
-  // (which must import an external title first but must NOT open the form).
+  // post-import session form. Returns the imported id plus whether the title was
+  // already in the database (the endpoint no-ops a duplicate and hands back the
+  // existing row), or null on failure. Shared by the explicit Import button
+  // (which then opens the form, but only for a fresh import) and the Propose
+  // path (which must import an external title first but must NOT open the form).
   const importResult = useCallback(
-    async (result: MediaSearchResult): Promise<string | null> => {
+    async (result: MediaSearchResult): Promise<{ id: string; alreadyExisted: boolean } | null> => {
       const params: { type: string; tmdbId?: number; malId?: number } = {
         type: result.type,
       };
@@ -181,26 +183,34 @@ export function ImportMediaDialog({
       const key = `${result.source}-${String(result.externalId)}`;
       setImportedMap((previous) => new Map([...previous, [key, imported.id]]));
       onSuccess();
-      return imported.id;
+      return { id: imported.id, alreadyExisted: imported.alreadyExisted };
     },
     [importMedia, onSuccess],
   );
 
   const handleImport = useCallback(
     async (result: MediaSearchResult) => {
-      const importedId = await importResult(result);
-
-      if (importedId !== null) {
-        toast.success(`Imported "${result.title}"`);
-
-        // Show session form for this media
-        setSessionTarget({ mediaId: importedId, title: result.title });
-        setSessionForm((previous) => ({
-          ...previous,
-          attendeeIds: currentUser === null ? [] : [currentUser.id],
-        }));
-        setSessionOpen(true);
+      const imported = await importResult(result);
+      if (imported === null) {
+        return;
       }
+
+      // A duplicate is a no-op import: the title was already in the database, so
+      // don't claim a fresh import or pop the "log first session" form for it.
+      if (imported.alreadyExisted) {
+        toast.info(`"${result.title}" is already in the database`);
+        return;
+      }
+
+      toast.success(`Imported "${result.title}"`);
+
+      // Show session form for this media (fresh import only).
+      setSessionTarget({ mediaId: imported.id, title: result.title });
+      setSessionForm((previous) => ({
+        ...previous,
+        attendeeIds: currentUser === null ? [] : [currentUser.id],
+      }));
+      setSessionOpen(true);
     },
     [importResult, currentUser],
   );
@@ -291,10 +301,21 @@ export function ImportMediaDialog({
     toast.success("Added to watchlist");
   }
 
+  async function resolveProposeMediaId(
+    result: MediaSearchResult,
+    importedMediaId: string | undefined,
+  ): Promise<string | null> {
+    if (importedMediaId !== undefined) {
+      return importedMediaId;
+    }
+    // Not imported yet — import it first (without popping the session form).
+    const imported = await importResult(result);
+    return imported?.id ?? null;
+  }
+
   async function handlePropose(result: MediaSearchResult, importedMediaId: string | undefined) {
-    // The queue needs a real media row. If the result isn't imported yet, import
-    // it first (without popping the session form), then propose the new id.
-    const mediaId = importedMediaId ?? (await importResult(result));
+    // The queue needs a real media row to propose against.
+    const mediaId = await resolveProposeMediaId(result, importedMediaId);
     if (mediaId === null) {
       toast.error("Couldn't import that title to propose it");
       return;

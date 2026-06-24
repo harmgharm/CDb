@@ -6,6 +6,7 @@ import {
   EyeIcon,
   ListIcon,
   SparklesIcon,
+  UsersIcon,
   XCircleIcon,
 } from "lucide-react";
 import * as motion from "motion/react-client";
@@ -29,10 +30,12 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useAddToWatchlist,
+  useProposeWatchlistItem,
   useRemoveFromWatchlist,
   useUpdateWatchlistEntry,
 } from "@/hooks/use-watchlist";
 import type { WatchlistStatus } from "@/lib/db/types";
+import { planWatchlistPropose } from "@/lib/watchlist/propose";
 import type { MediaSearchResult } from "@/types/media";
 import type { PredictionSummary } from "@/types/prediction-responses";
 import type { WatchlistItem } from "@/types/watchlist-responses";
@@ -82,6 +85,8 @@ interface WatchlistCardLinkProps {
   readonly onAddToWatchlist: () => void;
   readonly isRemoving?: boolean;
   readonly onRemoveFromWatchlist?: () => void;
+  readonly onPropose?: () => void;
+  readonly isProposing?: boolean;
   readonly children: React.ReactNode;
 }
 
@@ -95,6 +100,8 @@ function WatchlistCardLink({
   onAddToWatchlist,
   isRemoving = false,
   onRemoveFromWatchlist,
+  onPropose,
+  isProposing = false,
   children,
 }: WatchlistCardLinkProps) {
   if (mediaId !== null) {
@@ -139,6 +146,8 @@ function WatchlistCardLink({
         onAddToWatchlist={onAddToWatchlist}
         isRemovingFromWatchlist={isRemoving}
         onRemoveFromWatchlist={onRemoveFromWatchlist}
+        onPropose={onPropose}
+        isProposing={isProposing}
       />
     </>
   );
@@ -169,6 +178,10 @@ export function WatchlistCard({
   const { updateEntry } = useUpdateWatchlistEntry();
   const { removeFromWatchlist, isRemoving } = useRemoveFromWatchlist();
   const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
+  const { proposeEntry, isProposing } = useProposeWatchlistItem();
+  // An entry with no media_id and no external id can't anchor a proposal — hide
+  // the affordance rather than offer a guaranteed-to-fail action.
+  const canPropose = planWatchlistPropose(entry).kind !== "unproposable";
   const [previewOpen, setPreviewOpen] = useState(false);
   const [myWatchlistEntryId, setMyWatchlistEntryId] = useState<string>();
   const [locallyRemoved, setLocallyRemoved] = useState(false);
@@ -288,6 +301,14 @@ export function WatchlistCard({
             }
           })();
         }}
+        onPropose={
+          canPropose
+            ? () => {
+                void proposeEntry(entry);
+              }
+            : undefined
+        }
+        isProposing={isProposing}
       >
         {cardContent}
       </WatchlistCardLink>
@@ -317,6 +338,20 @@ export function WatchlistCard({
                   {opt.label}
                 </DropdownMenuItem>
               ))}
+              {canPropose && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={isProposing}
+                    onClick={() => {
+                      void proposeEntry(entry);
+                    }}
+                  >
+                    <UsersIcon className="mr-2 size-4" />
+                    Propose to group
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive"

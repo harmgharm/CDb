@@ -14,6 +14,7 @@ import {
   PlayCircleIcon,
   StarIcon,
   TvIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { MediaPoster } from "@/components/media/media-poster";
@@ -42,6 +43,9 @@ interface MediaPreviewDialogProps {
   readonly onAddToWatchlist: () => void;
   readonly isRemovingFromWatchlist?: boolean;
   readonly onRemoveFromWatchlist?: () => void;
+  /** When provided, renders a "Propose to group" action (Watchlist · Propose · Import). */
+  readonly onPropose?: () => void;
+  readonly isProposing?: boolean;
 }
 
 function formatRuntime(minutes: number): string {
@@ -243,6 +247,8 @@ export function MediaPreviewDialog({
   onAddToWatchlist,
   isRemovingFromWatchlist = false,
   onRemoveFromWatchlist,
+  onPropose,
+  isProposing = false,
 }: MediaPreviewDialogProps) {
   const { data: detail, isLoading } = useMediaPreview(
     open ? result.source : null,
@@ -318,6 +324,24 @@ export function MediaPreviewDialog({
                 <BookmarkPlusIcon className="mr-1 size-3.5" />
               )}
               Watchlist
+            </Button>
+          )}
+          {onPropose !== undefined && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isProposing}
+              onClick={(event) => {
+                event.stopPropagation();
+                onPropose();
+              }}
+            >
+              {isProposing ? (
+                <LoaderIcon className="mr-1 size-3.5 animate-spin" />
+              ) : (
+                <UsersIcon className="mr-1 size-3.5" />
+              )}
+              Propose
             </Button>
           )}
           <Button

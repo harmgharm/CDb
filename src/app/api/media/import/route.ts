@@ -20,17 +20,16 @@ import { db } from "@/lib/db";
 import type { NewMedia } from "@/lib/db/types";
 import { importMediaSchema } from "@/lib/validations/media";
 
-async function checkDuplicate(
-  column: "tmdb_id" | "mal_id",
-  value: number,
-  label: string,
-): Promise<Response | null> {
-  const existing = await db
-    .selectFrom("media")
-    .select("id")
-    .where(column, "=", value)
-    .executeTakeFirst();
-  return existing ? errorResponse(`Media with this ${label} already exists`, 409) : null;
+/**
+ * If a media row with this external ID already exists, return it (the full row,
+ * so the caller can hand back the same shape as a fresh import). Returns `null`
+ * when the title hasn't been imported yet. The watchlist import-then-propose
+ * path has no search step to pre-resolve an already-imported title to its media
+ * id, so the import endpoint surfaces the existing row instead of a 409 — a
+ * usable id to propose.
+ */
+async function findExisting(column: "tmdb_id" | "mal_id", value: number) {
+  return db.selectFrom("media").selectAll().where(column, "=", value).executeTakeFirst();
 }
 
 async function fetchMetadata(
@@ -55,14 +54,14 @@ export async function POST(req: NextRequest) {
 
   const { tmdbId, malId, type } = parsed.data;
 
-  // Check for duplicate
-  if (tmdbId !== undefined) {
-    const duplicate = await checkDuplicate("tmdb_id", tmdbId, "TMDB ID");
-    if (duplicate !== null) return duplicate;
-  }
-  if (malId !== undefined) {
-    const duplicate = await checkDuplicate("mal_id", malId, "MAL ID");
-    if (duplicate !== null) return duplicate;
+  // Already imported? Hand back the existing row (a usable id to propose /
+  // watchlist), flagged `alreadyExisted`, instead of erroring. Short-circuits
+  // before the external API, so a duplicate import costs no TMDB/Jikan call.
+  const existing =
+    (tmdbId === undefined ? undefined : await findExisting("tmdb_id", tmdbId)) ??
+    (malId === undefined ? undefined : await findExisting("mal_id", malId));
+  if (existing !== undefined) {
+    return successResponse({ ...existing, alreadyExisted: true }, "Media already imported", 200);
   }
 
   // Fetch metadata from external API
@@ -110,5 +109,5 @@ export async function POST(req: NextRequest) {
     metadata: { title: metadata.title, type, tmdbId, malId, source: "import" },
   });
 
-  return successResponse(media, "Media imported", 201);
+  return successResponse({ ...media, alreadyExisted: false }, "Media imported", 201);
 }

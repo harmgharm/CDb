@@ -3,10 +3,14 @@
  */
 
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
+import { useMediaImport } from "@/hooks/use-media";
+import { useProposeToQueue } from "@/hooks/use-queue";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
+import { planWatchlistPropose } from "@/lib/watchlist/propose";
 import type {
   WatchlistGroupCounts,
   WatchlistItem,
@@ -150,4 +154,59 @@ export function useRemoveFromWatchlist() {
   }, []);
 
   return { removeFromWatchlist, isRemoving };
+}
+
+/**
+ * Propose a personal watchlist entry to the group queue (spec §7d).
+ *
+ * Imported entries propose their `media_id` directly. External-only entries are
+ * imported first (the queue FK needs a real media row), then the new id is
+ * proposed — the same import-then-propose path the import dialog uses, decided
+ * by the pure `planWatchlistPropose`. `importMedia` now hands back the existing
+ * row on a duplicate, so a title already in the database still yields a usable
+ * id to propose. Toasts mirror the import dialog's propose copy.
+ */
+export function useProposeWatchlistItem() {
+  const { importMedia } = useMediaImport();
+  const { propose } = useProposeToQueue();
+  const [isProposing, setIsProposing] = useState(false);
+
+  const proposeEntry = useCallback(
+    async (entry: WatchlistItem): Promise<boolean> => {
+      const plan = planWatchlistPropose(entry);
+      if (plan.kind === "unproposable") {
+        toast.error("Couldn't propose that title");
+        return false;
+      }
+
+      setIsProposing(true);
+      try {
+        let mediaId: string | null;
+        if (plan.kind === "direct") {
+          mediaId = plan.mediaId;
+        } else {
+          const imported = await importMedia(plan.params);
+          mediaId = imported?.id ?? null;
+          if (mediaId === null) {
+            toast.error("Couldn't import that title to propose it");
+            return false;
+          }
+        }
+
+        const outcome = await propose(mediaId);
+        if (outcome === null) {
+          toast.error("Couldn't propose that title");
+          return false;
+        }
+
+        toast.success(outcome.alreadyProposed ? "Already in the queue" : "Proposed to the group");
+        return true;
+      } finally {
+        setIsProposing(false);
+      }
+    },
+    [importMedia, propose],
+  );
+
+  return { proposeEntry, isProposing };
 }

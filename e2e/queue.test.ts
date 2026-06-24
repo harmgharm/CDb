@@ -612,6 +612,29 @@ test.describe.serial("group queue API", () => {
     }
   });
 
+  test("importing a title that already exists returns the existing media id (not a 409)", async ({
+    request,
+  }) => {
+    // The watchlist import-then-propose path has no search step to pre-resolve an
+    // already-imported title to its media id (unlike the import dialog's
+    // existingMediaMap). So a duplicate import must hand back the existing row's
+    // id — a usable id to propose — instead of the bare 409 it used to return.
+    // The duplicate short-circuits before the external API, so seeding a media
+    // row with a known tmdb_id is enough; no TMDB call happens.
+    const TMDB_ID = 424_242;
+    await db.updateTable("media").set({ tmdb_id: TMDB_ID }).where("id", "=", MEDIA_A).execute();
+
+    const res = await request.post("/api/media/import", {
+      data: { tmdbId: TMDB_ID, type: "movie" },
+    });
+
+    // 200 (not 201, not 409) and the SAME existing media id, flagged as a dup.
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { data: { id: string; alreadyExisted: boolean } };
+    expect(body.data.id).toBe(MEDIA_A);
+    expect(body.data.alreadyExisted).toBe(true);
+  });
+
   test("concurrent proposes into an empty queue both succeed with one scheduled pick", async ({
     request,
     baseURL,
