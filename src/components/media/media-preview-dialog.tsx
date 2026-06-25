@@ -4,6 +4,7 @@ import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
   CalendarIcon,
+  CheckIcon,
   ClapperboardIcon,
   ClockIcon,
   DownloadIcon,
@@ -46,6 +47,8 @@ interface MediaPreviewDialogProps {
   /** When provided, renders a "Propose to group" action (Watchlist · Propose · Import). */
   readonly onPropose?: () => void;
   readonly isProposing?: boolean;
+  /** True once the title is in the group queue — renders the disabled "Proposed" state. */
+  readonly isProposed?: boolean;
 }
 
 function formatRuntime(minutes: number): string {
@@ -249,6 +252,7 @@ export function MediaPreviewDialog({
   onRemoveFromWatchlist,
   onPropose,
   isProposing = false,
+  isProposed = false,
 }: MediaPreviewDialogProps) {
   const { data: detail, isLoading } = useMediaPreview(
     open ? result.source : null,
@@ -326,24 +330,31 @@ export function MediaPreviewDialog({
               Watchlist
             </Button>
           )}
-          {onPropose !== undefined && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isProposing}
-              onClick={(event) => {
-                event.stopPropagation();
-                onPropose();
-              }}
-            >
-              {isProposing ? (
-                <LoaderIcon className="mr-1 size-3.5 animate-spin" />
-              ) : (
-                <UsersIcon className="mr-1 size-3.5" />
-              )}
-              Propose
-            </Button>
-          )}
+          {onPropose !== undefined &&
+            (isProposed ? (
+              <Button size="sm" variant="outline" className="cdb-imp-proposed" disabled>
+                <CheckIcon className="mr-1 size-3.5" />
+                Proposed
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isProposing}
+                title="Propose to the group vote"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onPropose();
+                }}
+              >
+                {isProposing ? (
+                  <LoaderIcon className="mr-1 size-3.5 animate-spin" />
+                ) : (
+                  <UsersIcon className="mr-1 size-3.5" />
+                )}
+                Propose
+              </Button>
+            ))}
           <Button
             size="sm"
             disabled={isImporting}

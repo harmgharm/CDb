@@ -11,9 +11,10 @@ import {
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { ImportMediaDialog } from "@/components/media/import-media-dialog";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
@@ -28,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useQueue } from "@/hooks/use-queue";
 import {
   useAddToWatchlist,
   useProposeWatchlistItem,
@@ -35,7 +37,7 @@ import {
   useUpdateWatchlistEntry,
 } from "@/hooks/use-watchlist";
 import type { WatchlistStatus } from "@/lib/db/types";
-import { planWatchlistPropose } from "@/lib/watchlist/propose";
+import { isWatchlistEntryProposed, planWatchlistPropose } from "@/lib/watchlist/propose";
 import type { MediaSearchResult } from "@/types/media";
 import type { PredictionSummary } from "@/types/prediction-responses";
 import type { WatchlistItem } from "@/types/watchlist-responses";
@@ -87,6 +89,8 @@ interface WatchlistCardLinkProps {
   readonly onRemoveFromWatchlist?: () => void;
   readonly onPropose?: () => void;
   readonly isProposing?: boolean;
+  readonly isProposed?: boolean;
+  readonly onImport: () => void;
   readonly children: React.ReactNode;
 }
 
@@ -102,6 +106,8 @@ function WatchlistCardLink({
   onRemoveFromWatchlist,
   onPropose,
   isProposing = false,
+  isProposed = false,
+  onImport,
   children,
 }: WatchlistCardLinkProps) {
   if (mediaId !== null) {
@@ -138,9 +144,7 @@ function WatchlistCardLink({
         onOpenChange={onPreviewOpenChange}
         result={searchResult}
         isImporting={false}
-        onImport={() => {
-          /* no-op: import not available from watchlist card */
-        }}
+        onImport={onImport}
         isWatchlisted={isWatchlisted}
         isAddingToWatchlist={isAddingToWatchlist}
         onAddToWatchlist={onAddToWatchlist}
@@ -148,6 +152,7 @@ function WatchlistCardLink({
         onRemoveFromWatchlist={onRemoveFromWatchlist}
         onPropose={onPropose}
         isProposing={isProposing}
+        isProposed={isProposed}
       />
     </>
   );
@@ -179,13 +184,29 @@ export function WatchlistCard({
   const { removeFromWatchlist, isRemoving } = useRemoveFromWatchlist();
   const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
   const { proposeEntry, isProposing } = useProposeWatchlistItem();
+  const { scheduled, proposals, refresh: refreshQueue } = useQueue();
   // An entry with no media_id and no external id can't anchor a proposal — hide
   // the affordance rather than offer a guaranteed-to-fail action.
   const canPropose = planWatchlistPropose(entry).kind !== "unproposable";
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [myWatchlistEntryId, setMyWatchlistEntryId] = useState<string>();
   const [locallyRemoved, setLocallyRemoved] = useState(false);
+  // Set when this session proposed the entry — covers an external-only entry
+  // whose freshly-imported media_id the live queue can't key yet (see
+  // isWatchlistEntryProposed).
+  const [locallyProposed, setLocallyProposed] = useState(false);
   const searchResult = entry.media_id === null ? toSearchResult(entry) : null;
+
+  // Live media ids in the group queue (scheduled pick + open proposals); a match
+  // renders the disabled "Proposed" state and persists across close/reopen.
+  const queuedMediaIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (scheduled !== null) ids.add(scheduled.media.id);
+    for (const proposal of proposals) ids.add(proposal.media.id);
+    return ids;
+  }, [scheduled, proposals]);
+  const isProposed = isWatchlistEntryProposed(entry, queuedMediaIds, locallyProposed);
 
   // On own profile, the entry is always in the user's watchlist.
   // On other profiles, track whether the current user has added it to their own watchlist.
@@ -209,6 +230,21 @@ export function WatchlistCard({
     } else {
       toast.error("Failed to remove");
     }
+  }
+
+  // Shared by the dialog Propose button and the dropdown "Propose to group" item.
+  async function handlePropose() {
+    const proposed = await proposeEntry(entry);
+    if (!proposed) return;
+    setLocallyProposed(true);
+    // Refresh the queue so `queuedMediaIds` includes the new proposal — once an
+    // import-then-propose backfill gives the watchlist refetch a real media_id,
+    // the live cross-ref already matches, so isProposed stays true with no
+    // flicker (the local flag is only a bridge for external-only entries).
+    void refreshQueue();
+    // Revalidate the list so the backfilled media_id lands without a reload,
+    // consistent with the import dialog's post-propose refresh.
+    onChanged();
   }
 
   const cardContent = (
@@ -304,14 +340,32 @@ export function WatchlistCard({
         onPropose={
           canPropose
             ? () => {
-                void proposeEntry(entry);
+                void handlePropose();
               }
             : undefined
         }
         isProposing={isProposing}
+        isProposed={isProposed}
+        onImport={() => {
+          setPreviewOpen(false);
+          setImportOpen(true);
+        }}
       >
         {cardContent}
       </WatchlistCardLink>
+
+      {/* Full import dialog — only mounted when open (it calls the whole app's
+          hook tree at render). Lets a user import without proposing, and the
+          dialog's own Propose button carries the working "Proposed" state. */}
+      {importOpen && searchResult !== null && (
+        <ImportMediaDialog
+          key={entry.title}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onSuccess={onChanged}
+          initialQuery={entry.title}
+        />
+      )}
 
       {isOwnProfile && (
         <div className="absolute top-2 right-2">
@@ -338,13 +392,16 @@ export function WatchlistCard({
                   {opt.label}
                 </DropdownMenuItem>
               ))}
-              {canPropose && (
+              {/* Hidden while the title is in the active queue (isProposed) — it
+                  reappears once the pick is watched and drops out of the queue,
+                  matching this menu's filter-out idiom for unavailable actions. */}
+              {canPropose && !isProposed && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={isProposing}
                     onClick={() => {
-                      void proposeEntry(entry);
+                      void handlePropose();
                     }}
                   >
                     <UsersIcon className="mr-2 size-4" />

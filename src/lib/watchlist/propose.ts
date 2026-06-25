@@ -37,3 +37,31 @@ export function planWatchlistPropose(entry: WatchlistItem): WatchlistProposePlan
   }
   return { kind: "unproposable" };
 }
+
+/**
+ * Whether a watchlist entry is already in the group's active queue, so the
+ * preview dialog renders the disabled "Proposed" state instead of "Propose"
+ * (mirrors the import dialog's row-level `isAlreadyProposed`).
+ *
+ * Two signals, because the queue keys on a real `media_id`:
+ * - `queuedMediaIds` — the live scheduled-pick + open-proposal media ids. Once
+ *   an entry has a `media_id` (imported, or backfilled after an import-then-
+ *   propose), this is the source of truth and persists across a close/reopen.
+ * - `locallyProposed` — set when *this* session proposed the entry. Only a
+ *   bridge for the brief window where an external-only entry has been proposed
+ *   (and imported) but its freshly-minted `media_id` hasn't landed on this card
+ *   yet, so `queuedMediaIds` can't match it. Once the entry carries a
+ *   `media_id`, the live queue wins — so a later watch (which removes the title
+ *   from the queue) correctly flips this back to `false` instead of the local
+ *   flag pinning it "proposed" forever.
+ */
+export function isWatchlistEntryProposed(
+  entry: WatchlistItem,
+  queuedMediaIds: ReadonlySet<string>,
+  locallyProposed: boolean,
+): boolean {
+  // Imported / backfilled entry: trust the live queue exclusively.
+  if (entry.media_id !== null) return queuedMediaIds.has(entry.media_id);
+  // External-only entry the queue can't key yet: the local flag bridges the gap.
+  return locallyProposed;
+}
