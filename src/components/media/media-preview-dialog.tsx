@@ -17,6 +17,7 @@ import {
   TvIcon,
   UsersIcon,
 } from "lucide-react";
+import { VisuallyHidden } from "radix-ui";
 
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
@@ -268,8 +269,16 @@ export function MediaPreviewDialog({
             <span className="min-w-0 truncate">{result.title}</span>
             <MediaTypeBadge type={result.type} />
           </DialogTitle>
-          {detail?.tagline !== undefined && detail.tagline !== null && (
+          {/* Radix requires every DialogContent to be described. Show the tagline
+              when the title has one; otherwise keep a screen-reader-only fallback
+              so the description association exists without doubling up the synopsis
+              that's already rendered visibly in the body below. */}
+          {detail?.tagline !== undefined && detail.tagline !== null ? (
             <DialogDescription className="italic">{detail.tagline}</DialogDescription>
+          ) : (
+            <VisuallyHidden.Root asChild>
+              <DialogDescription>Preview details for {result.title}</DialogDescription>
+            </VisuallyHidden.Root>
           )}
         </DialogHeader>
 
