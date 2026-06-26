@@ -141,6 +141,10 @@ function FeaturedSideCard({ media, rank }: Readonly<{ media: FeaturedMedia; rank
         posterUrl={media.posterUrl}
         title={media.title}
         className="aspect-[2/3] w-14 shrink-0"
+        // Side cards sit in the masthead, always above the fold — eager-load so
+        // none of them can register as a lazy LCP (Next picks the LCP by painted
+        // area, which is sometimes a side poster, not the main card).
+        priority
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
         <div className="font-mono text-[10px] tracking-[0.1em] text-[var(--fg-dim)]">
