@@ -14,7 +14,13 @@ import { formatScheduledDate, scheduleButtonLabel, useQueue, wonVoteLine } from 
 
 import { SetDateDialog } from "./set-date-dialog";
 
-/** A subtle remove control that surfaces on hover/focus of its row or card. */
+/**
+ * A subtle remove control. On hover-capable devices (desktop) it stays hidden
+ * until its row/card is hovered or the button is focused. On touch devices —
+ * which have no hover, so group-hover would never fire and leave the control
+ * permanently unreachable — it's always visible. Gated on the `hover` media
+ * feature (not a width breakpoint) so it keys on actual input capability.
+ */
 function RemoveButton({
   title,
   onRequestRemove,
@@ -25,7 +31,7 @@ function RemoveButton({
       type="button"
       aria-label={`Remove ${title} from the queue`}
       onClick={onRequestRemove}
-      className={`text-muted-foreground hover:text-destructive rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 ${className ?? ""}`}
+      className={`text-muted-foreground hover:text-destructive rounded-md p-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100 ${className ?? ""}`}
     >
       <Trash2Icon className="size-3.5" />
     </button>
@@ -75,30 +81,43 @@ function ScheduledCard({
   const wonLine = wonVoteLine(scheduled);
 
   return (
-    <div className="group bg-card relative flex flex-col gap-3.5 rounded-lg border p-3.5">
+    // Horizontal on desktop (tall poster left, content right — per the design
+    // kit), stacked (poster on top) below lg where the two queue cards share one
+    // narrow column. items-stretch lets the poster fill the card height on
+    // desktop so the card never carries blank space.
+    <div className="group bg-card relative flex flex-col gap-3.5 rounded-lg border p-3.5 lg:flex-row lg:items-stretch lg:gap-4">
       <RemoveButton
         title={scheduled.media.title}
         onRequestRemove={() => {
           onRequestRemove(scheduled);
         }}
-        className="absolute top-2 right-2"
+        className="absolute top-2 right-2 z-10"
       />
-      <div className="relative shrink-0">
+      <div className="relative shrink-0 lg:self-stretch">
+        {/* No `priority` here: this card renders only after the queue SWR data
+            resolves (skeleton first), so the poster mounts post-hydration and
+            next/image can't preload it — `priority` would be a silent no-op that
+            misleadingly implies a preload. The intermittent dev LCP warning on
+            this poster is a paint-timing race, not a fixable preload. */}
         <MediaPoster
           posterUrl={scheduled.media.posterUrl}
           title={scheduled.media.title}
-          className="aspect-[2/3] w-[88px]"
-          priority
+          className="aspect-[2/3] w-[88px] lg:aspect-auto lg:h-full lg:w-[104px]"
         />
         <span className="bg-cdb-marquee text-cdb-ink absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium">
           <CheckIcon className="size-2.5" /> Locked in
         </span>
       </div>
-      <div className="flex min-w-0 flex-col gap-1.5">
+      {/* flex-1 makes the body fill the card height. The three header lines use a
+          deliberate fixed gap (not justify-between, which spread them edge-to-edge
+          across the whole column) so they read as separated but stay grouped near
+          the top; mt-auto on the footer pins it to the bottom and absorbs the
+          remaining slack. Top-heavy, matching the kit. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-8">
         <p className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
           Scheduled · {formatScheduledDate(scheduled.scheduledDate)}
         </p>
-        <h3 className="font-display truncate text-[22px] leading-none font-normal tracking-[-0.015em]">
+        <h3 className="font-display truncate text-[28px] leading-[1.05] font-normal tracking-[-0.02em]">
           {scheduled.media.title}
         </h3>
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
@@ -107,7 +126,7 @@ function ScheduledCard({
             · Proposed by <b className="text-foreground">{proposerName(scheduled.proposer)}</b>
           </span>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2.5">
           {wonLine !== null && (
             <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
               <ThumbsUpIcon className="size-3" /> {wonLine}
@@ -294,9 +313,14 @@ export function UpNextQueue() {
               Nothing up for the vote yet. Propose a title to get the next pick going.
             </p>
           ) : (
-            // Cap the visible height so a long queue scrolls *within* this box
-            // rather than pushing the dashboard down. ~6 rows before scrolling.
-            <div className="divide-border -mr-1 flex max-h-[420px] flex-col divide-y overflow-y-auto pr-1">
+            // Fix the vote list at exactly ~4 rows tall (each VoteRow is a 60px
+            // poster + py-2 ≈ 76px). min-h reserves the full 4-row height so 1–3
+            // proposals don't shrink the card and the 4th fills the reserved space
+            // without growing it; max-h caps it so the 5th proposal onward scrolls
+            // *within* this box. Both cards stay locked to this height (per the
+            // design kit) — the scheduled card beside it never extends or leaves
+            // blank space regardless of proposal count.
+            <div className="divide-border -mr-1 flex max-h-[19.5rem] min-h-[19.5rem] flex-col divide-y overflow-y-auto pr-1">
               {proposals.map((proposal, index) => (
                 <VoteRow
                   key={proposal.id}
