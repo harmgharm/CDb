@@ -122,6 +122,9 @@ function buildFilterDescription(filters: RecFilters): string {
   const parts: string[] = [];
   if (filters.genres.length > 0) parts.push(filters.genres.join(", "));
   if (filters.mediaTypes.length > 0) {
+    // Sentence-form lowercase plurals — a distinct grammatical form from the
+    // canonical MEDIA_TYPE_LABELS ("Movie"/"TV Show"/"Anime"), kept local
+    // because "anime" doesn't pluralize and the casing differs mid-sentence.
     const typeLabels: Record<string, string> = { movie: "movies", tv: "TV shows", anime: "anime" };
     parts.push(filters.mediaTypes.map((t) => typeLabels[t] ?? t).join(", "));
   }

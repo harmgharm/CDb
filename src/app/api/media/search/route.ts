@@ -12,6 +12,7 @@ import { searchMovies, searchTv, tmdbImageUrl } from "@/lib/api/tmdb";
 import { mapMovieGenreIds, mapTvGenreIds } from "@/lib/api/tmdb-genres";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { collectSearchResults, type SearchSource } from "@/lib/media/search";
 import { searchMediaSchema } from "@/lib/validations/media";
 import type { MediaSearchResult } from "@/types/media";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
@@ -113,42 +114,53 @@ async function attachExistingMediaIds(results: MediaSearchResult[]): Promise<voi
   }
 }
 
-async function fetchSearchResults(
-  query: string,
-  type: string | undefined,
-): Promise<MediaSearchResult[]> {
-  const results: MediaSearchResult[] = [];
+async function fetchMovies(query: string): Promise<MediaSearchResult[]> {
+  const tmdbMovies = await searchMovies(query);
+  return tmdbMovies.results.map((movie) => normalizeMovie(movie));
+}
+
+async function fetchTv(query: string): Promise<MediaSearchResult[]> {
+  const tmdbTv = await searchTv(query);
+  return tmdbTv.results.map((show) => normalizeTv(show));
+}
+
+async function fetchAnime(query: string): Promise<MediaSearchResult[]> {
+  const jikanResults = await searchAnime(query);
+  return jikanResults.data.map((anime) => ({
+    externalId: anime.mal_id,
+    title: anime.title_english ?? anime.title,
+    type: "anime",
+    posterUrl: anime.images.jpg.large_image_url,
+    releaseYear: anime.year,
+    overview: anime.synopsis,
+    source: "jikan",
+    voteAverage: anime.score,
+    genres: anime.genres.map((g) => g.name),
+    episodeCount: anime.episodes,
+    studios: anime.studios.map((s) => s.name),
+  }));
+}
+
+/**
+ * Build the list of sources to query for this request. "All types" (no filter)
+ * queries everything; a type filter narrows to a single source. Each source is
+ * fault-isolated by collectSearchResults, so one flaky API (Jikan 504s often)
+ * never fails the whole search.
+ */
+function buildSearchSources(query: string, type: string | undefined): SearchSource[] {
+  const sources: SearchSource[] = [];
 
   if (type === "movie" || type === undefined) {
-    const tmdbMovies = await searchMovies(query);
-    results.push(...tmdbMovies.results.map((movie) => normalizeMovie(movie)));
+    sources.push({ key: "movie", run: () => fetchMovies(query) });
   }
-
   if (type === "tv" || type === undefined) {
-    const tmdbTv = await searchTv(query);
-    results.push(...tmdbTv.results.map((show) => normalizeTv(show)));
+    sources.push({ key: "tv", run: () => fetchTv(query) });
   }
-
   if (type === "anime" || type === undefined) {
-    const jikanResults = await searchAnime(query);
-    for (const anime of jikanResults.data) {
-      results.push({
-        externalId: anime.mal_id,
-        title: anime.title_english ?? anime.title,
-        type: "anime",
-        posterUrl: anime.images.jpg.large_image_url,
-        releaseYear: anime.year,
-        overview: anime.synopsis,
-        source: "jikan",
-        voteAverage: anime.score,
-        genres: anime.genres.map((g) => g.name),
-        episodeCount: anime.episodes,
-        studios: anime.studios.map((s) => s.name),
-      });
-    }
+    sources.push({ key: "anime", run: () => fetchAnime(query) });
   }
 
-  return results;
+  return sources;
 }
 
 export async function GET(req: NextRequest) {
@@ -160,8 +172,16 @@ export async function GET(req: NextRequest) {
     return errorResponse("Invalid search parameters", 400);
   }
 
-  const results = await fetchSearchResults(parsed.data.query, parsed.data.type);
+  const sources = buildSearchSources(parsed.data.query, parsed.data.type);
+  const { results, failures } = await collectSearchResults(sources);
   await attachExistingMediaIds(results);
+
+  // Log each failed source WITH its error so an operator can tell a transient
+  // 504 from an auth/config failure or a code bug (which would otherwise hide
+  // behind a perpetual "source unavailable" notice).
+  for (const { key, error } of failures) {
+    console.error(`[media/search] source "${key}" failed for query "${parsed.data.query}":`, error);
+  }
 
   // Sort possible-anime TMDB results below Jikan anime results so users see
   // the proper anime version first when searching without a type filter.
@@ -171,5 +191,6 @@ export async function GET(req: NextRequest) {
     return aWeight - bWeight;
   });
 
-  return successResponse(sorted);
+  const failedSources = failures.map((failure) => failure.key);
+  return successResponse({ results: sorted, failedSources });
 }

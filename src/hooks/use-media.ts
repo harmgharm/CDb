@@ -2,12 +2,13 @@
  * SWR hooks for media data
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
-import type { MediaPreviewDetail, MediaSearchResult } from "@/types/media";
+import type { MediaType } from "@/lib/db/types";
+import type { MediaPreviewDetail, MediaSearchResponse, MediaSearchResult } from "@/types/media";
 import type { MediaDetail, MediaListResponse } from "@/types/media-responses";
 
 interface MediaQueryParams {
@@ -46,20 +47,54 @@ export function useMediaDetail(id: string | null) {
   return useSWR<MediaDetail>(id === null ? null : `/api/media/${id}`);
 }
 
+/** Drop duplicate hits keyed by source + externalId (Jikan can repeat). */
+function dedupeResults(items: MediaSearchResult[]): MediaSearchResult[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.source}-${String(item.externalId)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Map source+externalId → existing media id for already-imported results. */
+function buildExistingMediaMap(items: MediaSearchResult[]): Map<string, string> {
+  const existing = new Map<string, string>();
+  for (const item of items) {
+    if (item.existingMediaId !== undefined) {
+      existing.set(`${item.source}-${String(item.externalId)}`, item.existingMediaId);
+    }
+  }
+  return existing;
+}
+
 export function useMediaSearch() {
   const [results, setResults] = useState<MediaSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [failedSources, setFailedSources] = useState<MediaType[]>([]);
   const [existingMediaMap, setExistingMediaMap] = useState<Map<string, string>>(new Map());
+  // Monotonic request id. Each search() bumps it; a response only commits its
+  // state if it's still the latest request, so a slow earlier search can't
+  // overwrite a newer one's results/error (out-of-order responses on fast filter
+  // switches).
+  const requestIdRef = useRef(0);
 
   const search = useCallback(async (query: string, type?: string) => {
     if (query.trim().length === 0) {
+      requestIdRef.current += 1;
       setResults([]);
+      setFailedSources([]);
       return;
     }
 
+    const requestId = (requestIdRef.current += 1);
+    const isStale = () => requestIdRef.current !== requestId;
+
     setIsSearching(true);
     setSearchError(null);
+    setFailedSources([]);
 
     try {
       const params = new URLSearchParams({ query });
@@ -68,47 +103,56 @@ export function useMediaSearch() {
       }
 
       const response = await fetchWithAuth(`/api/media/search?${params.toString()}`);
-      const json = (await response.json()) as ApiResponse<MediaSearchResult[]>;
+      const json = (await response.json()) as ApiResponse<MediaSearchResponse>;
+      if (isStale()) return;
 
       if (json.error === null) {
-        // Deduplicate by source + externalId (Jikan can return duplicates)
-        const seen = new Set<string>();
-        const unique = json.data.filter((item) => {
-          const key = `${item.source}-${String(item.externalId)}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+        const unique = dedupeResults(json.data.results);
         setResults(unique);
+        setFailedSources(json.data.failedSources);
+        setExistingMediaMap(buildExistingMediaMap(unique));
 
-        // Build map of already-imported media from API response
-        const existing = new Map<string, string>();
-        for (const item of unique) {
-          if (item.existingMediaId !== undefined) {
-            const key = `${item.source}-${String(item.externalId)}`;
-            existing.set(key, item.existingMediaId);
-          }
+        // Total outage: every queried source failed, so there are no results to
+        // show. Surface a blocking error (the red box) so the user can tell an
+        // outage from a genuine "no matches" — and so non-dialog consumers
+        // (find-similar, predictions) that only read searchError get the signal.
+        // A PARTIAL failure always leaves at least one result, so it stays soft:
+        // reported via failedSources for a filter-scoped notice, never here.
+        if (unique.length === 0 && json.data.failedSources.length > 0) {
+          setSearchError("Search is temporarily unavailable. Please try again.");
         }
-        setExistingMediaMap(existing);
       } else {
         setSearchError(json.error);
         setResults([]);
+        setFailedSources([]);
       }
     } catch {
+      if (isStale()) return;
       setSearchError("Search failed. Please try again.");
       setResults([]);
+      setFailedSources([]);
     } finally {
-      setIsSearching(false);
+      if (!isStale()) setIsSearching(false);
     }
   }, []);
 
   const clearResults = useCallback(() => {
+    requestIdRef.current += 1;
     setResults([]);
     setSearchError(null);
+    setFailedSources([]);
     setExistingMediaMap(new Map());
   }, []);
 
-  return { results, isSearching, searchError, search, clearResults, existingMediaMap };
+  return {
+    results,
+    isSearching,
+    searchError,
+    failedSources,
+    search,
+    clearResults,
+    existingMediaMap,
+  };
 }
 
 interface ImportedMedia {

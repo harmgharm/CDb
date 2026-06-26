@@ -31,10 +31,21 @@ import { useProposeToQueue, useQueue } from "@/hooks/use-queue";
 import { useCreateSession } from "@/hooks/use-sessions";
 import { useUserList } from "@/hooks/use-users";
 import { useAddToWatchlist, useWatchlist } from "@/hooks/use-watchlist";
+import type { MediaType } from "@/lib/db/types";
+import { MEDIA_TYPE_LABELS } from "@/lib/media/labels";
 import type { MediaSearchResult } from "@/types/media";
 
 const ALL_VALUE = "__all__";
 const GROUP_PICK_VALUE = "__group__";
+
+/**
+ * Notice for the single source the user filtered to while it's down. The notice
+ * is always scoped to one active filter (see failedActiveType), so this formats
+ * one source — total outages surface as the blocking searchError instead.
+ */
+function describeFailedSource(type: MediaType): string {
+  return `${MEDIA_TYPE_LABELS[type]} results are unavailable right now. Try again shortly.`;
+}
 
 interface ImportMediaDialogProps {
   readonly open: boolean;
@@ -70,8 +81,15 @@ export function ImportMediaDialog({
 
   const canRateForOthers =
     currentUser !== null && (currentUser.role === "admin" || currentUser.role === "moderator");
-  const { results, isSearching, searchError, search, clearResults, existingMediaMap } =
-    useMediaSearch();
+  const {
+    results,
+    isSearching,
+    searchError,
+    failedSources,
+    search,
+    clearResults,
+    existingMediaMap,
+  } = useMediaSearch();
   const { isImporting, importError, importMedia } = useMediaImport();
   const { createSession, isCreating } = useCreateSession();
   const { addToWatchlist, isAdding: isAddingToWatchlist } = useAddToWatchlist();
@@ -113,6 +131,17 @@ export function ImportMediaDialog({
     for (const proposal of proposals) ids.add(proposal.media.id);
     return ids;
   }, [scheduled, proposals]);
+
+  // The "<source> unavailable" notice is scoped to a specific filter: on "All
+  // types" we stay silent and just show whatever results came back (a flaky
+  // source is invisible to the user). When the user has filtered to a single
+  // source that's currently down, that's the only thing they asked for, so we
+  // tell them — softly, never the red error box. (A total outage on "All types"
+  // surfaces as the blocking searchError from the hook, not here.)
+  // typeFilter is a free string but the Select only ever sets it to a MediaType.
+  const activeType = typeFilter.length > 0 ? (typeFilter as MediaType) : null;
+  const failedActiveType =
+    activeType !== null && failedSources.includes(activeType) ? activeType : null;
 
   const resetSessionForm = useCallback(() => {
     setSessionOpen(false);
@@ -390,6 +419,15 @@ export function ImportMediaDialog({
         {(searchError !== null || importError !== null) && (
           <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
             {searchError ?? importError}
+          </div>
+        )}
+
+        {/* Source-unavailable notice — only when the user filtered to a single
+            source that's currently down. "All types" stays silent (partial
+            results just show). Never overlaps the destructive error block. */}
+        {searchError === null && failedActiveType !== null && (
+          <div className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
+            {describeFailedSource(failedActiveType)}
           </div>
         )}
 

@@ -40,3 +40,17 @@ export interface MediaSearchResult {
   /** True when a TMDB movie/TV result appears to be anime (Animation genre + Japanese) */
   isPossibleAnime?: boolean;
 }
+
+/**
+ * Unified search response.
+ *
+ * `failedSources` lists any external source (TMDB movie/TV, Jikan anime) that
+ * errored while the others succeeded. A flaky source no longer fails the whole
+ * search — its results are simply absent and it is reported here so the client
+ * can decide whether to surface a notice (e.g. when the user filtered to a
+ * source that is currently down).
+ */
+export interface MediaSearchResponse {
+  results: MediaSearchResult[];
+  failedSources: MediaType[];
+}

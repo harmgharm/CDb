@@ -8,13 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActivityFeed } from "@/hooks/use-stats";
+import { MEDIA_TYPE_LABELS } from "@/lib/media/labels";
 import type { FeedItem } from "@/types/stats";
-
-const MEDIA_TYPE_LABELS: Record<string, string> = {
-  movie: "Movie",
-  tv: "TV Show",
-  anime: "Anime",
-};
 
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -64,7 +59,7 @@ function FeedItemCard({ item, index }: Readonly<{ item: FeedItem; index: number 
             </p>
             <div className="mt-1 flex items-center gap-2">
               <Badge variant="outline" className="text-xs">
-                {MEDIA_TYPE_LABELS[data.media_type] ?? data.media_type}
+                {MEDIA_TYPE_LABELS[data.media_type]}
               </Badge>
               <span className="text-muted-foreground text-xs">
                 {formatRelativeTime(data.created_at)}
