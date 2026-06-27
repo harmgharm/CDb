@@ -21,13 +21,15 @@ interface RouteParams {
 }
 
 /**
- * Delete the media row left behind by a removed proposal IF nothing else
- * references it (no sessions, no other active proposals, no watchlist entries) —
- * reclaiming an import-then-propose orphan. Returns true when it deleted media.
- * Runs in the same transaction as the proposal delete so it's all-or-nothing.
+ * Delete the media row left behind by a removed proposal IF nothing
+ * unrecoverable references it (no sessions, no other active proposals) —
+ * reclaiming an import-then-propose orphan. Watchlist entries don't block this:
+ * since migration 0030 they downgrade to external-only instead of being lost.
+ * Returns true when it deleted media. Runs in the same transaction as the
+ * proposal delete so it's all-or-nothing.
  */
 async function cleanupOrphanedMedia(trx: DatabaseTransaction, mediaId: string): Promise<boolean> {
-  const count = async (table: "watch_sessions" | "queue_proposals" | "watchlist") => {
+  const count = async (table: "watch_sessions" | "queue_proposals") => {
     let query = trx
       .selectFrom(table)
       .select((eb) => eb.fn.countAll().as("c"))
@@ -41,13 +43,12 @@ async function cleanupOrphanedMedia(trx: DatabaseTransaction, mediaId: string): 
     return Number(row.c);
   };
 
-  const [sessionCount, activeProposalCount, watchlistCount] = await Promise.all([
+  const [sessionCount, activeProposalCount] = await Promise.all([
     count("watch_sessions"),
     count("queue_proposals"),
-    count("watchlist"),
   ]);
 
-  if (!isMediaOrphaned({ sessionCount, activeProposalCount, watchlistCount })) {
+  if (!isMediaOrphaned({ sessionCount, activeProposalCount })) {
     return false;
   }
 
@@ -94,8 +95,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   // The removal left an orphaned media row, which we reclaimed (no sessions /
-  // active proposals / watchlist entries referenced it). Trail it so a vanished
-  // media row isn't mysterious.
+  // active proposals referenced it; any watchlist entries downgraded to
+  // external-only). Trail it so a vanished media row isn't mysterious.
   if (result.mediaDeleted) {
     await logAudit({
       userId: user.id,
