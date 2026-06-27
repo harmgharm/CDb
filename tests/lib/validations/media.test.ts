@@ -1,6 +1,40 @@
 import { describe, expect, it } from "vitest";
 
-import { importMediaSchema, mediaQuerySchema, searchMediaSchema } from "@/lib/validations/media";
+import {
+  createMediaSchema,
+  importMediaSchema,
+  mediaQuerySchema,
+  searchMediaSchema,
+  updateMediaSchema,
+} from "@/lib/validations/media";
+
+describe("createMediaSchema", () => {
+  it("accepts a manual create with a tmdbId", () => {
+    const result = createMediaSchema.safeParse({
+      title: "Inception",
+      type: "movie",
+      tmdbId: 27205,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a manual create with a malId", () => {
+    const result = createMediaSchema.safeParse({ title: "Naruto", type: "anime", malId: 20 });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a create with neither tmdbId nor malId (would break the media→watchlist downgrade)", () => {
+    // A media row with no external id can't anchor a downgraded watchlist entry
+    // when the media is deleted (migration 0030's media_external_id_check).
+    const result = createMediaSchema.safeParse({ title: "Homemade", type: "movie" });
+    expect(result.success).toBe(false);
+  });
+
+  it("updateMediaSchema stays lenient — a partial edit need not include an external id", () => {
+    const result = updateMediaSchema.safeParse({ title: "Renamed" });
+    expect(result.success).toBe(true);
+  });
+});
 
 describe("importMediaSchema", () => {
   it("accepts tmdbId with type", () => {

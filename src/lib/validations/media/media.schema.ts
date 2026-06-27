@@ -6,7 +6,7 @@ import { z } from "zod";
 
 export const mediaTypeSchema = z.enum(["movie", "tv", "anime"]);
 
-export const createMediaSchema = z.object({
+const createMediaBaseSchema = z.object({
   title: z.string().min(1, "Title is required").max(500),
   type: mediaTypeSchema,
   tmdbId: z.number().int().positive().optional(),
@@ -36,9 +36,17 @@ export const createMediaSchema = z.object({
   studios: z.array(z.string()).optional(),
 });
 
+// Every media row must carry at least one external id so a watchlist entry can
+// downgrade to a valid external-only row when its media is deleted (see the
+// `media_external_id_check` constraint, migration 0030). Mirrors importMediaSchema.
+export const createMediaSchema = createMediaBaseSchema.refine(
+  (data) => data.tmdbId !== undefined || data.malId !== undefined,
+  { message: "Either tmdbId or malId is required" },
+);
+
 export type CreateMediaInput = z.infer<typeof createMediaSchema>;
 
-export const updateMediaSchema = createMediaSchema.partial();
+export const updateMediaSchema = createMediaBaseSchema.partial();
 
 export type UpdateMediaInput = z.infer<typeof updateMediaSchema>;
 

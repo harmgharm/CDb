@@ -81,13 +81,23 @@ export async function POST(req: NextRequest) {
     .returningAll()
     .executeTakeFirstOrThrow();
 
-  // Link existing watchlist entries (added via external ID) to the new media record.
-  // Must clear external IDs to satisfy the watchlist_anchor_check constraint
-  // (media_id XOR external IDs).
+  // Link existing watchlist entries (added via external ID) to the new media
+  // record. Keep the external ids and refresh the cached display fields from the
+  // new media row so the entry's fallback matches an as-imported row's — if the
+  // media is ever deleted (FK -> SET NULL, migration 0030) the entry downgrades
+  // to external-only instead of being destroyed.
+  const linkFallback = {
+    media_id: media.id,
+    tmdb_id: media.tmdb_id,
+    mal_id: media.mal_id,
+    ext_title: media.title,
+    ext_poster_url: media.poster_url,
+    ext_media_type: media.type,
+  };
   if (tmdbId !== undefined) {
     await db
       .updateTable("watchlist")
-      .set({ media_id: media.id, tmdb_id: null, mal_id: null })
+      .set(linkFallback)
       .where("tmdb_id", "=", tmdbId)
       .where("media_id", "is", null)
       .execute();
@@ -95,7 +105,7 @@ export async function POST(req: NextRequest) {
   if (malId !== undefined) {
     await db
       .updateTable("watchlist")
-      .set({ media_id: media.id, tmdb_id: null, mal_id: null })
+      .set(linkFallback)
       .where("mal_id", "=", malId)
       .where("media_id", "is", null)
       .execute();
