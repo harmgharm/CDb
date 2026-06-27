@@ -3,7 +3,13 @@
  */
 
 export { logAudit } from "./audit";
-export { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "./cookies";
+export {
+  clearAuthCookies,
+  getAccessToken,
+  getRefreshToken,
+  setAccessTokenCookie,
+  setAuthCookies,
+} from "./cookies";
 export { generateInviteCode, markInviteCodeUsed, validateInviteCode } from "./invite";
 export { hashPassword, verifyPassword } from "./passwords";
 export { loginLimiter, RateLimiter, refreshLimiter, signupLimiter } from "./rate-limiter";
@@ -11,7 +17,11 @@ export {
   createRefreshToken,
   findRefreshToken,
   hashToken,
+  isWithinReuseGrace,
+  resolveCurrentToken,
+  REUSE_GRACE_MS,
   revokeAllUserTokens,
+  revokeAndReplaceRefreshToken,
   revokeRefreshToken,
   revokeTokenFamily,
 } from "./refresh-tokens";

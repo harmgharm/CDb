@@ -2,8 +2,10 @@
  * POST /api/auth/refresh
  *
  * Rotate refresh token and issue new access token.
- * Implements reuse detection — if a revoked token is reused,
- * the entire token family is invalidated.
+ * Implements reuse detection — if a revoked token is reused outside the grace
+ * window, the entire token family is invalidated. Within the grace window, reuse
+ * is treated as a benign concurrent-refresh race and the caller is handed a
+ * fresh access token off the family's current token instead.
  */
 
 import type { NextRequest } from "next/server";
@@ -15,14 +17,47 @@ import {
   createRefreshToken,
   findRefreshToken,
   hashToken,
+  isWithinReuseGrace,
   refreshLimiter,
+  resolveCurrentToken,
+  revokeAndReplaceRefreshToken,
   revokeRefreshToken,
   revokeTokenFamily,
+  setAccessTokenCookie,
   setAuthCookies,
   signAccessToken,
   verifyRefreshToken,
 } from "@/lib/auth";
 import { db } from "@/lib/db";
+import type { RefreshToken } from "@/lib/db/types";
+
+/** Look up the user behind a token, for issuing a fresh access token. */
+async function getTokenUser(userId: string) {
+  return db.selectFrom("users").select(["id", "role"]).where("id", "=", userId).executeTakeFirst();
+}
+
+/**
+ * Handle a re-presented already-revoked token. Within the grace window, follow
+ * the chain to the family's current token and return a fresh-access-token
+ * response (a benign concurrent-refresh race). Otherwise — stale reuse or a
+ * torn-down chain — revoke the whole family as theft.
+ */
+async function handleRevokedToken(storedToken: RefreshToken): Promise<Response> {
+  if (isWithinReuseGrace(storedToken.revoked_at, Date.now())) {
+    const current = await resolveCurrentToken(storedToken);
+    const graceUser = current === undefined ? undefined : await getTokenUser(current.user_id);
+    if (graceUser !== undefined) {
+      const accessToken = await signAccessToken({ userId: graceUser.id, role: graceUser.role });
+      const response = successResponse({ refreshed: true });
+      setAccessTokenCookie(response.cookies, accessToken);
+      return response;
+    }
+  }
+  await revokeTokenFamily(storedToken.family);
+  const response = errorResponse("Token reuse detected. All sessions revoked.", 401);
+  clearAuthCookies(response.cookies);
+  return response;
+}
 
 export async function POST(req: NextRequest) {
   // Rate limit
@@ -52,12 +87,10 @@ export async function POST(req: NextRequest) {
     return errorResponse("Refresh token not found", 401);
   }
 
-  // Reuse detection: if token was already revoked, someone stole it
+  // Reuse detection — a revoked token re-presented is either a benign
+  // concurrent-refresh race (within grace) or theft (handled in the helper).
   if (storedToken.revoked_at) {
-    await revokeTokenFamily(storedToken.family);
-    const response = errorResponse("Token reuse detected. All sessions revoked.", 401);
-    clearAuthCookies(response.cookies);
-    return response;
+    return handleRevokedToken(storedToken);
   }
 
   // Check expiry
@@ -80,10 +113,15 @@ export async function POST(req: NextRequest) {
     return errorResponse("User not found", 401);
   }
 
-  // Rotate: revoke old, create new (same family)
-  await revokeRefreshToken(storedToken.id);
+  // Rotate: create the successor (same family), then revoke the old token while
+  // recording the successor in `replaced_by` so a racing reuse can follow the
+  // chain to it during the grace window.
   const accessToken = await signAccessToken({ userId: user.id, role: user.role });
-  const { jwt: newRefreshJwt } = await createRefreshToken(user.id, storedToken.family);
+  const { jwt: newRefreshJwt, tokenId: newTokenId } = await createRefreshToken(
+    user.id,
+    storedToken.family,
+  );
+  await revokeAndReplaceRefreshToken(storedToken.id, newTokenId);
 
   const response = successResponse({ refreshed: true });
   setAuthCookies(response.cookies, accessToken, newRefreshJwt);

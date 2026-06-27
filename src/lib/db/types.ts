@@ -224,6 +224,10 @@ export interface RefreshTokensTable {
   family: string;
   expires_at: Date;
   revoked_at: Date | null;
+  /** Successor token id, set on rotation. Enables the reuse grace window: a
+   *  recently-revoked token is handed its successor instead of revoking the
+   *  family. Null for the family's current (unrevoked) token. */
+  replaced_by: string | null;
   created_at: Generated<Date>;
 }
 

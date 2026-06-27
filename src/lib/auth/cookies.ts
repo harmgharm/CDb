@@ -40,6 +40,22 @@ export function setAuthCookies(
   });
 }
 
+/**
+ * Set only the access-token cookie, leaving the refresh-token cookie untouched.
+ * Used by the refresh route's reuse grace window: a racing request gets a fresh
+ * access token (so its in-flight API calls succeed) without re-rotating the
+ * refresh token, which the deduped normal-refresh path owns.
+ */
+export function setAccessTokenCookie(cookieStore: ResponseCookies, accessToken: string): void {
+  cookieStore.set(ACCESS_TOKEN_NAME, accessToken, {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: "lax",
+    path: "/",
+    maxAge: ACCESS_TOKEN_MAX_AGE,
+  });
+}
+
 export function clearAuthCookies(cookieStore: ResponseCookies): void {
   cookieStore.set(ACCESS_TOKEN_NAME, "", {
     httpOnly: true,
