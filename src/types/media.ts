@@ -49,8 +49,15 @@ export interface MediaSearchResult {
  * search — its results are simply absent and it is reported here so the client
  * can decide whether to surface a notice (e.g. when the user filtered to a
  * source that is currently down).
+ *
+ * `attemptedSources` lists every source the request actually queried (driven by
+ * the type filter). The client compares it against `failedSources` to tell a
+ * *total outage* (every attempted source down → blocking error) apart from a
+ * *partial failure* (one flaky source down → soft notice), which otherwise look
+ * identical when a query also happens to have no matches.
  */
 export interface MediaSearchResponse {
   results: MediaSearchResult[];
   failedSources: MediaType[];
+  attemptedSources: MediaType[];
 }

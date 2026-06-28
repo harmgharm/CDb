@@ -192,5 +192,6 @@ export async function GET(req: NextRequest) {
   });
 
   const failedSources = failures.map((failure) => failure.key);
-  return successResponse({ results: sorted, failedSources });
+  const attemptedSources = sources.map((source) => source.key);
+  return successResponse({ results: sorted, failedSources, attemptedSources });
 }

@@ -21,6 +21,13 @@ import type {
 const BASE_URL = "https://api.themoviedb.org/3";
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p";
 
+/**
+ * Hard cap on a single TMDB request, so a hung upstream can't stall the unified
+ * search (collectSearchResults awaits every source). TMDB is reliable, but the
+ * cap keeps one slow request from holding back the others. Mirrors Jikan's cap.
+ */
+const REQUEST_TIMEOUT_MS = 8000;
+
 type ImageSize = "w92" | "w154" | "w185" | "w342" | "w500" | "w780" | "original";
 
 export function tmdbImageUrl(path: string | null, size: ImageSize = "w500"): string | null {
@@ -35,7 +42,9 @@ async function tmdbFetch<T>(endpoint: string, params: Record<string, string> = {
     url.searchParams.set(key, value);
   }
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
 
   if (!response.ok) {
     throw new Error(`TMDB API error: ${response.status.toString()} ${response.statusText}`);

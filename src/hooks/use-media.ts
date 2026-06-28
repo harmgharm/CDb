@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { ApiResponse } from "@/lib/api/response";
 import type { MediaType } from "@/lib/db/types";
+import { isTotalSearchOutage } from "@/lib/media/classify-search-outcome";
 import type { MediaPreviewDetail, MediaSearchResponse, MediaSearchResult } from "@/types/media";
 import type { MediaDetail, MediaListResponse } from "@/types/media-responses";
 
@@ -112,13 +113,22 @@ export function useMediaSearch() {
         setFailedSources(json.data.failedSources);
         setExistingMediaMap(buildExistingMediaMap(unique));
 
-        // Total outage: every queried source failed, so there are no results to
-        // show. Surface a blocking error (the red box) so the user can tell an
-        // outage from a genuine "no matches" — and so non-dialog consumers
+        // Total outage: EVERY source the request queried failed, so there are no
+        // results to show. Surface a blocking error (the red box) so the user can
+        // tell an outage from a genuine "no matches" — and so non-dialog consumers
         // (find-similar, predictions) that only read searchError get the signal.
-        // A PARTIAL failure always leaves at least one result, so it stays soft:
-        // reported via failedSources for a filter-scoped notice, never here.
-        if (unique.length === 0 && json.data.failedSources.length > 0) {
+        // A PARTIAL failure (a flaky source down while others answered) stays
+        // soft: reported via failedSources for a filter-scoped notice, never here.
+        // Note "0 results" alone is NOT an outage — a query can simply have no
+        // matches while another source is down; that's why we compare against
+        // attemptedSources rather than just checking failedSources is non-empty.
+        if (
+          isTotalSearchOutage({
+            resultCount: unique.length,
+            failedSources: json.data.failedSources,
+            attemptedSources: json.data.attemptedSources,
+          })
+        ) {
           setSearchError("Search is temporarily unavailable. Please try again.");
         }
       } else {
