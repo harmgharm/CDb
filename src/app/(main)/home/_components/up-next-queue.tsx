@@ -309,7 +309,12 @@ export function UpNextQueue() {
             </button>
           </div>
           {proposals.length === 0 ? (
-            <p className="text-muted-foreground py-4 text-sm">
+            // Reserve the same ~4-row height the populated list locks to (below),
+            // so a lone scheduled pick with no vote proposals doesn't collapse
+            // this card — and, via the grid's stretch, the scheduled card beside
+            // it — back to the old short layout. Both cards stay tall as soon as
+            // anything is in the queue, per the design kit.
+            <p className="text-muted-foreground min-h-[19.5rem] py-4 text-sm">
               Nothing up for the vote yet. Propose a title to get the next pick going.
             </p>
           ) : (
