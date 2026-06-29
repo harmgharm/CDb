@@ -59,7 +59,7 @@ export function EditorialMasthead({
           {eyebrow}
         </span>
         {issueLine !== undefined && (
-          <span className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
+          <span className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.16em] uppercase">
             {issueLine}
           </span>
         )}

@@ -75,7 +75,9 @@ function FeaturedMainCard({ media, eyebrow }: Readonly<{ media: FeaturedMedia; e
   return (
     <Link
       href={`/database/${media.id}`}
-      className="bg-card hover:border-cdb-marquee/45 grid min-w-0 grid-cols-1 gap-6 overflow-hidden rounded-xl border p-5 transition-colors sm:grid-cols-[200px_minmax(0,1fr)]"
+      // Kit's featured-main gradient: lighter bg-elev-2 → darker bg-elev-1, so
+      // the hero card reads a touch deeper than the flat bg-elev-2 side cards.
+      className="hover:border-cdb-marquee/45 grid min-w-0 grid-cols-1 gap-6 overflow-hidden rounded-xl border bg-[linear-gradient(105deg,var(--bg-elev-2),var(--bg-elev-1)_80%)] p-5 transition-colors sm:grid-cols-[200px_minmax(0,1fr)]"
     >
       <MediaPoster
         posterUrl={media.posterUrl}

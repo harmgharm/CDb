@@ -379,7 +379,7 @@ function RefreshControls({ progress, onRefresh, onCancel }: RefreshControlsProps
 function IssueFooter() {
   return (
     <div className="flex justify-center border-t pt-6">
-      <span className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+      <span className="text-[11px] font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
         – end of issue –
       </span>
     </div>

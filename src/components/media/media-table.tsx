@@ -40,10 +40,13 @@ interface MediaTableProps {
 
 export function MediaTable({ items }: MediaTableProps) {
   return (
-    <div className="rounded-md border">
+    // The kit's two-shade table: the wrapper/body sits on the darker bg-elev-1,
+    // and the header bar is the lighter bg-card (bg-elev-2). Rows inherit the
+    // wrapper's elev-1 and lift toward elev-2 on hover, matching cdb-db-table.
+    <div className="overflow-hidden rounded-md border bg-[var(--bg-elev-1)]">
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="bg-card hover:bg-card">
             <TableHead className="w-16" />
             <TableHead>Title</TableHead>
             <TableHead className="w-24">Type</TableHead>
@@ -61,7 +64,10 @@ export function MediaTable({ items }: MediaTableProps) {
             </TableRow>
           )}
           {items.map((media) => (
-            <TableRow key={media.id} className="group bg-card hover:bg-accent">
+            <TableRow
+              key={media.id}
+              className="group hover:bg-[color-mix(in_oklch,var(--bg-elev-2)_55%,transparent)]"
+            >
               <TableCell className="p-2">
                 <Link href={`/database/${media.id}`}>
                   <MediaPoster
