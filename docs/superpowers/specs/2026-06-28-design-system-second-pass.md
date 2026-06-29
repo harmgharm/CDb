@@ -42,14 +42,15 @@ pages should have far less.
 Homepage first (worst drift), then descending. Each page gets audited just before we pick it up, so
 the lower rows are placeholders until then.
 
-1. **Home / Dashboard** — audited below. Highest drift.
-2. **Database** — audited below. Low drift (Phase 6 shipped masthead/featured/filters/timeline).
-3. For You (recommendations) — to audit
-4. Users + User Profile — to audit
-5. Settings — to audit
-6. Auth (login / signup) — to audit
-7. Landing — to audit
-8. Media detail — to audit
+1. **Home / Dashboard** — ✅ implemented (below). Highest drift.
+2. **Database** — ✅ implemented (below). Low drift (Phase 6 shipped
+   masthead/featured/filters/timeline).
+3. **Media detail** — ✅ implemented (below). Done out of order, owner-driven (kit barely mocks it).
+4. **For You (recommendations)** — next, to audit
+5. Users + User Profile — to audit
+6. Settings — to audit
+7. Auth (login / signup) — to audit
+8. Landing — to audit
 9. Play hub — to audit
 
 ---
@@ -392,3 +393,70 @@ and correctly ordered.
 - [x] `— end of issue —` footer renders at the bottom of grid/list/timeline, absent in empty states.
 - [x] Light mode: readable, no broken contrast, no missing tokens.
 - [x] No regression on the timeline view or the For You masthead (smoke check).
+
+---
+
+## Page — Media detail ✅ implemented (pending review)
+
+Implemented 2026-06-29. **Done out of work order** (owner wanted it before For You) and **mostly not
+kit-driven** — the kit's `MediaDetail.jsx` barely mocks this page, so the first rollout only
+borrowed a few things and left the rest. The work here was therefore **owner-driven improvements**,
+not drift-matching: usability and consistency fixes plus a readability reorder. `pnpm typecheck`,
+`pnpm lint`, `pnpm test` (527) green throughout; the app-wide textarea change passed a feature-dev
+code-reviewer with no material issues.
+
+Current: `src/app/(main)/database/[id]/page.tsx` + `src/components/media/session-card.tsx`,
+`src/components/media/propose-to-queue-button.tsx` (new),
+`src/components/editorial/expandable-text.tsx` (new), `src/components/ui/textarea.tsx`.
+
+### What shipped (each its own commit)
+
+- [x] **Propose-to-queue button** (`fa0b8d4`). New `ProposeToQueueButton` beside the watchlist
+      button in the Watch Sessions header. Reuses `POST /api/queue/propose` (dedups server-side).
+      Reads `useQueue()` for already-queued state; once queued it collapses to a quiet,
+      non-interactive "In the queue" tag in the same (left) spot — **not** a dead disabled button,
+      and **not** un-proposable from here (un-propose could delete the media entry when it has no
+      sessions — rejected as a destructive surprise). Actions row is `flex-wrap` for mobile.
+
+- [x] **Long reviews / session notes truncate with tap-to-expand** (`e5a5a10`, dash fix `5f71e55`).
+      New shared `ExpandableText` (`src/components/editorial/expandable-text.tsx`): clamps to 2
+      lines, tap/click to expand (not hover → works on touch), affordance only when it actually
+      overflows, keyboard-accessible. Wired into **both** the individual reviews and the session
+      notes (notes previously had no overflow handling and ran off the card). The individual review
+      moved onto its own line below the rating row so it has room to expand; its leading em-dash is
+      bonded to the first word with a non-breaking space so it can't strand alone on line 1.
+
+- [x] **Textarea overflow fix — app-wide** (`04083a6`). The shadcn `Textarea` primitive used
+      `field-sizing-content`, which sized the textarea to its content's **width**, so a long
+      unbroken token (a pasted URL) burst the textarea out of its dialog. Removed it for a fixed
+      `min-h`/`max-h` + internal scroll + `min-w-0` + `break-words` + `resize-none`. Affects **every
+      dialog textarea** in the app. (Touching the primitive was owner-approved — it's a genuine bug
+      fix, not a customization.)
+
+- [x] **Title info-block reorder** (`6cb55b2`). The block led with identity then buried the synopsis
+      under reference trivia, with the loud cast photo strip splitting the title from its facts.
+      Reordered to read **identity → facts → what it's about → who's in it → trivia**: director,
+      title, tagline, badges, genres, **synopsis (moved up from last)**, **cast (moved down from
+      4th, kept inline)**, then studio / networks / budget-revenue last. Markup unchanged; only
+      order.
+
+### Decisions made / judgment calls (for the reviewer)
+
+- **Cast stays inline** below the synopsis (owner choice) rather than pulled into a separate lower
+  "Cast" section — smaller change, keeps the tidy photo strip.
+- **Reviews keep the `—` prefix** (distinct from the quoted session notes) rather than switching
+  both to quotes — owner wanted them visually distinct.
+- **2-line clamp** on both reviews and notes (1 line judged not better). The clamp is one number if
+  it ever needs tuning.
+
+### Acceptance (Media detail)
+
+- [x] `pnpm typecheck && pnpm lint && pnpm test` (527) pass.
+- [x] Propose button: proposes, persists across reload, dedups, collapses to "In the queue" tag;
+      3-button row wraps on mobile (0px overflow at 375px).
+- [x] Reviews and notes clamp to 2 lines, expand on tap, affordance only when overflowing; long
+      unbroken tokens stay inside the box; the review dash never strands.
+- [x] Every dialog textarea keeps long content (unbroken strings and long sentences) inside the
+      dialog; shadcn `Table` primitive untouched, `Textarea` primitive change is the intended fix.
+- [x] Info block reads director → title → tagline → badges → genres → synopsis → cast → studio →
+      budget/revenue.
