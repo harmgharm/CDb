@@ -244,40 +244,6 @@ export default function MediaDetailPage() {
               <p className="text-muted-foreground italic">{media.tagline}</p>
             )}
 
-            {media.top_cast !== null && media.top_cast.length > 0 && (
-              <TooltipProvider>
-                <div className="flex gap-3 overflow-x-auto pb-1">
-                  {media.top_cast.map((member) => (
-                    <Tooltip key={member.id}>
-                      <TooltipTrigger asChild>
-                        <div className="flex shrink-0 flex-col items-center gap-1">
-                          {member.profilePath === null ? (
-                            <div className="bg-muted flex size-12 items-center justify-center rounded-full">
-                              <UserIcon className="text-muted-foreground size-5" />
-                            </div>
-                          ) : (
-                            <Image
-                              src={`https://image.tmdb.org/t/p/w185${member.profilePath}`}
-                              alt={member.name}
-                              width={48}
-                              height={48}
-                              className="size-12 rounded-full object-cover"
-                            />
-                          )}
-                          <span className="max-w-16 truncate text-center text-[11px]">
-                            {member.name}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="text-xs">{member.character}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              </TooltipProvider>
-            )}
-
             <div className="flex flex-wrap items-center gap-2">
               <MediaTypeBadge type={media.type} />
               {media.status !== null && <Badge variant="outline">{media.status}</Badge>}
@@ -362,6 +328,54 @@ export default function MediaDetailPage() {
               )}
             </div>
 
+            {media.genres.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {media.genres.map((genre) => (
+                  <Badge key={genre} variant="outline" className="text-xs">
+                    {genre}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {media.synopsis !== null && media.synopsis.length > 0 && (
+              <p className="text-muted-foreground leading-relaxed">{media.synopsis}</p>
+            )}
+
+            {media.top_cast !== null && media.top_cast.length > 0 && (
+              <TooltipProvider>
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {media.top_cast.map((member) => (
+                    <Tooltip key={member.id}>
+                      <TooltipTrigger asChild>
+                        <div className="flex shrink-0 flex-col items-center gap-1">
+                          {member.profilePath === null ? (
+                            <div className="bg-muted flex size-12 items-center justify-center rounded-full">
+                              <UserIcon className="text-muted-foreground size-5" />
+                            </div>
+                          ) : (
+                            <Image
+                              src={`https://image.tmdb.org/t/p/w185${member.profilePath}`}
+                              alt={member.name}
+                              width={48}
+                              height={48}
+                              className="size-12 rounded-full object-cover"
+                            />
+                          )}
+                          <span className="max-w-16 truncate text-center text-[11px]">
+                            {member.name}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">{member.character}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </TooltipProvider>
+            )}
+
             {media.origin_country !== null && media.origin_country.length > 0 && (
               <p className="text-muted-foreground text-sm">
                 Origin: {media.origin_country.join(", ")}
@@ -387,20 +401,6 @@ export default function MediaDetailPage() {
                 {media.budget !== null && media.revenue !== null && " · "}
                 {media.revenue !== null && `Revenue: ${formatMoney(media.revenue)}`}
               </p>
-            )}
-
-            {media.genres.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {media.genres.map((genre) => (
-                  <Badge key={genre} variant="outline" className="text-xs">
-                    {genre}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {media.synopsis !== null && media.synopsis.length > 0 && (
-              <p className="text-muted-foreground leading-relaxed">{media.synopsis}</p>
             )}
           </div>
         </div>
