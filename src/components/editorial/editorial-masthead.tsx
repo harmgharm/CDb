@@ -55,7 +55,7 @@ export function EditorialMasthead({
   return (
     <header className="flex flex-col gap-6">
       <div className="flex items-baseline justify-between border-b border-[var(--border-strong)] pb-3">
-        <span className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
+        <span className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.16em] uppercase">
           {eyebrow}
         </span>
         {issueLine !== undefined && (

@@ -61,7 +61,7 @@ export function MediaTable({ items }: MediaTableProps) {
             </TableRow>
           )}
           {items.map((media) => (
-            <TableRow key={media.id} className="group">
+            <TableRow key={media.id} className="group bg-card hover:bg-accent">
               <TableCell className="p-2">
                 <Link href={`/database/${media.id}`}>
                   <MediaPoster

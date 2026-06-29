@@ -6,7 +6,6 @@ import Link from "next/link";
 
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
-import { Badge } from "@/components/ui/badge";
 import type { MediaListItem } from "@/types/media-responses";
 
 const ONGOING_STATUSES = new Set(["Returning Series", "Currently Airing"]);
@@ -18,12 +17,36 @@ function formatRuntime(minutes: number): string {
   return remainder === 0 ? `${String(hours)}h` : `${String(hours)}h ${String(remainder)}m`;
 }
 
+/** The "·"-separated tokens under the title: year, runtime/eps, and ongoing status. */
+function buildSubmeta(media: MediaListItem): string[] {
+  const tokens: string[] = [];
+  if (media.release_year !== null) {
+    tokens.push(String(media.release_year));
+  }
+  if (media.runtime_minutes !== null) {
+    tokens.push(formatRuntime(media.runtime_minutes));
+  } else if (media.episode_count !== null) {
+    tokens.push(`${String(media.episode_count)} eps`);
+  }
+  if (media.status !== null && ONGOING_STATUSES.has(media.status)) {
+    tokens.push(media.status);
+  }
+  return tokens;
+}
+
 interface MediaCardProps {
   readonly media: MediaListItem;
   readonly index: number;
+  /**
+   * The title's position in the full archive (1-based, page-absolute), shown as
+   * a zero-padded mono rank like "#01". The page computes it from page + limit.
+   */
+  readonly rank: number;
 }
 
-export function MediaCard({ media, index }: MediaCardProps) {
+export function MediaCard({ media, index, rank }: MediaCardProps) {
+  const submeta = buildSubmeta(media);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -32,31 +55,42 @@ export function MediaCard({ media, index }: MediaCardProps) {
     >
       <Link
         href={`/database/${media.id}`}
-        className="group hover:border-primary/50 block overflow-hidden rounded-lg border transition-colors"
+        className="group bg-card hover:border-cdb-marquee/55 flex flex-col overflow-hidden rounded-lg border transition-colors"
       >
-        <div className="relative aspect-[2/3] overflow-hidden">
+        <div className="relative aspect-[2/3] overflow-hidden border-b">
           <MediaPoster
             posterUrl={media.poster_url}
             title={media.title}
             className="size-full transition-transform duration-300 group-hover:scale-105"
             priority={index === 0}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-          <div className="absolute right-2 bottom-2 left-2 flex items-end justify-between">
+          {/* Top overlay: media type (left) + group rating (right). */}
+          <div className="absolute inset-x-0 top-0 flex items-start justify-between p-2">
             <MediaTypeBadge type={media.type} />
-            {media.status !== null && ONGOING_STATUSES.has(media.status) && (
-              <Badge variant="secondary" className="text-[10px]">
-                {media.status}
-              </Badge>
+            {media.avg_rating !== null && (
+              <span className="flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 font-mono text-[11px] font-semibold text-amber-500">
+                <StarIcon className="size-2.5 fill-amber-500 text-amber-500" />
+                {media.avg_rating.toFixed(1)}
+              </span>
             )}
           </div>
         </div>
-        <div className="p-3">
-          <h3 className="truncate text-sm font-medium">{media.title}</h3>
-          <div className="text-muted-foreground mt-1 flex items-center gap-2 text-xs">
-            {media.release_year !== null && <span>{String(media.release_year)}</span>}
-            {media.runtime_minutes !== null && <span>{formatRuntime(media.runtime_minutes)}</span>}
-            {media.episode_count !== null && <span>{String(media.episode_count)} eps</span>}
+        <div className="flex items-start gap-2.5 px-3 pt-2.5 pb-3">
+          <span className="pt-px font-mono text-[11px] tracking-[0.06em] text-[var(--fg-dim)]">
+            #{String(rank).padStart(2, "0")}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[13px] font-medium">{media.title}</h3>
+            {submeta.length > 0 && (
+              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[var(--fg-muted)]">
+                {submeta.map((token, tokenIndex) => (
+                  <span key={token} className="flex items-center gap-1.5">
+                    {tokenIndex > 0 && <span className="text-[var(--fg-dim)]">·</span>}
+                    {token}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </Link>

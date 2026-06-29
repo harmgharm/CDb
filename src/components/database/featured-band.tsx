@@ -193,7 +193,11 @@ export function FeaturedBand() {
     data.scope === "month" ? "Featured · highest rated this month" : "Featured · highest rated";
 
   return (
-    <section className="grid grid-cols-1 gap-[18px] lg:grid-cols-[2fr_1fr]">
+    // minmax(0,…) on both tracks (not bare 2fr/1fr, which floor at min-content):
+    // a supporting card's long title would otherwise refuse to shrink and push
+    // the whole band — and the page — past the viewport. The min-w-0 + truncate
+    // on the title only takes effect once the track itself is allowed to shrink.
+    <section className="grid grid-cols-1 gap-[18px] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <FeaturedMainCard media={main} eyebrow={eyebrow} />
       {data.supporting.length > 0 && (
         <div className="flex flex-col gap-2">

@@ -76,6 +76,12 @@ const SORT_FILTER_OPTIONS = SORT_OPTIONS.map((o) => ({
   ariaLabel: o.ariaLabel,
 }));
 
+/**
+ * Items per archive page. Shared by the media-list request and the grid card's
+ * page-absolute rank so the "#NN" numbering can't drift from the actual limit.
+ */
+const MEDIA_PAGE_SIZE = 20;
+
 // Preserves the original page default exactly (date added, newest first); the
 // conversational sentence is presentation only and must not change state.
 const DEFAULT_FILTERS: MediaFilterValues = {
@@ -204,9 +210,9 @@ function MediaGridSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {Array.from({ length: 10 }, (_, index) => (
-        <div key={index} className="overflow-hidden rounded-lg border">
-          <Skeleton className="aspect-[2/3] w-full" />
-          <div className="space-y-2 p-3">
+        <div key={index} className="bg-card overflow-hidden rounded-lg border">
+          <Skeleton className="aspect-[2/3] w-full rounded-none" />
+          <div className="space-y-2 px-3 pt-2.5 pb-3">
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-3 w-1/2" />
           </div>
@@ -280,7 +286,12 @@ function MediaArchive({
       {view === "grid" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {data.items.map((media, index) => (
-            <MediaCard key={media.id} media={media} index={index} />
+            <MediaCard
+              key={media.id}
+              media={media}
+              index={index}
+              rank={(page - 1) * MEDIA_PAGE_SIZE + index + 1}
+            />
           ))}
         </div>
       ) : (
@@ -360,6 +371,21 @@ function RefreshControls({ progress, onRefresh, onCancel }: RefreshControlsProps
   );
 }
 
+/**
+ * The kit's "— end of issue —" sign-off: a top-ruled, centered eyebrow that
+ * ties off the editorial frame. Rendered only when the archive has content (no
+ * issue to end on an empty or still-loading page).
+ */
+function IssueFooter() {
+  return (
+    <div className="flex justify-center border-t pt-6">
+      <span className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+        – end of issue –
+      </span>
+    </div>
+  );
+}
+
 interface TimelineArchiveProps {
   readonly timeline: ReturnType<typeof useSessionsTimeline>;
   readonly filtersActive: FiltersActive;
@@ -411,7 +437,7 @@ export default function DatabasePage() {
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
     page,
-    limit: 20,
+    limit: MEDIA_PAGE_SIZE,
   });
 
   // Timeline reads the watch-session diary (type + search filter it; the
@@ -476,6 +502,12 @@ export default function DatabasePage() {
     hasType: filters.type.length > 0,
   };
 
+  // The "end of issue" sign-off only appears once the active view has content;
+  // an empty or still-loading archive has no issue to close out.
+  const hasContent = isTimeline
+    ? !timeline.isLoading && !timeline.isEmpty
+    : !isLoading && data !== undefined && data.items.length > 0;
+
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <EditorialMasthead
@@ -538,6 +570,8 @@ export default function DatabasePage() {
           }}
         />
       )}
+
+      {hasContent && <IssueFooter />}
 
       <ImportMediaDialog
         open={importOpen}

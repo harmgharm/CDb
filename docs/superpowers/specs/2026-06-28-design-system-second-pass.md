@@ -196,12 +196,53 @@ Kit reference: `CDb Design System/ui_kits/web/Dashboard.jsx` + `kit.css` (`cdb-n
 
 ---
 
-## Page — Database ⏳ audited (awaiting build)
+## Page — Database ✅ implemented (pending review)
 
-Audited 2026-06-29. **Low drift** — Phase 6 of the first rollout already shipped the editorial
-masthead, Featured band, conversational filters, and the timeline view, so the page's structure and
-section order already match the kit. The remaining gap is in the **card chrome** (grid + list) plus
-two small editorial touches. No section needs reordering; no component needs rebuilding.
+Audited 2026-06-29, implemented 2026-06-29. **Low drift** — Phase 6 of the first rollout already
+shipped the editorial masthead, Featured band, conversational filters, and the timeline view, so the
+page's structure and section order already match the kit. The remaining gap was in the **card
+chrome** (grid + list) plus two small editorial touches. No section needed reordering; no component
+was rebuilt.
+
+Backend slice is TDD (9 new tests in `tests/lib/media/list-row.test.ts`). `pnpm typecheck`,
+`pnpm lint`, `pnpm test` (527) all green. Reviews: manual visual pass (headless screenshots) +
+`feature-dev` code-reviewer — **no material issues**. Implementation notes for the reviewer:
+
+- **`avg_rating` is always-selected, coerced via a pure helper.** `/api/media` lifts the existing
+  rating-sort `AVG(score)` subquery onto the base query so every response carries it; the `[id]`
+  detail route mirrors it for `MediaDetail` consistency. `coerceAvgRating` / `mapMediaListRow`
+  (`src/lib/media/list-row.ts`) parse the Postgres numeric **string** to a one-decimal number (the
+  SQL is typed `string | null` to match runtime, per the reviewer's note + the codebase's
+  `::text`-cast convention). Verified live: rated titles return real averages, unrated return null,
+  detail `avg_rating` === `stats.avgRating`.
+- **Grid stays 5-up** (owner call) with full kit card chrome: `bg-card` meta band, page-absolute
+  mono rank (`#NN`, shared `MEDIA_PAGE_SIZE` so it can't drift from the list `limit`), type badge
+  top-left, group-rating star badge top-right (hidden when unrated). Status badge relocated into the
+  submeta line as a text token (no data lost).
+- **List rows** use `bg-card hover:bg-accent` (the timeline's lighter fill); shadcn `Table`
+  primitive untouched.
+- **Issue-line eyebrow → `font-semibold`** in the shared `EditorialMasthead` (also thickens the For
+  You masthead — confirmed by owner as the intended fix for both).
+- **Footer dashes: en-dash, not em-dash.** Kit uses em-dashes (`— end of issue —`); our
+  cross-cutting rule bars em-dashes in user copy, so this renders `– end of issue –` (en-dash).
+  Owner was fine either way; en-dash keeps the look and honors the rule.
+- **Featured-band overflow fix (bonus, in scope-adjacent).** The band's grid used bare `2fr_1fr`
+  tracks, which floor at min-content; a supporting card's long title refused to shrink (its
+  `truncate` never engaged) and pushed the band — and the page — past the viewport. Changed to
+  `minmax(0,2fr)_minmax(0,1fr)` (the min-content trap from our own notes). This eliminated the
+  **grid-view** horizontal overflow entirely.
+
+### ⚠️ Known issue deferred (separate fix, not this commit)
+
+- **List-view horizontal overflow at exactly 1280px (~47px), pre-existing & global.** Confirmed on
+  the untouched baseline, so not introduced here. Root cause is **shell geometry**, not the table or
+  band: `sidebar (256px) + main (max-w-7xl content + p-6 padding ≈ 1071px) = 1327px`, 47px over a
+  1280px viewport. The non-shrinking boundary is the shadcn **`SidebarInset`** primitive
+  (`min-width: auto`); `min-w-0` on the inner `<main>` did **not** help (tested). List view exposes
+  it because the table fills `main` to full width; grid/timeline content wraps under the threshold.
+  Fix belongs at the shell level and touches every page, so it should be its own change with a
+  cross-page smoke check — out of scope for the Database card-chrome pass. Affects all routes
+  equally.
 
 Kit reference: `CDb Design System/ui_kits/web/Database.jsx` + `kit.css` (`cdb-poster-grid`,
 `cdb-grid-card`/`-overlay`/`-score`/`-meta`/`-rank`/`-title`/`-submeta`, `cdb-db-table`,
@@ -257,44 +298,44 @@ and correctly ordered.
 
 ### Drift checklist
 
-- [ ] **Issue-line eyebrow weight.** In `EditorialMasthead`, set the **left** eyebrow span to
+- [x] **Issue-line eyebrow weight.** In `EditorialMasthead`, set the **left** eyebrow span to
       `font-semibold` (600) to match the kit's `cdb-eyebrow`. Leave the right `issueLine` span
       at 400. (Owner point #1.)
 
-- [ ] **Grid card — lighter card fill + bottom meta band.** Give `MediaCard` a `bg-card`
+- [x] **Grid card — lighter card fill + bottom meta band.** Give `MediaCard` a `bg-card`
       (`--bg-elev-2`) background so the area under the poster reads as a lighter slab, matching the
       kit's `cdb-grid-card` (`background: var(--bg-elev-2)`) and the timeline cards. (Owner point
       #4.)
 
-- [ ] **Grid card — rank number.** Add the kit's `cdb-grid-rank`: a mono, dimmed, zero-padded index
+- [x] **Grid card — rank number.** Add the kit's `cdb-grid-rank`: a mono, dimmed, zero-padded index
       (`#01`, `#02`, …) at the start of the meta footer. Numbering is **page-absolute**
       (`(page - 1) * limit + index + 1`), matching the kit's `(safePage-1)*PAGE_SIZE + i + 1`. Needs
       the page's `limit` (20) and current page passed down to the card (or computed in the page and
       passed as a prop). (Owner point #3.)
 
-- [ ] **Grid card — type badge top-LEFT.** Today the type badge sits bottom-left over the poster
+- [x] **Grid card — type badge top-LEFT.** Today the type badge sits bottom-left over the poster
       (`absolute right-2 bottom-2 left-2`). Move it to the **top-left** corner overlay to match the
       kit's `cdb-grid-overlay` (`top:0; justify-content: space-between`). (Owner point #3.)
 
-- [ ] **Grid card — group-rating badge top-RIGHT.** Add a star+score pill in the top-right of the
+- [x] **Grid card — group-rating badge top-RIGHT.** Add a star+score pill in the top-right of the
       overlay (kit `cdb-grid-score`: dark translucent bg, `cdb-star` amber, mono). Star is always
       `fill-amber-500 text-amber-500`. Hidden when the title has no group rating. Requires the
       backend change below. (Owner point #3.)
 
-- [ ] **Grid card — meta submeta line.** Keep year · runtime · eps but render under the rank/title
+- [x] **Grid card — meta submeta line.** Keep year · runtime · eps but render under the rank/title
       in the kit's `cdb-grid-submeta` style (small, `--fg-muted`, `·` separators). The "Returning
       Series / Currently Airing" status badge currently shown bottom-right has no kit equivalent on
       the card; **keep it** but relocate it into the submeta line as a text token (don't drop data).
       Flag at review.
 
-- [ ] **List view — lighter row fill.** The kit's list (`cdb-db-table`) reads as filled rows; ours
+- [x] **List view — lighter row fill.** The kit's list (`cdb-db-table`) reads as filled rows; ours
       is a bare bordered `Table` on the page background. Give the table rows / wrapper the `bg-card`
       (`--bg-elev-2`) treatment so each entry's slot is the lighter color, matching the timeline's
       inner cards. Token-level only; do **not** restyle the shadcn `Table` primitive in
       `src/components/ui/` — apply via `className` on our `MediaTable` wrapper/rows. (Owner point
       #4.)
 
-- [ ] **"end of issue" footer.** Add a `cdb-db-footer` equivalent at the bottom of the page: a
+- [x] **"end of issue" footer.** Add a `cdb-db-footer` equivalent at the bottom of the page: a
       top-ruled, centered `— end of issue —` eyebrow (uppercase, `tracking-[0.12em]`,
       `text-[var(--fg-dim)]`). Renders below pagination in grid/list and below the timeline. Skip it
       in the empty-state (no media / no sessions). (Owner point #5.)
@@ -324,16 +365,16 @@ and correctly ordered.
 
 ### Acceptance (Database)
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` pass.
-- [ ] Issue-line left eyebrow renders at weight 600 (matches kit); For You masthead unaffected
+- [x] `pnpm typecheck && pnpm lint && pnpm test` pass.
+- [x] Issue-line left eyebrow renders at weight 600 (matches kit); For You masthead unaffected
       visually beyond the intended weight bump.
-- [ ] Grid cards: lighter `bg-card` meta band, page-absolute rank number, type badge top-left,
+- [x] Grid cards: lighter `bg-card` meta band, page-absolute rank number, type badge top-left,
       group-rating badge top-right (hidden when unrated), submeta line with year · runtime · eps and
       the relocated status token. Posters stay at current (5-up) density.
-- [ ] Group rating shows real per-title group averages from `/api/media` (spot-check a rated title
+- [x] Group rating shows real per-title group averages from `/api/media` (spot-check a rated title
       and an unrated title).
-- [ ] List rows use the lighter `bg-card` fill (same color as timeline cards); shadcn `Table`
+- [x] List rows use the lighter `bg-card` fill (same color as timeline cards); shadcn `Table`
       primitive untouched.
-- [ ] `— end of issue —` footer renders at the bottom of grid/list/timeline, absent in empty states.
-- [ ] Light mode: readable, no broken contrast, no missing tokens.
-- [ ] No regression on the timeline view or the For You masthead (smoke check).
+- [x] `— end of issue —` footer renders at the bottom of grid/list/timeline, absent in empty states.
+- [x] Light mode: readable, no broken contrast, no missing tokens.
+- [x] No regression on the timeline view or the For You masthead (smoke check).
