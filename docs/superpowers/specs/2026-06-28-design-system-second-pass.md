@@ -232,17 +232,31 @@ Backend slice is TDD (9 new tests in `tests/lib/media/list-row.test.ts`). `pnpm 
   `minmax(0,2fr)_minmax(0,1fr)` (the min-content trap from our own notes). This eliminated the
   **grid-view** horizontal overflow entirely.
 
-### ⚠️ Known issue deferred (separate fix, not this commit)
+### Horizontal overflow — RESOLVED (commit `f85b697`)
 
-- **List-view horizontal overflow at exactly 1280px (~47px), pre-existing & global.** Confirmed on
-  the untouched baseline, so not introduced here. Root cause is **shell geometry**, not the table or
-  band: `sidebar (256px) + main (max-w-7xl content + p-6 padding ≈ 1071px) = 1327px`, 47px over a
-  1280px viewport. The non-shrinking boundary is the shadcn **`SidebarInset`** primitive
-  (`min-width: auto`); `min-w-0` on the inner `<main>` did **not** help (tested). List view exposes
-  it because the table fills `main` to full width; grid/timeline content wraps under the threshold.
-  Fix belongs at the shell level and touches every page, so it should be its own change with a
-  cross-page smoke check — out of scope for the Database card-chrome pass. Affects all routes
-  equally.
+The Database list view (and, in a narrow 900–940px band, grid too) pushed the whole page into a
+horizontal scrollbar. Three layered causes, none of them the sidebar breakpoint: (1) the featured
+band's bare `2fr/1fr` grid tracks floored at min-content (fixed earlier with `minmax(0,…)`); (2) the
+flex content column couldn't shrink (`min-w-0` added to `SidebarInset` + inner `<main>` + a
+`w-full min-w-0` MediaTable wrapper, so the table's own `overflow-x-auto` box is the scroll
+boundary); (3) the real 900–940px-band culprit — the conversational-filters action row's `sm:w-auto`
+let the button cluster size to its content (`max-w-full` added so its existing `flex-wrap` engages).
+Shadcn primitives untouched (all via `className`). Verified 0px overflow across 375–1920px on
+database/for-you/users/play/settings; reviewed by a feature-dev code-reviewer (no adverse
+shared-component effects).
+
+### ⚠️ Deferred to a dedicated mobile-responsiveness pass
+
+- **Homepage overflows badly on phones (desktop-first layout, no mobile breakpoints).** Surfaced
+  during the overflow-fix width sweep; **pre-existing**, unrelated to the Database work (the
+  homepage doesn't use any component touched here). Overflow is ~250–290px at common phone widths
+  and clears only at ~768px: 320px → 327px over, 360px (Android) → 287px, 390px (iPhone 12–14) →
+  257px, 430px (Pro Max) → 217px, 600px → 47px, 768px → clean. The roughly-constant overshoot points
+  to a fixed-minimum-width section (~620–650px) that doesn't respond to the viewport — likely the
+  queue / Deep Cuts / two-col dashboard rows. **Owner decision: roll this into a dedicated mobile
+  pass** rather than a one-off — the design-system second pass has been desktop-focused, and other
+  pages likely have similar mobile issues worth fixing together. Target floor for that pass: **clean
+  down to 320px** (360px is the practical phone minimum; 320 = smallest device still in real use).
 
 Kit reference: `CDb Design System/ui_kits/web/Database.jsx` + `kit.css` (`cdb-poster-grid`,
 `cdb-grid-card`/`-overlay`/`-score`/`-meta`/`-rank`/`-title`/`-submeta`, `cdb-db-table`,
