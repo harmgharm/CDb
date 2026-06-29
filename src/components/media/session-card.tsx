@@ -211,8 +211,10 @@ function RatingRow({ rating, currentUserId, isModeratorOrAdmin, onChanged }: Rat
           )}
         </div>
         {hasReview && (
+          // Bond the dash to the first word with a non-breaking space so it can
+          // never strand alone on the first line when the review wraps.
           <ExpandableText className="text-muted-foreground mt-1 pl-8 text-xs italic">
-            {`— ${rating.review ?? ""}`}
+            {`—\u00A0${rating.review ?? ""}`}
           </ExpandableText>
         )}
       </div>
