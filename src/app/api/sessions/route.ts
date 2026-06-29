@@ -66,6 +66,18 @@ export async function GET(req: NextRequest) {
       "users.username as picker_username",
       "users.display_name as picker_display_name",
       "users.avatar_url as picker_avatar_url",
+      // Group rating progress, counted per session independently of any userId
+      // filter below (correlated subqueries, so the userId attendee join can't
+      // narrow them). Powers the dashboard "Now Showing" "N / M rated" subline.
+      sql<number>`(
+        SELECT COUNT(*)::int FROM session_attendees sa
+        WHERE sa.session_id = watch_sessions.id
+      )`.as("attendee_count"),
+      sql<number>`(
+        SELECT COUNT(DISTINCT r.user_id)::int FROM ratings r
+        JOIN session_attendees sa ON sa.session_id = r.session_id AND sa.user_id = r.user_id
+        WHERE r.session_id = watch_sessions.id
+      )`.as("rated_count"),
     ]);
 
   if (mediaId !== undefined) {

@@ -17,6 +17,7 @@ import {
   fetchHoursWatched,
   fetchPickerLeaderboard,
   fetchRankedMedia,
+  fetchRatedTitleCount,
   fetchStreakData,
   fetchYearStats,
   formatCastStats,
@@ -26,6 +27,7 @@ import {
   formatYearStats,
 } from "@/lib/stats/queries";
 import { computeStreaks } from "@/lib/stats/streak";
+import { fetchAvgSessionLength, fetchWeekdayCounts } from "@/lib/stats/viewing-habits";
 import type { GroupDetailedStats } from "@/types/detailed-stats";
 
 export async function GET() {
@@ -44,6 +46,9 @@ export async function GET() {
     castStatsRaw,
     yearStatsRaw,
     pickerLeaderboard,
+    weekday,
+    avgSessionLength,
+    ratedTitleCount,
   ] = await Promise.all([
     fetchStreakData(),
     fetchHoursWatched(),
@@ -57,6 +62,9 @@ export async function GET() {
     fetchCastStats(),
     fetchYearStats(),
     fetchPickerLeaderboard(5),
+    fetchWeekdayCounts(),
+    fetchAvgSessionLength(),
+    fetchRatedTitleCount(),
   ]);
 
   // Compute streaks
@@ -86,6 +94,12 @@ export async function GET() {
   const yearsByScore = yearsWithScore.toSorted((a, b) => (b.avgScore ?? 0) - (a.avgScore ?? 0));
   const yearsByCount = yearStats.toSorted((a, b) => a.count - b.count);
 
+  // Real totals for the Deep Cuts tab labels, from the full formatted arrays
+  // (before the top-5 slicing) so the counts reflect the whole pool.
+  const years = yearStats.map((y) => y.year);
+  const yearRange: [number, number] | null =
+    years.length === 0 ? null : [Math.min(...years), Math.max(...years)];
+
   const result: GroupDetailedStats = {
     watchingHabits: {
       longestStreak: streaks.longest,
@@ -93,6 +107,8 @@ export async function GET() {
       hoursWatched,
       avgStartTime,
       avgRating,
+      weekday,
+      avgSessionLength,
     },
     ratings: {
       highestRated: formatRankedMedia(highestRatedRaw),
@@ -122,6 +138,14 @@ export async function GET() {
       lowestRated: yearsByScore.toReversed().slice(0, 5),
     },
     pickerLeaderboard,
+    totals: {
+      ratedTitles: ratedTitleCount,
+      genres: genreStats.length,
+      directors: directorStats.length,
+      cast: castStats.length,
+      yearRange,
+      pickers: pickerLeaderboard.length,
+    },
   };
 
   return successResponse(result);

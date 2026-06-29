@@ -54,6 +54,8 @@ export interface PickerLeaderboardEntry {
   avatarUrl: string | null;
   pickCount: number;
   avgPickRating: number | null;
+  /** Sessions this user attended (watched), distinct from sessions they picked. */
+  watchedCount: number;
   topPicks: RankedMedia[];
 }
 
@@ -111,6 +113,12 @@ export interface FeaturedResponse {
 // Group detailed stats (Home page)
 // ============================================
 
+export interface WeekdayBucketView {
+  day: string;
+  count: number;
+  isPeak: boolean;
+}
+
 export interface GroupDetailedStats {
   watchingHabits: {
     longestStreak: number;
@@ -118,6 +126,10 @@ export interface GroupDetailedStats {
     hoursWatched: number;
     avgStartTime: string | null;
     avgRating: number | null;
+    /** Monday-first day-of-week session histogram for the viewing-habits chart. */
+    weekday: WeekdayBucketView[];
+    /** Average session length formatted as "Xh Ym", or null with no runtime data. */
+    avgSessionLength: string | null;
   };
 
   ratings: {
@@ -153,6 +165,17 @@ export interface GroupDetailedStats {
   };
 
   pickerLeaderboard: PickerLeaderboardEntry[];
+
+  /** Real totals for the Deep Cuts tab labels (full counts, not the shown slice). */
+  totals: {
+    ratedTitles: number;
+    genres: number;
+    directors: number;
+    cast: number;
+    /** [earliest, latest] release year across watched titles, or null if none. */
+    yearRange: [number, number] | null;
+    pickers: number;
+  };
 }
 
 // ============================================

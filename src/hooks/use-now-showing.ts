@@ -2,17 +2,21 @@
  * SWR hook backing the dashboard "Now Showing" cards.
  *
  * Surfaces the current user's two most recent watch sessions and classifies
- * each by whether the user has logged their own rating yet:
- *   - "rated"       — the user has a rating for this session
- *   - "in-progress" — the session is logged but the user still owes a rating
+ * each by the GROUP's rating progress (how many attendees have rated):
+ *   - "rated"       — every attendee has logged a rating
+ *   - "in-progress" — at least one attendee still owes a rating
+ *
+ * The subline shows the progress as a count ("5 / 5 rated" / "2 still rating"),
+ * matching the kit. This is group-level, not "did I personally rate it" — a
+ * session is only done when the whole group has rated.
  *
  * The "next" / upcoming pick is intentionally NOT shown here. It lives in the
  * sidebar Up Next card (Phase 1) and duplicating that poster moment on the
  * dashboard would be redundant.
  *
- * Composes two existing endpoints (no new API route):
- *   - GET /api/sessions?userId={me}&limit=5  → media + picker + date
- *   - GET /api/ratings?userId={me}           → which sessions the user rated
+ * Reads one existing endpoint (no new API route): GET /api/sessions carries
+ * per-session attendee_count + rated_count (correlated-subquery columns), so no
+ * separate ratings fetch is needed.
  */
 
 import useSWR from "swr";
@@ -34,19 +38,16 @@ export interface SessionRow {
   readonly media_title: string;
   readonly media_type: MediaType;
   readonly media_poster_url: string | null;
+  /** Attendees recorded on the session. */
+  readonly attendee_count: number;
+  /** Attendees who have logged a rating for the session. */
+  readonly rated_count: number;
 }
 
 interface SessionListResponse {
   readonly items: readonly SessionRow[];
   readonly page: number;
   readonly limit: number;
-}
-
-/** One row from GET /api/ratings (shape mirrors the route's select list). */
-export interface RatingRow {
-  readonly id: string;
-  readonly session_id: string;
-  readonly score: number;
 }
 
 export interface NowShowingItem {
@@ -58,6 +59,10 @@ export interface NowShowingItem {
   readonly href: string;
   readonly status: NowShowingStatus;
   readonly dateWatched: string | null;
+  /** Attendees who have rated, for the "N / M rated" subline. */
+  readonly ratedCount: number;
+  /** Total attendees, for the "N / M rated" subline. */
+  readonly attendeeCount: number;
 }
 
 export interface UseNowShowingResult {
@@ -68,8 +73,13 @@ export interface UseNowShowingResult {
 
 const EMPTY: UseNowShowingResult = { items: [], isLoading: false };
 
-function classify(session: SessionRow, ratedSessionIds: ReadonlySet<string>): NowShowingItem {
-  const status: NowShowingStatus = ratedSessionIds.has(session.id) ? "rated" : "in-progress";
+function classify(session: SessionRow): NowShowingItem {
+  // A session with no recorded attendees has nothing pending, so treat it as
+  // rated rather than showing a degenerate "0 / 0" still-rating state.
+  const status: NowShowingStatus =
+    session.attendee_count === 0 || session.rated_count >= session.attendee_count
+      ? "rated"
+      : "in-progress";
   return {
     sessionId: session.id,
     mediaId: session.media_id,
@@ -79,22 +89,20 @@ function classify(session: SessionRow, ratedSessionIds: ReadonlySet<string>): No
     href: `/database/${session.media_id}`,
     status,
     dateWatched: session.date_watched,
+    ratedCount: session.rated_count,
+    attendeeCount: session.attendee_count,
   };
 }
 
 /**
- * Pure core: take the user's recent sessions and their ratings, keep the two
- * most recent, and classify each as rated / in-progress. Extracted from the
- * hook so the classification is testable without SWR or React.
+ * Pure core: take the recent sessions, keep the two most recent, and classify
+ * each by the group's rating progress. Extracted from the hook so the
+ * classification is testable without SWR or React.
  */
-export function selectNowShowing(
-  sessions: readonly SessionRow[],
-  ratings: readonly RatingRow[],
-): { items: readonly NowShowingItem[] } {
-  const ratedSessionIds = new Set(ratings.map((rating) => rating.session_id));
-  const items = sessions
-    .slice(0, NOW_SHOWING_COUNT)
-    .map((session) => classify(session, ratedSessionIds));
+export function selectNowShowing(sessions: readonly SessionRow[]): {
+  items: readonly NowShowingItem[];
+} {
+  const items = sessions.slice(0, NOW_SHOWING_COUNT).map((session) => classify(session));
   return { items };
 }
 
@@ -106,23 +114,18 @@ export function useNowShowing(): UseNowShowingResult {
     userId === undefined
       ? null
       : `/api/sessions?userId=${userId}&limit=${String(NOW_SHOWING_COUNT)}`;
-  const ratingsKey = userId === undefined ? null : `/api/ratings?userId=${userId}`;
 
   const sessions = useSWR<SessionListResponse>(sessionsKey);
-  const ratings = useSWR<readonly RatingRow[]>(ratingsKey);
 
   if (userId === undefined) {
     return EMPTY;
   }
 
-  // Classification needs BOTH responses. While either is pending, report
-  // loading rather than classifying with partial data (which would flash
-  // already-rated sessions as "in progress" until ratings arrive).
-  const isLoading = sessions.isLoading || ratings.isLoading;
+  const isLoading = sessions.isLoading;
   const sessionItems = sessions.data?.items;
-  if (sessionItems === undefined || ratings.data === undefined) {
+  if (sessionItems === undefined) {
     return { ...EMPTY, isLoading };
   }
 
-  return { ...selectNowShowing(sessionItems, ratings.data), isLoading };
+  return { ...selectNowShowing(sessionItems), isLoading };
 }

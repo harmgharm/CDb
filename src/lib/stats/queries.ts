@@ -9,6 +9,7 @@ import { sql } from "kysely";
 
 import { db } from "@/lib/db";
 import type { MediaType } from "@/lib/db/types";
+import type { PickerLeaderboardEntry } from "@/types/detailed-stats";
 
 import type { SessionDay } from "./streak";
 
@@ -104,6 +105,22 @@ export function formatRankedMedia(rows: readonly RankedMediaRow[]) {
     avgScore: Math.round(Number(r.avg_score) * 10) / 10,
     ratingCount: Number(r.rating_count),
   }));
+}
+
+/**
+ * Count of distinct titles that qualify for the group ranked lists (≥2 ratings,
+ * the same threshold `fetchRankedMedia` uses). Powers the Deep Cuts "Ratings"
+ * tab count so it reflects the real ranked pool, not the shown slice.
+ */
+export async function fetchRatedTitleCount(): Promise<number> {
+  const ranked = await db
+    .selectFrom("ratings")
+    .innerJoin("watch_sessions", "watch_sessions.id", "ratings.session_id")
+    .select("watch_sessions.media_id")
+    .groupBy("watch_sessions.media_id")
+    .having(db.fn.countAll(), ">=", 2)
+    .execute();
+  return ranked.length;
 }
 
 // ============================================
@@ -435,6 +452,36 @@ interface PickerTopPickRow {
   rating_count: string;
 }
 
+/**
+ * Attach each leader's watched (attended) count, keyed by user id. Pure so the
+ * merge is unit tested without a database; absent users default to zero.
+ */
+export function mergeWatchedCounts(
+  entries: readonly PickerLeaderboardEntry[],
+  counts: ReadonlyMap<string, KyselyCount>,
+): PickerLeaderboardEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    watchedCount: Number(counts.get(entry.userId) ?? 0),
+  }));
+}
+
+/**
+ * Count of sessions each given user attended (their "watched" total), as a map
+ * from user id to count. "Watched" means present in `session_attendees`, which
+ * is distinct from sessions they picked.
+ */
+async function fetchWatchedCounts(userIds: readonly string[]): Promise<Map<string, KyselyCount>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .selectFrom("session_attendees")
+    .select(["user_id", db.fn.count("session_id").distinct().as("watched_count")])
+    .where("user_id", "in", userIds)
+    .groupBy("user_id")
+    .execute();
+  return new Map(rows.map((r) => [r.user_id, r.watched_count]));
+}
+
 export async function fetchPickerLeaderboard(limit = 5) {
   const pickers = await db
     .selectFrom("watch_sessions")
@@ -457,6 +504,9 @@ export async function fetchPickerLeaderboard(limit = 5) {
   if (pickers.length === 0) return [];
 
   const pickerIds = pickers.map((p) => p.id);
+
+  // Watched (attendance) counts run alongside the top-picks window query.
+  const watchedCounts = await fetchWatchedCounts(pickerIds);
 
   // Fetch top 3 picks per picker using window function
   const topPickRows = await sql<PickerTopPickRow>`
@@ -487,7 +537,7 @@ export async function fetchPickerLeaderboard(limit = 5) {
     picksByUser.set(row.picked_by_user_id, existing);
   }
 
-  return pickers.map((p: PickerRow) => ({
+  const entries: PickerLeaderboardEntry[] = pickers.map((p: PickerRow) => ({
     userId: p.id,
     username: p.username,
     displayName: p.display_name,
@@ -495,6 +545,7 @@ export async function fetchPickerLeaderboard(limit = 5) {
     pickCount: Number(p.pick_count),
     avgPickRating:
       p.avg_pick_rating === null ? null : Math.round(Number(p.avg_pick_rating) * 10) / 10,
+    watchedCount: 0,
     topPicks: (picksByUser.get(p.id) ?? []).map((tp) => ({
       id: tp.id,
       title: tp.title,
@@ -504,6 +555,8 @@ export async function fetchPickerLeaderboard(limit = 5) {
       ratingCount: Number(tp.rating_count),
     })),
   }));
+
+  return mergeWatchedCounts(entries, watchedCounts);
 }
 
 // ============================================
