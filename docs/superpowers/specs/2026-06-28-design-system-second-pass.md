@@ -43,7 +43,7 @@ Homepage first (worst drift), then descending. Each page gets audited just befor
 the lower rows are placeholders until then.
 
 1. **Home / Dashboard** — audited below. Highest drift.
-2. Database — to audit
+2. **Database** — audited below. Low drift (Phase 6 shipped masthead/featured/filters/timeline).
 3. For You (recommendations) — to audit
 4. Users + User Profile — to audit
 5. Settings — to audit
@@ -193,3 +193,147 @@ Kit reference: `CDb Design System/ui_kits/web/Dashboard.jsx` + `kit.css` (`cdb-n
 - [x] Deep Cuts is a left-rail tab switcher with all six categories on real data.
 - [x] Light mode: dashboard readable, no broken contrast, no missing tokens.
 - [x] No regression on at least one other screen (smoke check).
+
+---
+
+## Page — Database ⏳ audited (awaiting build)
+
+Audited 2026-06-29. **Low drift** — Phase 6 of the first rollout already shipped the editorial
+masthead, Featured band, conversational filters, and the timeline view, so the page's structure and
+section order already match the kit. The remaining gap is in the **card chrome** (grid + list) plus
+two small editorial touches. No section needs reordering; no component needs rebuilding.
+
+Kit reference: `CDb Design System/ui_kits/web/Database.jsx` + `kit.css` (`cdb-poster-grid`,
+`cdb-grid-card`/`-overlay`/`-score`/`-meta`/`-rank`/`-title`/`-submeta`, `cdb-db-table`,
+`cdb-db-issue`/`-issue-date`, `cdb-eyebrow`, `cdb-db-footer`). Current:
+`src/app/(main)/database/page.tsx` + `src/components/media/media-card.tsx`,
+`src/components/media/media-table.tsx`, `src/components/editorial/editorial-masthead.tsx`.
+
+### Decisions made / judgment calls (for the reviewer)
+
+- **Grid stays 5-up, not the kit's 6-up.** The kit fixes the grid at `repeat(6, 1fr)` with smaller
+  posters; ours is responsive (1→2→3→4→5 across breakpoints). **Owner chose to keep our cinematic
+  density** (#2 in the audit question) rather than match the kit literally. Reasoning agreed with
+  the owner: grid and list serve _different_ jobs — list view already exists for dense scanning, so
+  the grid keeps its distinct cinematic purpose; the new rank numbers + meta footer give the
+  "catalog" feel without shrinking posters. Flagged as **keep-as-is** below. (Trying 6-up live later
+  is a one-line `xl:grid-cols-6` change.) We still adopt **all** the kit's card chrome.
+- **Group-rating badge: wired to real data.** The kit's grid card shows a top-right star+score badge
+  ("group avg"). `MediaListItem` has no group average today (only `tmdb_rating` / `mal_score`), BUT
+  `/api/media/route.ts` already computes the exact value — a correlated `AVG(r.score)` subquery —
+  and uses it for `sortBy === "rating"` ordering. We **always-select** that subquery as
+  `avg_rating`, return it per item, and render the badge. Titles with no group ratings yet render
+  **no badge** (not a "0.0"). Low risk: no new join, reuses existing SQL.
+- **Issue-line font weight (owner point #1).** The kit's left eyebrow (`cdb-eyebrow`, "CDb · Issue
+  #14") is JetBrains Mono **weight 600**; our `EditorialMasthead` renders both sides at the default
+  400, which reads thinner. Bump the **left eyebrow to 600** (`font-semibold`). The right side
+  (`cdb-db-issue-date`, "May · MMXXVI") is weight 400 in the kit too, so it stays as-is. NOTE:
+  `EditorialMasthead` is shared (For You reuses it) — changing the eyebrow weight affects For You's
+  masthead too. That's acceptable (the kit's `cdb-eyebrow` is globally 600), but call it out at
+  review so the For You audit doesn't re-flag it.
+- **"end of issue" footer (owner point #5).** New. Add the kit's `cdb-db-footer`: a centered
+  `— end of issue —` eyebrow with a top rule (`border-t`), at the very bottom of the page. Purely
+  decorative; ties off the editorial frame. Does not render in the empty/no-media state (no issue to
+  end).
+- **The "lighter color" (owner point #4)** is `var(--bg-elev-2)`, surfaced in the app as the
+  `bg-card` utility (the timeline's inner cards already use it). Grid cards and list rows adopt it.
+
+### Kit section order (target)
+
+1. Editorial header (eyebrow + issue date over a rule · serif "The _collection_" title · italic
+   lede)
+2. Featured this month (1 hero poster + 3 supporting)
+3. Conversational sort/filter line + actions (search · view toggle · refresh · add)
+4. Archive body — grid **or** list **or** timeline
+5. Pagination (grid/list only)
+6. `— end of issue —` footer
+
+### Current order (live)
+
+`EditorialMasthead → FeaturedBand → ConversationalFilters → (MediaArchive | TimelineArchive) → ImportMediaDialog`
+
+Order already matches the kit. **Only the footer (item 6) is missing**; everything else is present
+and correctly ordered.
+
+### Drift checklist
+
+- [ ] **Issue-line eyebrow weight.** In `EditorialMasthead`, set the **left** eyebrow span to
+      `font-semibold` (600) to match the kit's `cdb-eyebrow`. Leave the right `issueLine` span
+      at 400. (Owner point #1.)
+
+- [ ] **Grid card — lighter card fill + bottom meta band.** Give `MediaCard` a `bg-card`
+      (`--bg-elev-2`) background so the area under the poster reads as a lighter slab, matching the
+      kit's `cdb-grid-card` (`background: var(--bg-elev-2)`) and the timeline cards. (Owner point
+      #4.)
+
+- [ ] **Grid card — rank number.** Add the kit's `cdb-grid-rank`: a mono, dimmed, zero-padded index
+      (`#01`, `#02`, …) at the start of the meta footer. Numbering is **page-absolute**
+      (`(page - 1) * limit + index + 1`), matching the kit's `(safePage-1)*PAGE_SIZE + i + 1`. Needs
+      the page's `limit` (20) and current page passed down to the card (or computed in the page and
+      passed as a prop). (Owner point #3.)
+
+- [ ] **Grid card — type badge top-LEFT.** Today the type badge sits bottom-left over the poster
+      (`absolute right-2 bottom-2 left-2`). Move it to the **top-left** corner overlay to match the
+      kit's `cdb-grid-overlay` (`top:0; justify-content: space-between`). (Owner point #3.)
+
+- [ ] **Grid card — group-rating badge top-RIGHT.** Add a star+score pill in the top-right of the
+      overlay (kit `cdb-grid-score`: dark translucent bg, `cdb-star` amber, mono). Star is always
+      `fill-amber-500 text-amber-500`. Hidden when the title has no group rating. Requires the
+      backend change below. (Owner point #3.)
+
+- [ ] **Grid card — meta submeta line.** Keep year · runtime · eps but render under the rank/title
+      in the kit's `cdb-grid-submeta` style (small, `--fg-muted`, `·` separators). The "Returning
+      Series / Currently Airing" status badge currently shown bottom-right has no kit equivalent on
+      the card; **keep it** but relocate it into the submeta line as a text token (don't drop data).
+      Flag at review.
+
+- [ ] **List view — lighter row fill.** The kit's list (`cdb-db-table`) reads as filled rows; ours
+      is a bare bordered `Table` on the page background. Give the table rows / wrapper the `bg-card`
+      (`--bg-elev-2`) treatment so each entry's slot is the lighter color, matching the timeline's
+      inner cards. Token-level only; do **not** restyle the shadcn `Table` primitive in
+      `src/components/ui/` — apply via `className` on our `MediaTable` wrapper/rows. (Owner point
+      #4.)
+
+- [ ] **"end of issue" footer.** Add a `cdb-db-footer` equivalent at the bottom of the page: a
+      top-ruled, centered `— end of issue —` eyebrow (uppercase, `tracking-[0.12em]`,
+      `text-[var(--fg-dim)]`). Renders below pagination in grid/list and below the timeline. Skip it
+      in the empty-state (no media / no sessions). (Owner point #5.)
+
+### Keep as-is (flagged, not matching the kit literally)
+
+- **Grid density: 5-up, not the kit's 6-up.** Owner decision (see judgment calls). Our responsive
+  grid stays `sm:2 md:3 lg:4 xl:5`. Revisit live if it feels sparse.
+- **Sort options.** The kit's sort `<select>` lists
+  `recently watched / group rating / picker / release year`. Ours lists
+  `recently watched / recently added / rating / title / release year` (a deliberate first-rollout
+  set; "picker" sort isn't wired and "recently added" / "title" are useful). Keep our set — this is
+  functionality, not chrome, and the conversational-filter treatment already matches the kit's
+  editorial intent.
+- **"Add" button label.** Kit says "Add"; ours says "Add Media". Minor; keep ours (clearer). Not
+  worth a churn.
+- **Timeline view.** Already shipped (Phase 12 / first rollout) and its inner cards already use the
+  `bg-card` lighter fill that points #4 is about. No change.
+
+### Net new backend work for this page
+
+- **Always-select `avg_rating` on the media list** (`/api/media/route.ts`): lift the existing
+  rating-sort correlated subquery so it's selected on every request (not only when sorting by
+  rating), and add `avg_rating: number | null` to `MediaListItem` + the response mapping.
+  **Required** for the grid rating badge. No new table/join. (TDD where there's a pure mapper; the
+  SQL itself is covered by an integration smoke since it's a route-level query.)
+
+### Acceptance (Database)
+
+- [ ] `pnpm typecheck && pnpm lint && pnpm test` pass.
+- [ ] Issue-line left eyebrow renders at weight 600 (matches kit); For You masthead unaffected
+      visually beyond the intended weight bump.
+- [ ] Grid cards: lighter `bg-card` meta band, page-absolute rank number, type badge top-left,
+      group-rating badge top-right (hidden when unrated), submeta line with year · runtime · eps and
+      the relocated status token. Posters stay at current (5-up) density.
+- [ ] Group rating shows real per-title group averages from `/api/media` (spot-check a rated title
+      and an unrated title).
+- [ ] List rows use the lighter `bg-card` fill (same color as timeline cards); shadcn `Table`
+      primitive untouched.
+- [ ] `— end of issue —` footer renders at the bottom of grid/list/timeline, absent in empty states.
+- [ ] Light mode: readable, no broken contrast, no missing tokens.
+- [ ] No regression on the timeline view or the For You masthead (smoke check).
