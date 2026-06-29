@@ -9,6 +9,7 @@ import type { NextRequest } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { logAudit, requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { mapMediaListRow } from "@/lib/media/list-row";
 import { createMediaSchema, mediaQuerySchema } from "@/lib/validations/media";
 
 export async function GET(req: NextRequest) {
@@ -28,7 +29,22 @@ export async function GET(req: NextRequest) {
   // sortOrder is already constrained to "asc" | "desc" by the schema.
   const sortDirection = sortOrder === "asc" ? sql.raw("asc") : sql.raw("desc");
 
-  let query = db.selectFrom("media").selectAll("media");
+  // The group's average rating per title, attached to every list response so
+  // the grid card can render its score badge. Postgres returns AVG() as a
+  // numeric *string* (hence the string type), which mapMediaListRow coerces to
+  // a one-decimal number before responding. This is the same correlated
+  // subquery the "rating" sort orders by.
+  let query = db
+    .selectFrom("media")
+    .selectAll("media")
+    .select(
+      sql<string | null>`(
+        SELECT AVG(r.score)
+        FROM ratings r
+        JOIN watch_sessions ws ON ws.id = r.session_id
+        WHERE ws.media_id = media.id
+      )`.as("avg_rating"),
+    );
 
   if (type !== undefined) {
     query = query.where("media.type", "=", type);
@@ -80,7 +96,7 @@ export async function GET(req: NextRequest) {
       .execute();
 
     return successResponse({
-      items: results,
+      items: results.map((row) => mapMediaListRow(row)),
       total,
       page,
       limit,
@@ -89,23 +105,16 @@ export async function GET(req: NextRequest) {
   }
 
   if (sortBy === "rating") {
-    // Sort by the group's average rating (correlated subquery over ratings).
+    // Sort by the group's average rating. avg_rating is already selected on the
+    // base query above, so we only need to order by it here.
     const results = await query
-      .select(
-        sql<number | null>`(
-          SELECT AVG(r.score)
-          FROM ratings r
-          JOIN watch_sessions ws ON ws.id = r.session_id
-          WHERE ws.media_id = media.id
-        )`.as("avg_rating"),
-      )
       .orderBy(sql`avg_rating ${sortDirection} nulls last`)
       .offset(offset)
       .limit(limit)
       .execute();
 
     return successResponse({
-      items: results,
+      items: results.map((row) => mapMediaListRow(row)),
       total,
       page,
       limit,
@@ -124,7 +133,7 @@ export async function GET(req: NextRequest) {
   const results = await query.orderBy(sortColumn, sortOrder).offset(offset).limit(limit).execute();
 
   return successResponse({
-    items: results,
+    items: results.map((row) => mapMediaListRow(row)),
     total,
     page,
     limit,

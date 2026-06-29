@@ -22,6 +22,8 @@ export interface MediaListItem {
   imdb_id: string | null;
   tmdb_rating: number | null;
   mal_score: number | null;
+  /** The group's average rating for this title (1–10, one decimal), or null if unrated. */
+  avg_rating: number | null;
   status: string | null;
   original_title: string | null;
   tagline: string | null;

@@ -110,15 +110,19 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const normalizedRatings = ratings.map((r) => ({ ...r, score: Number(r.score) }));
   const scores = normalizedRatings.map((r) => r.score);
   const avgRating = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+  const roundedAvg = avgRating === null ? null : Math.round(avgRating * 10) / 10;
 
   return successResponse({
     ...media,
+    // Mirror the list endpoint's group-average field so MediaDetail (which
+    // extends MediaListItem) is consistent; same value as stats.avgRating.
+    avg_rating: roundedAvg,
     sessions: sessionsWithAttendees,
     ratings: normalizedRatings,
     stats: {
       sessionCount: sessions.length,
       ratingCount: ratings.length,
-      avgRating: avgRating === null ? null : Math.round(avgRating * 10) / 10,
+      avgRating: roundedAvg,
     },
   });
 }
