@@ -4,6 +4,7 @@ import { CalendarIcon, ClockIcon, PencilIcon, StarIcon, Trash2Icon, UserIcon } f
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ExpandableText } from "@/components/editorial/expandable-text";
 import { ConfirmDeleteDialog } from "@/components/media/confirm-delete-dialog";
 import { EditSessionDialog } from "@/components/media/edit-session-dialog";
 import { ScoreSelector, SubmitRatingDialog } from "@/components/media/submit-rating-dialog";
@@ -160,53 +161,59 @@ function RatingRow({ rating, currentUserId, isModeratorOrAdmin, onChanged }: Rat
     }
   }
 
+  const hasReview = rating.review !== null && rating.review.length > 0;
+
   return (
     <>
-      <div className="group flex items-center gap-2">
-        <Avatar className="size-6">
-          <AvatarImage
-            src={rating.avatar_url ?? undefined}
-            alt={rating.display_name ?? rating.username}
-          />
-          <AvatarFallback className="text-[10px]">
-            {getInitials(rating.display_name, rating.username)}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-sm">{rating.display_name ?? rating.username}</span>
-        <div className="flex items-center gap-0.5">
-          <StarIcon className="size-3 fill-amber-500 text-amber-500" />
-          <span className="text-sm font-medium">{String(rating.score)}</span>
-        </div>
-        {rating.review !== null && rating.review.length > 0 && (
-          <span className="text-muted-foreground truncate text-xs italic">— {rating.review}</span>
-        )}
-        {(canEdit || canDelete) && (
-          <div className="ml-auto flex gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-11"
-                onClick={() => {
-                  setShowEdit(true);
-                }}
-              >
-                <PencilIcon className="size-3" />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive hover:text-destructive size-11"
-                onClick={() => {
-                  setShowDelete(true);
-                }}
-              >
-                <Trash2Icon className="size-3" />
-              </Button>
-            )}
+      <div className="group">
+        <div className="flex items-center gap-2">
+          <Avatar className="size-6">
+            <AvatarImage
+              src={rating.avatar_url ?? undefined}
+              alt={rating.display_name ?? rating.username}
+            />
+            <AvatarFallback className="text-[10px]">
+              {getInitials(rating.display_name, rating.username)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-sm">{rating.display_name ?? rating.username}</span>
+          <div className="flex items-center gap-0.5">
+            <StarIcon className="size-3 fill-amber-500 text-amber-500" />
+            <span className="text-sm font-medium">{String(rating.score)}</span>
           </div>
+          {(canEdit || canDelete) && (
+            <div className="ml-auto flex gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-11"
+                  onClick={() => {
+                    setShowEdit(true);
+                  }}
+                >
+                  <PencilIcon className="size-3" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:text-destructive size-11"
+                  onClick={() => {
+                    setShowDelete(true);
+                  }}
+                >
+                  <Trash2Icon className="size-3" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+        {hasReview && (
+          <ExpandableText className="text-muted-foreground mt-1 pl-8 text-xs italic">
+            {`— ${rating.review ?? ""}`}
+          </ExpandableText>
         )}
       </div>
 
@@ -376,7 +383,9 @@ export function SessionCard({
           )}
 
           {session.notes !== null && session.notes.length > 0 && (
-            <p className="text-muted-foreground text-sm italic">&ldquo;{session.notes}&rdquo;</p>
+            <ExpandableText className="text-muted-foreground text-sm italic">
+              {`“${session.notes}”`}
+            </ExpandableText>
           )}
 
           {sessionRatings.length > 0 && (
