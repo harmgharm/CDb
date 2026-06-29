@@ -24,6 +24,7 @@ import { CreateSessionDialog } from "@/components/media/create-session-dialog";
 import { GroupRatingCard } from "@/components/media/group-rating-card";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
+import { ProposeToQueueButton } from "@/components/media/propose-to-queue-button";
 import { SessionCard } from "@/components/media/session-card";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Badge } from "@/components/ui/badge";
@@ -434,7 +435,8 @@ export default function MediaDetailPage() {
                 </span>
               )}
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ProposeToQueueButton mediaId={media.id} />
               <AddToWatchlistButton
                 mediaId={media.id}
                 existingEntryId={myWatchlist?.items.find((item) => item.media_id === media.id)?.id}
