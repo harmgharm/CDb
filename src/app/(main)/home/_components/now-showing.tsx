@@ -36,9 +36,18 @@ function StatusPill({ status }: Readonly<{ status: NowShowingItem["status"] }>) 
   );
 }
 
+function ratingSubline(item: NowShowingItem): string {
+  if (item.attendeeCount === 0) return "No ratings logged yet.";
+  if (item.status === "rated") {
+    return `${String(item.ratedCount)} / ${String(item.attendeeCount)} rated`;
+  }
+  const remaining = item.attendeeCount - item.ratedCount;
+  return `${String(remaining)} still rating`;
+}
+
 function NowShowingCard({ item, index }: Readonly<{ item: NowShowingItem; index: number }>) {
   const date = formatWatchedDate(item.dateWatched);
-  const subline = item.status === "rated" ? "You rated this." : "You still need to rate this.";
+  const subline = ratingSubline(item);
 
   return (
     <Link

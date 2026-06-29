@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarIcon, CheckIcon, PlusIcon, ThumbsUpIcon, Trash2Icon } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { ConfirmDeleteDialog } from "@/components/media/confirm-delete-dialog";
@@ -41,9 +42,12 @@ function RemoveButton({
 function SectionShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <section className="flex flex-col gap-3.5">
-      <p className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
-        Up next &amp; the queue
-      </p>
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+          Up next &amp; the queue
+        </span>
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
       {children}
     </section>
   );
@@ -93,7 +97,11 @@ function ScheduledCard({
         }}
         className="absolute top-2 right-2 z-10"
       />
-      <div className="relative shrink-0 lg:self-stretch">
+      <Link
+        href={`/database/${scheduled.media.id}`}
+        aria-label={scheduled.media.title}
+        className="relative shrink-0 lg:self-stretch"
+      >
         {/* No `priority` here: this card renders only after the queue SWR data
             resolves (skeleton first), so the poster mounts post-hydration and
             next/image can't preload it — `priority` would be a silent no-op that
@@ -107,7 +115,7 @@ function ScheduledCard({
         <span className="bg-cdb-marquee text-cdb-ink absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium">
           <CheckIcon className="size-2.5" /> Locked in
         </span>
-      </div>
+      </Link>
       {/* flex-1 makes the body fill the card height. The three header lines use a
           deliberate fixed gap (not justify-between, which spread them edge-to-edge
           across the whole column) so they read as separated but stay grouped near
@@ -118,7 +126,12 @@ function ScheduledCard({
           Scheduled · {formatScheduledDate(scheduled.scheduledDate)}
         </p>
         <h3 className="font-display truncate text-[28px] leading-[1.05] font-normal tracking-[-0.02em]">
-          {scheduled.media.title}
+          <Link
+            href={`/database/${scheduled.media.id}`}
+            className="hover:text-cdb-marquee-text transition-colors"
+          >
+            {scheduled.media.title}
+          </Link>
         </h3>
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
           <MediaTypeBadge type={scheduled.media.type} />
@@ -126,9 +139,9 @@ function ScheduledCard({
             · Proposed by <b className="text-foreground">{proposerName(scheduled.proposer)}</b>
           </span>
         </div>
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2.5">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-2.5">
           {wonLine !== null && (
-            <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+            <span className="text-cdb-marquee-text inline-flex items-center gap-1.5 text-xs">
               <ThumbsUpIcon className="size-3" /> {wonLine}
             </span>
           )}
@@ -137,9 +150,9 @@ function ScheduledCard({
             onClick={() => {
               onRequestSchedule(scheduled);
             }}
-            className="hover:border-cdb-marquee/55 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
+            className="hover:border-cdb-marquee/55 inline-flex h-[30px] items-center gap-1.5 rounded-md border border-[var(--border-strong)] px-3 text-[13px] transition-colors hover:bg-[var(--bg-elev-2)]"
           >
-            <CalendarIcon className="size-3" /> {scheduleButtonLabel(scheduled.scheduledDate)}
+            <CalendarIcon className="size-3.5" /> {scheduleButtonLabel(scheduled.scheduledDate)}
           </button>
         </div>
       </div>
@@ -165,29 +178,36 @@ function VoteRow({
       <span className="text-muted-foreground w-4 shrink-0 text-center font-mono text-sm">
         {rank}
       </span>
-      <MediaPoster
-        posterUrl={proposal.media.posterUrl}
-        title={proposal.media.title}
-        className="aspect-[2/3] w-10 shrink-0"
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="truncate text-sm font-medium">{proposal.media.title}</div>
-        <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <MediaTypeBadge type={proposal.media.type} />
-          {proposal.proposer !== null && (
-            <span className="inline-flex items-center gap-1">
-              <span aria-hidden>·</span>
-              <Avatar size="sm">
-                <AvatarImage src={proposal.proposer.avatarUrl ?? undefined} alt="" />
-                <AvatarFallback className="text-[9px]">
-                  {proposerInitials(proposal.proposer)}
-                </AvatarFallback>
-              </Avatar>
-              {proposerName(proposal.proposer)}
-            </span>
-          )}
+      <Link
+        href={`/database/${proposal.media.id}`}
+        className="group/row flex min-w-0 flex-1 items-center gap-3"
+      >
+        <MediaPoster
+          posterUrl={proposal.media.posterUrl}
+          title={proposal.media.title}
+          className="aspect-[2/3] w-10 shrink-0"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="group-hover/row:text-cdb-marquee-text truncate text-sm font-medium transition-colors">
+            {proposal.media.title}
+          </div>
+          <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <MediaTypeBadge type={proposal.media.type} />
+            {proposal.proposer !== null && (
+              <span className="inline-flex items-center gap-1">
+                <span aria-hidden>·</span>
+                <Avatar size="sm">
+                  <AvatarImage src={proposal.proposer.avatarUrl ?? undefined} alt="" />
+                  <AvatarFallback className="text-[9px]">
+                    {proposerInitials(proposal.proposer)}
+                  </AvatarFallback>
+                </Avatar>
+                {proposerName(proposal.proposer)}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      </Link>
       <button
         type="button"
         disabled={isVoting}

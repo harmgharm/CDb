@@ -2,116 +2,102 @@
 
 import {
   BarChart3Icon,
-  CalendarIcon,
-  ClockIcon,
-  CrownIcon,
+  BookmarkIcon,
   FilmIcon,
-  FlameIcon,
-  MusicIcon,
   StarIcon,
+  TrophyIcon,
   UsersIcon,
 } from "lucide-react";
+import { useState } from "react";
 
 import { CategoryStatList } from "@/components/stats/category-stat-list";
-import { HeroStat } from "@/components/stats/hero-stat";
 import { PickerLeaderboard } from "@/components/stats/picker-leaderboard";
 import { DivisiveMediaList, RankedMediaList } from "@/components/stats/ranked-media-list";
 import { StatPair } from "@/components/stats/stat-pair";
-import { StatsSection } from "@/components/stats/stats-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGroupDetailedStats } from "@/hooks/use-stats";
+import type { GroupDetailedStats as GroupDetailedStatsData } from "@/types/detailed-stats";
 
-function DetailedStatsSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-20 rounded-lg" />
-        ))}
-      </div>
-      {Array.from({ length: 3 }, (_, index) => (
-        <Skeleton key={index} className="h-12 rounded-lg" />
-      ))}
-    </div>
-  );
+/**
+ * Deep Cuts: the detailed group stats as a left-rail tab switcher (kit's
+ * `cdb-deep`). Six categories — Ratings, Genres, Directors, Cast, Years,
+ * Picker leaderboard — one visible at a time. The section bodies reuse the
+ * existing stat list components unchanged; only the chrome changed from a stack
+ * of accordions to the tab rail. Tab counts are real, derived from the data.
+ */
+
+type SectionId = "ratings" | "genres" | "directors" | "cast" | "years" | "pickers";
+
+interface SectionTab {
+  readonly id: SectionId;
+  readonly label: string;
+  readonly icon: React.ReactNode;
+  readonly count: string;
 }
 
-function formatTime12h(time24: string): string {
-  const [hoursString = "0", minutesString = "00"] = time24.split(":");
-  const hours = Number(hoursString);
-  const period = hours >= 12 ? "PM" : "AM";
-  const displayHours = hours % 12 === 0 ? 12 : hours % 12;
-  return `${String(displayHours)}:${minutesString} ${period}`;
+function formatYearRange(range: GroupDetailedStatsData["totals"]["yearRange"]): string {
+  if (range === null) return "no years";
+  const [first, last] = range;
+  if (first === last) return String(first);
+  return `${String(first)}–${String(last)}`;
 }
 
-export function GroupDetailedStats() {
-  const { data: stats, isLoading } = useGroupDetailedStats();
+function buildTabs(stats: GroupDetailedStatsData): SectionTab[] {
+  const { totals } = stats;
+  const yearsLabel = formatYearRange(totals.yearRange);
+  return [
+    {
+      id: "ratings",
+      label: "Ratings",
+      icon: <StarIcon className="size-[13px]" />,
+      count: `${String(totals.ratedTitles)} ranked`,
+    },
+    {
+      id: "genres",
+      label: "Genres",
+      icon: <BookmarkIcon className="size-[13px]" />,
+      count: `${String(totals.genres)} tracked`,
+    },
+    {
+      id: "directors",
+      label: "Directors",
+      icon: <FilmIcon className="size-[13px]" />,
+      count: `${String(totals.directors)} listed`,
+    },
+    {
+      id: "cast",
+      label: "Cast",
+      icon: <UsersIcon className="size-[13px]" />,
+      count: `${String(totals.cast)} names`,
+    },
+    {
+      id: "years",
+      label: "Years",
+      icon: <BarChart3Icon className="size-[13px]" />,
+      count: yearsLabel,
+    },
+    {
+      id: "pickers",
+      label: "Picker leaderboard",
+      icon: <TrophyIcon className="size-[13px]" />,
+      count: `${String(totals.pickers)} players`,
+    },
+  ];
+}
 
-  if (isLoading) return <DetailedStatsSkeleton />;
-  if (stats === undefined) {
-    return (
-      <p className="text-muted-foreground py-8 text-center text-sm">
-        Not enough watch history yet. Log some sessions to see detailed stats!
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Hero stats row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <HeroStat
-          label="Watch Streak"
-          value={stats.watchingHabits.longestStreak}
-          suffix={
-            stats.watchingHabits.currentStreak > 0
-              ? `(${String(stats.watchingHabits.currentStreak)} active)`
-              : "best"
-          }
-          icon={<FlameIcon className="size-5" />}
-          color="bg-orange-500/15 text-orange-500"
-          index={0}
-        />
-        <HeroStat
-          label="Hours Watched"
-          value={stats.watchingHabits.hoursWatched}
-          suffix="hrs"
-          icon={<ClockIcon className="size-5" />}
-          color="bg-blue-500/15 text-blue-500"
-          index={1}
-        />
-        <HeroStat
-          label="Avg Start Time"
-          value={
-            stats.watchingHabits.avgStartTime === null
-              ? "—"
-              : formatTime12h(stats.watchingHabits.avgStartTime)
-          }
-          icon={<CalendarIcon className="size-5" />}
-          color="bg-violet-500/15 text-violet-500"
-          index={2}
-        />
-        <HeroStat
-          label="Avg Rating"
-          value={stats.watchingHabits.avgRating ?? 0}
-          suffix="/ 10"
-          icon={<StarIcon className="size-5" />}
-          color="bg-amber-500/15 text-amber-500"
-          index={3}
-        />
-      </div>
-
-      {/* Ratings section */}
-      <StatsSection title="Ratings" icon={<StarIcon className="size-4" />} defaultOpen>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+function SectionContent({ id, stats }: Readonly<{ id: SectionId; stats: GroupDetailedStatsData }>) {
+  switch (id) {
+    case "ratings": {
+      return (
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <RankedMediaList items={stats.ratings.highestRated} label="Highest Rated" />
           <RankedMediaList items={stats.ratings.lowestRated} label="Lowest Rated" />
           <DivisiveMediaList items={stats.ratings.mostDivisive} label="Most Divisive" />
         </div>
-      </StatsSection>
-
-      {/* Genres section */}
-      <StatsSection title="Genres" icon={<MusicIcon className="size-4" />}>
+      );
+    }
+    case "genres": {
+      return (
         <div className="space-y-6">
           <StatPair>
             <CategoryStatList items={stats.genres.mostWatched} label="Most Watched" />
@@ -122,10 +108,10 @@ export function GroupDetailedStats() {
             <CategoryStatList items={stats.genres.lowestRated} label="Lowest Rated" showScore />
           </StatPair>
         </div>
-      </StatsSection>
-
-      {/* Directors section */}
-      <StatsSection title="Directors" icon={<FilmIcon className="size-4" />}>
+      );
+    }
+    case "directors": {
+      return (
         <div className="space-y-6">
           <CategoryStatList items={stats.directors.mostWatched} label="Most Watched" />
           <StatPair>
@@ -137,10 +123,10 @@ export function GroupDetailedStats() {
             <CategoryStatList items={stats.directors.lowestRated} label="Lowest Rated" showScore />
           </StatPair>
         </div>
-      </StatsSection>
-
-      {/* Cast section */}
-      <StatsSection title="Cast" icon={<UsersIcon className="size-4" />}>
+      );
+    }
+    case "cast": {
+      return (
         <div className="space-y-6">
           <CategoryStatList items={stats.cast.mostWatched} label="Most Watched" />
           <StatPair>
@@ -148,10 +134,10 @@ export function GroupDetailedStats() {
             <CategoryStatList items={stats.cast.lowestRated} label="Lowest Rated" showScore />
           </StatPair>
         </div>
-      </StatsSection>
-
-      {/* Years section */}
-      <StatsSection title="Years" icon={<BarChart3Icon className="size-4" />}>
+      );
+    }
+    case "years": {
+      return (
         <div className="space-y-6">
           <StatPair>
             <CategoryStatList items={stats.years.mostWatched} label="Most Watched" showScore />
@@ -162,12 +148,78 @@ export function GroupDetailedStats() {
             <CategoryStatList items={stats.years.lowestRated} label="Lowest Rated" showScore />
           </StatPair>
         </div>
-      </StatsSection>
+      );
+    }
+    case "pickers": {
+      return <PickerLeaderboard pickers={stats.pickerLeaderboard} />;
+    }
+  }
+}
 
-      {/* Picker Leaderboard */}
-      <StatsSection title="Picker Leaderboard" icon={<CrownIcon className="size-4" />}>
-        <PickerLeaderboard pickers={stats.pickerLeaderboard} />
-      </StatsSection>
-    </div>
+function DetailedStatsSkeleton() {
+  return <Skeleton className="h-80 rounded-lg" />;
+}
+
+export function GroupDetailedStats() {
+  const { data: stats, isLoading } = useGroupDetailedStats();
+  const [active, setActive] = useState<SectionId>("ratings");
+
+  if (isLoading) return <DetailedStatsSkeleton />;
+  if (stats === undefined) {
+    return (
+      <p className="text-muted-foreground py-8 text-center text-sm">
+        Not enough watch history yet. Log some sessions to see detailed stats!
+      </p>
+    );
+  }
+
+  const tabs = buildTabs(stats);
+
+  return (
+    <section className="flex flex-col">
+      <div className="mb-3 flex items-center gap-3">
+        <span className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+          Deep cuts
+        </span>
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
+      <div className="bg-card grid min-h-80 grid-cols-1 overflow-hidden rounded-lg border lg:grid-cols-[220px_1fr]">
+        {/* Tab rail */}
+        <div className="flex gap-px overflow-x-auto border-b bg-[var(--bg-elev-1)] p-2 lg:flex-col lg:overflow-visible lg:border-r lg:border-b-0 lg:px-2 lg:py-3.5">
+          {tabs.map((tab) => {
+            const isActive = tab.id === active;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setActive(tab.id);
+                }}
+                aria-current={isActive ? "true" : undefined}
+                className={`relative grid shrink-0 grid-cols-[16px_1fr] items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-[13px] transition-colors lg:grid-cols-[16px_1fr_auto] ${
+                  isActive
+                    ? "text-cdb-marquee-text bg-[var(--bg-elev-3)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-[var(--bg-elev-2)]"
+                }`}
+              >
+                {isActive && (
+                  <span className="bg-cdb-marquee absolute top-2 bottom-2 -left-2 hidden w-0.5 rounded-r-sm lg:block" />
+                )}
+                {tab.icon}
+                <span className="truncate font-medium">{tab.label}</span>
+                <span className="hidden font-mono text-[10px] tracking-[0.04em] text-[var(--fg-dim)] lg:inline">
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active section */}
+        <div className="min-w-0 px-6 py-6 lg:px-7">
+          <SectionContent id={active} stats={stats} />
+        </div>
+      </div>
+    </section>
   );
 }

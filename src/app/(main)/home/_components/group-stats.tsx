@@ -1,12 +1,17 @@
 "use client";
 
-import { CrownIcon, HeartIcon, UsersIcon } from "lucide-react";
-import * as motion from "motion/react-client";
+import { HeartIcon, TrophyIcon, UsersIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardStats } from "@/hooks/use-stats";
+
+/**
+ * "The cast this month": three human cards — Top Picker / Highest Rater /
+ * Most Active — under an editorial eyebrow + rule header (kit's `cdb-cast`).
+ * Same data as before (/api/stats topPicker/topRater/topAttendee), restyled to
+ * the cast-card layout: tinted icon label, 48px avatar, serif name, mono stat.
+ */
 
 function displayName(name: string | null, username: string): string {
   return name ?? username;
@@ -22,30 +27,71 @@ function getInitials(name: string | null, username: string | null): string {
     .slice(0, 2);
 }
 
-const CARD_VARIANTS = {
-  hidden: { opacity: 0, scale: 0.95 },
-  visible: (index: number) => ({
-    opacity: 1,
-    scale: 1,
-    transition: { delay: 0.5 + index * 0.15, duration: 0.4, ease: "easeOut" as const },
-  }),
-};
-
-function GroupStatSkeleton() {
+function SectionHeader() {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-        <Skeleton className="size-4" />
-        <Skeleton className="h-4 w-28" />
-      </CardHeader>
-      <CardContent className="flex items-center gap-3">
-        <Skeleton className="size-10 rounded-full" />
+    <div className="mb-3 flex items-center gap-3">
+      <span className="text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+        The cast this month
+      </span>
+      <span className="h-px flex-1 bg-[var(--border)]" />
+    </div>
+  );
+}
+
+function CastCardSkeleton() {
+  return (
+    <div className="bg-card flex flex-col gap-3 rounded-lg border px-4 py-3.5">
+      <Skeleton className="h-3 w-24" />
+      <div className="flex items-center gap-3">
+        <Skeleton className="size-12 rounded-full" />
         <div className="space-y-1.5">
-          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-5 w-24" />
           <Skeleton className="h-3 w-16" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+interface CastCardProps {
+  readonly label: string;
+  readonly icon: React.ReactNode;
+  readonly name: string | null;
+  readonly stat: string | null;
+  readonly avatarUrl: string | null;
+  readonly initials: string;
+}
+
+function CastCard({ label, icon, name, stat, avatarUrl, initials }: Readonly<CastCardProps>) {
+  return (
+    <div className="bg-card flex flex-col gap-3 rounded-lg border px-4 py-3.5">
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <span className="text-[10px] font-semibold tracking-[0.1em] text-[var(--fg-muted)] uppercase">
+          {label}
+        </span>
+      </div>
+      {name === null ? (
+        <p className="text-muted-foreground text-sm">Not enough data yet</p>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Avatar className="size-12">
+            <AvatarImage src={avatarUrl ?? undefined} alt={name} />
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="font-display truncate text-[22px] leading-none tracking-[-0.015em]">
+              {name}
+            </div>
+            {stat !== null && (
+              <div className="font-mono text-[11px] tracking-[0.04em] text-[var(--fg-muted)]">
+                {stat}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -54,76 +100,67 @@ export function GroupStats() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }, (_, index) => (
-          <GroupStatSkeleton key={index} />
-        ))}
-      </div>
+      <section className="flex flex-col">
+        <SectionHeader />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <CastCardSkeleton key={index} />
+          ))}
+        </div>
+      </section>
     );
   }
 
-  const items = [
+  const cards: CastCardProps[] = [
     {
-      title: "Top Picker",
-      icon: <CrownIcon className="size-4 text-yellow-500" />,
-      user: stats?.topPicker,
+      label: "Top picker",
+      icon: <TrophyIcon className="text-cdb-marquee-text size-3" />,
+      name: stats?.topPicker
+        ? displayName(stats.topPicker.displayName, stats.topPicker.username)
+        : null,
       stat: stats?.topPicker ? `${String(stats.topPicker.pickCount)} picks` : null,
+      avatarUrl: stats?.topPicker?.avatarUrl ?? null,
+      initials: getInitials(
+        stats?.topPicker?.displayName ?? null,
+        stats?.topPicker?.username ?? null,
+      ),
     },
     {
-      title: "Highest Rater",
-      icon: <HeartIcon className="size-4 text-rose-500" />,
-      user: stats?.topRater,
+      label: "Highest rater",
+      icon: <HeartIcon className="size-3 text-rose-500" />,
+      name: stats?.topRater
+        ? displayName(stats.topRater.displayName, stats.topRater.username)
+        : null,
       stat: stats?.topRater ? `${String(stats.topRater.avgScore)} avg` : null,
+      avatarUrl: stats?.topRater?.avatarUrl ?? null,
+      initials: getInitials(
+        stats?.topRater?.displayName ?? null,
+        stats?.topRater?.username ?? null,
+      ),
     },
     {
-      title: "Most Active",
-      icon: <UsersIcon className="size-4 text-blue-500" />,
-      user: stats?.topAttendee,
+      label: "Most active",
+      icon: <UsersIcon className="text-cdb-tv size-3" />,
+      name: stats?.topAttendee
+        ? displayName(stats.topAttendee.displayName, stats.topAttendee.username)
+        : null,
       stat: stats?.topAttendee ? `${String(stats.topAttendee.attendanceCount)} sessions` : null,
+      avatarUrl: stats?.topAttendee?.avatarUrl ?? null,
+      initials: getInitials(
+        stats?.topAttendee?.displayName ?? null,
+        stats?.topAttendee?.username ?? null,
+      ),
     },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item, index) => (
-        <motion.div
-          key={item.title}
-          variants={CARD_VARIANTS}
-          initial="hidden"
-          animate="visible"
-          custom={index}
-        >
-          <Card>
-            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-              {item.icon}
-              <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {item.user !== null && item.user !== undefined ? (
-                <div className="flex items-center gap-3">
-                  <Avatar className="size-10">
-                    <AvatarImage
-                      src={item.user.avatarUrl ?? undefined}
-                      alt={item.user.displayName ?? item.user.username}
-                    />
-                    <AvatarFallback>
-                      {getInitials(item.user.displayName, item.user.username)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm leading-none font-medium">
-                      {displayName(item.user.displayName, item.user.username)}
-                    </p>
-                    <p className="text-muted-foreground mt-1 text-xs">{item.stat}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Not enough data yet</p>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-      ))}
-    </div>
+    <section className="flex flex-col">
+      <SectionHeader />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map((card) => (
+          <CastCard key={card.label} {...card} />
+        ))}
+      </div>
+    </section>
   );
 }
