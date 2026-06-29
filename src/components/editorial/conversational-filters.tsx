@@ -198,7 +198,7 @@ export function ConversationalFilters({
         <span>.</span>
       </p>
 
-      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-shrink-0">
+      <div className="flex w-full max-w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-shrink-0">
         {search !== undefined && (
           <div className="relative w-full sm:w-48">
             <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--fg-dim)]" />

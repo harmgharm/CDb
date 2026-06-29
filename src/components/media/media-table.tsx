@@ -43,7 +43,7 @@ export function MediaTable({ items }: MediaTableProps) {
     // The kit's two-shade table: the wrapper/body sits on the darker bg-elev-1,
     // and the header bar is the lighter bg-card (bg-elev-2). Rows inherit the
     // wrapper's elev-1 and lift toward elev-2 on hover, matching cdb-db-table.
-    <div className="overflow-hidden rounded-md border bg-[var(--bg-elev-1)]">
+    <div className="w-full min-w-0 overflow-hidden rounded-md border bg-[var(--bg-elev-1)]">
       <Table>
         <TableHeader>
           <TableRow className="bg-card hover:bg-card">
