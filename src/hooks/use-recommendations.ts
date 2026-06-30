@@ -66,6 +66,35 @@ export function useFilteredRecommendations(filters: {
   return useSWR<RecommendationsResponse>(key, { keepPreviousData: true });
 }
 
+/**
+ * Refresh the server-filtered recommendations grid. Unlike the per-type
+ * sections, the filtered results are a live server query (no cached `refresh`
+ * endpoint), so this just revalidates its SWR key to re-run the query.
+ */
+export function useRefreshFilteredRecommendations(filters: {
+  mediaType?: string[];
+  genre?: string[];
+  decade?: string[];
+}) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { mutate } = useSWRConfig();
+  const key = buildRecommendationKey(filters);
+
+  const refresh = useCallback(async (): Promise<boolean> => {
+    setIsRefreshing(true);
+    try {
+      await mutate(key);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [key, mutate]);
+
+  return { refresh, isRefreshing };
+}
+
 export function useRefreshRecommendations() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 

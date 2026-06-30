@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, ArrowRightIcon, FilmIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, FilmIcon } from "lucide-react";
 import { useState } from "react";
 
 import { RecommendationCard } from "@/components/recommendations/recommendation-card";
@@ -14,64 +14,40 @@ import type { RecommendationItem } from "@/types/recommendation-responses";
 // multiple of six (e.g. 30) when the per-section engine count is raised.
 const COLLAPSED_COUNT = 6;
 
-const SECTION_ACCENT: Record<string, string> = {
-  "For You": "border-l-blue-500",
-  "Similar Tastes": "border-l-green-500",
-  "Because You Loved...": "border-l-amber-500",
-  "Group Pick": "border-l-pink-500",
-  "Trending in Group": "border-l-rose-500",
-  "Similar Titles": "border-l-cyan-500",
-};
-
 interface RecommendationSectionProps {
-  readonly title: string;
-  readonly description: string;
   readonly items: RecommendationItem[];
   readonly isLoading: boolean;
   readonly emptyMessage?: string;
   readonly onDismiss?: (item: RecommendationItem) => void;
-  readonly onRefresh?: () => void;
-  readonly isRefreshing?: boolean;
+  /**
+   * Render every item up front and hide the "See all" / "Show less" toggle.
+   * Used by the filtered-results section, where the filter sentence is already
+   * the user's "expand" gesture, so a second collapse step reads as redundant.
+   */
+  readonly showAll?: boolean;
 }
 
+/**
+ * Body of a recommendation section: the poster row with per-card dismiss, the
+ * empty/loading states, and the "See all" expand/collapse below the row. The
+ * editorial head (issue number, serif title, italic lede, aside + refresh) is
+ * supplied by <NumberedSection>, which wraps this — see the kit's section head.
+ */
 export function RecommendationSection({
-  title,
-  description,
   items,
   isLoading,
   emptyMessage = "No recommendations available yet.",
   onDismiss,
-  onRefresh,
-  isRefreshing = false,
+  showAll = false,
 }: RecommendationSectionProps) {
-  const accentClass = SECTION_ACCENT[title] ?? "border-l-muted-foreground";
   const [expanded, setExpanded] = useState(false);
 
-  const canExpand = items.length > COLLAPSED_COUNT;
-  const visibleItems = expanded ? items : items.slice(0, COLLAPSED_COUNT);
+  const canExpand = !showAll && items.length > COLLAPSED_COUNT;
+  const visibleItems = showAll || expanded ? items : items.slice(0, COLLAPSED_COUNT);
   const hiddenCount = items.length - COLLAPSED_COUNT;
 
   return (
-    <section className="space-y-4">
-      <div className={`flex items-start justify-between border-l-4 pl-3 ${accentClass}`}>
-        <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <p className="text-muted-foreground text-sm">{description}</p>
-        </div>
-        {onRefresh !== undefined && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground size-11 shrink-0"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCwIcon className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span className="sr-only">Refresh {title}</span>
-          </Button>
-        )}
-      </div>
-
+    <div className="space-y-4">
       {isLoading && <RecommendationSkeleton />}
 
       {!isLoading && items.length === 0 && (
@@ -120,6 +96,6 @@ export function RecommendationSection({
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }

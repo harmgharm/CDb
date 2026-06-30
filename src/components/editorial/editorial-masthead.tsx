@@ -7,8 +7,16 @@ import { cn } from "@/lib/utils";
  * First introduced on the Database surface (Phase 6) and reused on For You
  * (Phase 7). The API is deliberately minimal: the only structural variables are
  * the title's lead/accent split, the eyebrow/issue strings, the lede,
- * alignment, and an optional actions slot. Anything more elaborate should be
- * added when a real second consumer needs it, not preemptively.
+ * alignment, the divider position, and an optional actions slot. Anything more
+ * elaborate should be added when a real second consumer needs it, not
+ * preemptively.
+ *
+ * Two divider modes match the two kit headers:
+ *   - `divider="top"` (Database / not-found): the eyebrow + issue line sit in a
+ *     ruled block, with the rule UNDER them and above the title.
+ *   - `divider="bottom"` (For You): the eyebrow, title, and lede are one
+ *     centered block with a single rule at the BOTTOM of the whole header. The
+ *     eyebrow has no rule of its own. Matches the kit's `.cdb-fy-header`.
  */
 
 interface EditorialMastheadProps {
@@ -31,10 +39,17 @@ interface EditorialMastheadProps {
   /** Title/lede alignment. Database centers; other surfaces may left-align. */
   readonly align?: "center" | "left";
   /**
+   * Where the dividing rule sits. `top` (default) rules the eyebrow block, above
+   * the title (Database / not-found). `bottom` rules the whole header at its
+   * base and leaves the eyebrow unruled (For You). See the kit note above.
+   */
+  readonly divider?: "top" | "bottom";
+  /**
    * Optional controls rendered to the right of the title (For You puts its
-   * Dismissed / Refresh all buttons here). Only rendered on left alignment,
-   * where the title sits in a row with room beside it; centered mastheads have
-   * no side gutter so the slot is ignored there.
+   * Dismissed / Refresh all buttons here). On a left-aligned masthead they sit
+   * in a row beside the title; on a centered masthead (For You) they float
+   * top-right so the centered title stays centered, matching the kit's
+   * absolutely-positioned `.cdb-fy-actions`.
    */
   readonly actions?: React.ReactNode;
 }
@@ -47,14 +62,41 @@ export function EditorialMasthead({
   lede,
   footnote,
   align = "center",
+  divider = "top",
   actions,
 }: EditorialMastheadProps) {
   const isCentered = align === "center";
-  const showActions = !isCentered && actions !== undefined;
+  const dividerBottom = divider === "bottom";
+  // Left-aligned mastheads put actions in a row beside the title; centered ones
+  // float them top-right so the title stays optically centered.
+  const showInlineActions = !isCentered && actions !== undefined;
+  const showFloatingActions = isCentered && actions !== undefined;
 
   return (
-    <header className="flex flex-col gap-6">
-      <div className="flex items-baseline justify-between border-b border-[var(--border-strong)] pb-3">
+    <header
+      className={cn(
+        "relative flex flex-col gap-6",
+        dividerBottom && "border-b border-[var(--border-strong)] pb-6",
+      )}
+    >
+      {showFloatingActions && (
+        // Float top-right on wider screens so the centered title stays centered;
+        // below the drawer breakpoint (900px) drop into normal flow at the top
+        // so the buttons can't overlap the eyebrow/title. Mirrors the kit's
+        // `.cdb-fy-actions` going `position: static` under its 900px media query.
+        <div className="z-10 flex flex-shrink-0 items-center gap-2 min-[900px]:absolute min-[900px]:top-0 min-[900px]:right-0">
+          {actions}
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "flex items-baseline justify-between",
+          // `top` divider rules the eyebrow block; `bottom` leaves it unruled
+          // (the rule lives on <header> instead).
+          !dividerBottom && "border-b border-[var(--border-strong)] pb-3",
+        )}
+      >
         <span className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.16em] uppercase">
           {eyebrow}
         </span>
@@ -65,7 +107,7 @@ export function EditorialMasthead({
         )}
       </div>
 
-      {showActions ? (
+      {showInlineActions ? (
         <div className="flex items-start justify-between gap-6">
           <h1 className="font-display m-0 text-left text-[clamp(56px,11vw,144px)] leading-[0.88] font-normal tracking-[-0.045em]">
             <span className="text-[var(--fg-dim)]">{titleLead}</span>{" "}

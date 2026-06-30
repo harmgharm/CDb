@@ -27,6 +27,7 @@ import {
   useDismissRecommendation,
   useFilteredRecommendations,
   useRecommendationsByType,
+  useRefreshFilteredRecommendations,
   useRefreshRecommendations,
   useRefreshSection,
 } from "@/hooks/use-recommendations";
@@ -204,6 +205,8 @@ export default function RecommendationsPage() {
   );
   const { data: filteredData, isLoading: filteredLoading } =
     useFilteredRecommendations(serverFilters);
+  const { refresh: refreshFiltered, isRefreshing: isFilteredRefreshing } =
+    useRefreshFilteredRecommendations(serverFilters);
 
   // Genres for the filter sentence, from unfiltered data so they stay populated.
   const availableGenres = useMemo(
@@ -442,7 +445,8 @@ export default function RecommendationsPage() {
         eyebrow={eyebrow}
         titleLead="For"
         titleAccent="you"
-        align="left"
+        align="center"
+        divider="bottom"
         lede="Ranked four ways. Tuned to your ratings, the group's history, and what TMDB thinks you'd love next."
         actions={
           <>
@@ -477,22 +481,12 @@ export default function RecommendationsPage() {
       {(similarResults.length > 0 || isSimilarLoading) && (
         <NumberedSection
           marker="★"
-          aside={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground size-8"
-              onClick={handleSimilarRefresh}
-              disabled={isSimilarRefreshing}
-            >
-              <RefreshCwIcon className={`size-4 ${isSimilarRefreshing ? "animate-spin" : ""}`} />
-              <span className="sr-only">Refresh similar titles</span>
-            </Button>
-          }
+          title="Similar Titles"
+          description="Titles similar to your selected picks"
+          onRefresh={handleSimilarRefresh}
+          isRefreshing={isSimilarRefreshing}
         >
           <RecommendationSection
-            title="Similar Titles"
-            description="Titles similar to your selected picks"
             items={similarResults.slice(0, DISPLAY_LIMIT)}
             isLoading={isSimilarLoading}
             emptyMessage="No similar titles found. Try different source titles."
@@ -519,31 +513,42 @@ export default function RecommendationsPage() {
         }
       />
 
-      {/* Sections */}
-      <div className="space-y-8">
+      {/* Sections — kit `.cdb-fy-sections` uses a 48px gap between sections. */}
+      <div className="space-y-12">
         {hasActiveFilters ? (
-          <NumberedSection marker={sectionNumber(0)}>
+          <NumberedSection
+            marker={sectionNumber(0)}
+            title="Filtered Results"
+            description={buildFilterDescription(filters)}
+            onRefresh={() => {
+              void refreshFiltered();
+            }}
+            isRefreshing={isFilteredRefreshing}
+          >
             <RecommendationSection
-              title="Filtered Results"
-              description={buildFilterDescription(filters)}
               items={(filteredData?.items ?? []).slice(0, DISPLAY_LIMIT)}
               isLoading={filteredLoading}
               emptyMessage="No recommendations match your filters. Try adjusting or clearing them."
               onDismiss={handleDismiss}
+              showAll
             />
           </NumberedSection>
         ) : (
           sections.map((section, index) => (
-            <NumberedSection key={section.key} marker={sectionNumber(index)} aside={section.aside}>
+            <NumberedSection
+              key={section.key}
+              marker={sectionNumber(index)}
+              title={section.title}
+              description={section.description}
+              aside={section.aside}
+              onRefresh={section.onRefresh}
+              isRefreshing={section.isRefreshing}
+            >
               <RecommendationSection
-                title={section.title}
-                description={section.description}
                 items={(section.data?.items ?? []).slice(0, DISPLAY_LIMIT)}
                 isLoading={section.isLoading}
                 emptyMessage="No recommendations available yet."
                 onDismiss={handleDismiss}
-                onRefresh={section.onRefresh}
-                isRefreshing={section.isRefreshing}
               />
             </NumberedSection>
           ))

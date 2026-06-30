@@ -460,3 +460,189 @@ Current: `src/app/(main)/database/[id]/page.tsx` + `src/components/media/session
       dialog; shadcn `Table` primitive untouched, `Textarea` primitive change is the intended fix.
 - [x] Info block reads director → title → tagline → badges → genres → synopsis → cast → studio →
       budget/revenue.
+
+---
+
+## Page — For You (recommendations) ✅ implemented 2026-06-29 (pending review)
+
+Implemented 2026-06-29. **Pure chrome** — no backend, no data changes. The three owner-reported
+drifts are fixed by extending the shared `EditorialMasthead` (not forking it) and merging the split
+section head into one. `pnpm typecheck`, `pnpm lint`, `pnpm test` (527, unchanged — the changed
+components are presentational) all green. Headless smoke: section order intact, 0px overflow at
+375/768/1280/1920, 0 console errors; section titles render at 36px Instrument Serif with the rule
+below; tools-card border is now marquee-amber (oklch hue 68), not indigo. **Database + not-found
+mastheads verified unregressed** (still `divider="top"`: rule on the inner eyebrow row, header
+itself unruled, title centered).
+
+### What shipped
+
+- **Header (owner #1)** — `EditorialMasthead` gained a `divider?: "top" | "bottom"` prop. `top`
+  (default) keeps the Database/not-found shape (rule under the eyebrow). `bottom` (For You) leaves
+  the eyebrow unruled and rules the whole header at its base, and floats `actions` top-right
+  (absolute) so the centered title stays centered — matching the kit's `.cdb-fy-header` +
+  `.cdb-fy-actions`. For You now passes `align="center" divider="bottom"`.
+- **Tools card (owner #2)** — `RecommendationToolsCard` swapped
+  `border-indigo-500/20 bg-gradient...from-indigo-500/5` for the kit's `.cdb-rt-card`: a
+  `marquee 22%`-mixed border and a soft radial amber wash off the top-left, layered as a `before`
+  overlay so the card keeps its `bg-card` (`--bg-elev-1`) base + light-mode override. `Tabs` got
+  `relative` so its content sits above the wash. Active tab already reads amber via `--primary`.
+- **Section heads (owner #3)** — merged the split head into one. `NumberedSection` now renders the
+  full kit head: mono-11px-uppercase `--fg-dim` number → serif-36px white title → serif-italic-14px
+  muted lede stacked on the left, aside (friend stack / source + the per-section refresh) on the
+  right, `border-b` below. It took `title`/`description`/`onRefresh`/`isRefreshing` props up from
+  `RecommendationSection`, which is now body-only (poster row, dismiss, empty/loading, and the
+  below-row "See all" expand/collapse — kept per judgment call A). The `border-l-4` colored accent
+  bar (no kit equivalent) was dropped. Section-to-section gap bumped to `space-y-12` (kit's 48px).
+
+### Judgment calls — RESOLVED with the owner (2026-06-29)
+
+Audited against `CDb Design System/ui_kits/web/ForYou.jsx` + `ForYouTools.jsx` + `kit.css`
+(`cdb-fy-header*`, `cdb-fy-title`, `cdb-fy-lede`, `cdb-fy-section*`, `cdb-rt-card`/`-tabs`/`-tab`).
+Current: `src/app/(main)/recommendations/page.tsx` +
+`src/components/editorial/editorial-masthead.tsx`,
+`src/components/recommendations/numbered-section.tsx`, `recommendation-section.tsx`,
+`recommendation-tools-card.tsx`.
+
+**Low-to-moderate drift.** Phase 7 brought the editorial masthead here, and the page order already
+matches the kit (header → tools card → similar results → conversational filters → sections). The
+remaining gap is **three chrome mismatches the owner already spotted**, all caused by the page being
+fitted to the _Database_-shaped shared masthead and a split section head, not the _For You_ layout:
+
+### Owner-reported drift (confirmed against the kit)
+
+1. **Header is left-aligned with the rule above the title; kit centers it with the rule below.** The
+   kit's `cdb-fy-header` is a single column — eyebrow + **centered** serif title
+   (`text-align:center`) + **centered** italic lede (`margin:0 auto`) — with **one rule at the
+   bottom of the whole header** (`border-bottom` on `.cdb-fy-header`, `padding-bottom:24px`). The
+   eyebrow has **no** rule of its own. Ours renders `EditorialMasthead` with `align="left"`, which
+   (a) left-aligns the title + lede and (b) puts the rule **under the eyebrow, above the title**
+   (the Database shape). This is a genuine structural difference: For You ≠ Database header. The
+   Database masthead keeps its own shape (issue line + date with a rule under it, then centered
+   title); For You needs the rule moved to the bottom and the title/lede centered. **The actions
+   (Dismissed / Refresh all) stay top-right**, kit-faithful (`.cdb-fy-actions` is
+   `position:absolute; top:16px; right:0`).
+
+2. **Tools card has the wrong accent — purple/blue, kit is gold.** Current `RecommendationToolsCard`
+   uses `border-indigo-500/20 bg-gradient-to-br from-indigo-500/5`. The kit's `.cdb-rt-card` is a
+   **marquee/amber** card: `border: marquee 22% over --border`, a
+   `radial-gradient(... marquee 7% ...)` top-left wash over `--bg-elev-1`, `radius-xl`. Swap the
+   indigo for the marquee tint. (The "a bit longer" the owner saw is incidental padding/border
+   extent; the tint is the real item.) Active tab also tints `--cdb-marquee` (`.cdb-rt-tab.active`)
+   — the shadcn `TabsTrigger` already uses the primary/amber active state, so confirm at build, no
+   churn if it already reads amber.
+
+3. **Section heads: number + title too small, rule on the wrong side, and the head is split.** Kit
+   `.cdb-fy-section-head` is **one** flex row (`space-between`, `align-items:flex-end`) with a
+   **`border-bottom`** (rule _below_ the head). Its left column **stacks**: `.cdb-fy-section-num`
+   (mono **11px**, `letter-spacing .16em`, **uppercase**, `--fg-dim`) → `.cdb-fy-section-title`
+   (serif **36px**, default white fg) → `.cdb-fy-section-lede` (serif italic 14px muted). The right
+   column is the aside (friend stack / source · refresh · See all). Ours splits this across **two**
+   components: `NumberedSection` renders only the marker (serif **24px**, `--fg-dim`) + aside with a
+   **`border-t`** (rule _above_), and `RecommendationSection` separately renders a `border-l-4`
+   colored accent bar + sans-serif **18px** semibold title + sans description + a refresh button.
+   Net: marker should be mono-11px-uppercase not serif-24px; title should be serif-36px-white not
+   sans-18px; rule moves from top to bottom; the `border-l-4` accent bar (no kit equivalent) is
+   dropped; num/title/lede stack in one head with the aside beside them.
+
+### Review (manual + feature-dev code-reviewer, 2026-06-29)
+
+- **Mobile actions overlap (caught in self-review + reviewer).** The kit makes `.cdb-fy-actions`
+  `position: static` under its 900px media query so the buttons can't overlap the centered title on
+  phones. Replicated: the floating actions are `min-[900px]:absolute` (drawer breakpoint) and sit in
+  normal flow above the eyebrow below it. Verified at 390px (clean stacked row, 0px overflow) and in
+  the 920–1024px band (title sits in a vertical band _below_ the top-floated actions, so even where
+  their x-ranges intersect the y-ranges don't — measured, no overlap). No title padding needed.
+- **Refresh `sr-only` now reflects state.** The refresh button moved into `NumberedSection`; its
+  `sr-only` label now reads "Refreshing {title}" while spinning (was static "Refresh {title}" in
+  both this and the old code — pre-existing, fixed now that it's centralized).
+- **Reviewer confirmed non-issues:** `divider="top"` default preserves Database/not-found (verified
+  headless too); no stale props on `RecommendationSection`; the tools-card `before` wash is
+  `pointer-events-none` (no click-swallow); conventions clean (no `any`/`prev`/em-dashes, named
+  exports, double quotes). No Critical or remaining Important findings.
+
+### Owner follow-ups (second visual pass, 2026-06-29)
+
+- **Tools-card tabs → gold text, softer active chip (kit `.cdb-rt-tab`).** The shadcn `TabsTrigger`
+  tinted the active tab white and drew a bordered, shadowed chip (the "strong ring"). Override via
+  `className` only (primitive untouched): active text → `text-cdb-marquee-text` (gold, light+dark),
+  active border → transparent, active shadow → none. Verified: active color is warm gold
+  (`lab(73 23 59)`), inactive neutral gray; border + shadow gone; gold follows the selected tab.
+- **Filtered-results section (non-kit improvement).** When filters are active the page collapses to
+  a single "Filtered Results" section. Three tweaks: (1) **show all results instantly** — new
+  `showAll` prop on `RecommendationSection` renders every item up front; (2) **drop the "See all" /
+  "Show less" toggle** when `showAll` (the filter sentence is already the expand gesture); (3) **add
+  a refresh** — new `useRefreshFilteredRecommendations(filters)` hook revalidates the filtered SWR
+  key (the filtered grid is a live server query, so there's no cached `refresh` endpoint to hit),
+  wired to the section head's refresh button. Verified: 20 items shown, no toggle, refresh present
+  ("Refresh Filtered Results"), other sections correctly replaced, 0 console errors.
+
+### Judgment calls — RESOLVED with the owner (2026-06-29)
+
+- **A. "See all" placement → KEEP below-row toggle.** Owner chose to keep our centered "See all N
+  more" / "Show less" expand/collapse below the poster row (it does real work the kit's no-op
+  decoration doesn't). The section head therefore carries only number/title/lede + aside (friend
+  stack / source · refresh); **no** "See all" in the head.
+- **Header scope → EXTEND the shared masthead.** Add a minimal mode to `EditorialMasthead` (centered
+  title + lede with the divider at the **bottom** of the header, actions still top-right) rather
+  than forking a For-You-only header. Must not regress Database (rule under eyebrow, centered title,
+  no actions) or not-found.
+- **B. Section title casing.** Our titles are sentence-ish phrases ("Based on your taste", "Similar
+  tastes in the group"). At serif 36px they read as editorial headlines — fine as-is. No change
+  unless the owner wants Title Case.
+- **C. The `★` marker for Similar Titles.** Kit uses a literal `★` glyph as the section "number" for
+  the Similar Titles results block. Keep (it already does this); it just needs the mono-uppercase
+  treatment like the numbers, or stay as a serif star — minor, will pick the one that reads cleaner.
+
+### Kit section order (target) — already matches
+
+1. Editorial header (centered, rule below) + top-right actions
+2. Tools card (Predict My Rating / Find Similar tabs) — amber-tinted
+3. Similar Titles results (only after a search) — `★` head
+4. Conversational filters ("Show me … from the …")
+5. Recommendation sections (numbered 01–04, serif heads, rule below each)
+6. Warming-up state replaces 2–5 for new users (not-personalized)
+
+### Current order (live)
+
+`EditorialMasthead → WarmingUpBanner? → RecommendationToolsCard → (Similar NumberedSection)? → ConversationalFilters → sections.map(NumberedSection)`
+— **order already correct**; only chrome drifts.
+
+### Drift checklist
+
+- [x] **Header — center + rule below (owner #1).** Extended `EditorialMasthead` with `divider`; For
+      You uses `align="center" divider="bottom"`, actions float top-right. Database/not-found
+      unregressed (verified headless).
+- [x] **Tools card — marquee/amber tint (owner #2).** Marquee border + radial amber `before` wash
+      over `bg-card`. Active tab amber via `--primary`.
+- [x] **Section head — mono-uppercase number, serif-36 white title, rule below, single head (owner
+      #3).** Merged into `NumberedSection`; `border-l-4` accent dropped; body kept in
+      `RecommendationSection`.
+- [x] **See all placement (judgment call A).** Kept below-row expand/collapse per owner's answer.
+
+### Keep as-is (flagged, not matching the kit literally)
+
+- **Tools card internals** (Predict My Rating result card, Find Similar chips) already match the
+  kit's `ForYouTools.jsx` structurally — only the **card shell tint** drifts. No internal rework.
+- **Conversational filters** already use the shared `ConversationalFilters` (kit-faithful). No
+  change.
+- **Real expand/collapse on "See all"** does work the kit's decoration doesn't — keep the behavior
+  regardless of where the control sits.
+- **Warming-up state** (`WarmingUpBanner`) — out of scope for this pass unless drift surfaces; owner
+  said they've only looked at the personalized state. Audit it before assuming it matches.
+
+### Net new backend work for this page
+
+- **None expected.** This is pure chrome (alignment, tint, section-head typography). All data
+  already flows. Flag if a head rebuild needs a count we don't have (not anticipated).
+
+### Acceptance (For You)
+
+- [x] `pnpm typecheck && pnpm lint && pnpm test` (527) pass.
+- [x] Header: centered serif title + centered italic lede, single rule at the bottom of the header,
+      actions still top-right. Database + not-found mastheads visually unchanged (Database verified
+      headless: `divider=top` shape intact, title centered, "The collection").
+- [x] Tools card reads amber/marquee (border hue 68 + top-left wash), not indigo; active tab amber.
+- [x] Section heads: mono-uppercase number, serif-36 white title, italic muted lede, rule below the
+      head, no colored left bar; poster row + dismiss + refresh + expand all still work.
+- [ ] Light mode readable, no broken contrast, no missing tokens. **(owner visual pass)**
+- [x] No regression on Database / not-found mastheads (smoke check). Overflow 0px at 375–1920.

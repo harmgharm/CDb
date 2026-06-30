@@ -1,13 +1,18 @@
+import { RefreshCwIcon } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * Editorial chrome around a recommendation section: a serif issue number
- * ("01", "02", ...) in the left gutter and an optional aside on the right
- * (friend stack for collaborative sections, a source tag for TMDB sections).
+ * Editorial head + frame around a recommendation section, matching the kit's
+ * `.cdb-fy-section-head`: a single ruled row whose left column stacks the issue
+ * number (mono, uppercase, dim), the serif title, and the italic lede, with an
+ * aside on the right (friend stack / source tag, plus the per-section refresh).
  *
- * Presentation only. The section body (poster row, refresh, empty/loading
- * states) stays in <RecommendationSection>; this wrapper supplies the numbered
- * frame the For You surface reads as a magazine running order.
+ * Presentation only — the section body (poster row, dismiss, empty/loading,
+ * the "See all" expand) stays in <RecommendationSection>. Previously the head
+ * was split across both components (a number here, a separate `border-l-4`
+ * title block there); the kit wants one head, so the title/lede live here now.
  */
 
 /** Two-digit issue number from a zero-based index: 0 -> "01", 9 -> "10". */
@@ -16,22 +21,60 @@ export function sectionNumber(index: number): string {
 }
 
 interface NumberedSectionProps {
-  /** The marker shown in the gutter, e.g. "01" or a "★" for Similar Titles. */
+  /** The marker shown above the title, e.g. "01" or a "★" for Similar Titles. */
   readonly marker: string;
+  /** Serif section title, e.g. "Based on your taste". */
+  readonly title: string;
+  /** Italic lede under the title, e.g. "Genres and directors you rate highly." */
+  readonly description: string;
   /** Right-aligned aside, e.g. a friend stack or a "Source: TMDB" tag. */
   readonly aside?: React.ReactNode;
+  /** Per-section refresh handler. Renders a refresh icon in the head aside. */
+  readonly onRefresh?: () => void;
+  readonly isRefreshing?: boolean;
   readonly className?: string;
   readonly children: React.ReactNode;
 }
 
-export function NumberedSection({ marker, aside, className, children }: NumberedSectionProps) {
+export function NumberedSection({
+  marker,
+  title,
+  description,
+  aside,
+  onRefresh,
+  isRefreshing = false,
+  className,
+  children,
+}: NumberedSectionProps) {
   return (
-    <section className={cn("relative", className)}>
-      <div className="mb-4 flex items-start justify-between gap-4 border-t border-[var(--border-strong)] pt-4">
-        <span className="font-display text-2xl leading-none text-[var(--fg-dim)] tabular-nums">
-          {marker}
-        </span>
-        {aside !== undefined && <div className="flex flex-shrink-0 items-center">{aside}</div>}
+    <section className={cn("flex flex-col gap-[18px]", className)}>
+      <div className="flex items-end justify-between gap-6 border-b border-[var(--border)] pb-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[11px] tracking-[0.16em] text-[var(--fg-dim)] uppercase">
+            {marker}
+          </div>
+          <h2 className="font-display mt-1 text-[36px] leading-none font-normal tracking-[-0.02em]">
+            {title}
+          </h2>
+          <p className="font-display text-muted-foreground mt-1 text-sm italic">{description}</p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-4">
+          {aside}
+          {onRefresh !== undefined && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground size-8"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCwIcon className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span className="sr-only">
+                {isRefreshing ? `Refreshing ${title}` : `Refresh ${title}`}
+              </span>
+            </Button>
+          )}
+        </div>
       </div>
       {children}
     </section>
