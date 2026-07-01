@@ -78,6 +78,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "media.title",
       "media.type",
       "media.poster_url",
+      "media.release_year",
       db.fn.avg("ratings.score").as("avg_score"),
       db.fn.count("ratings.id").as("rating_count"),
     ])
@@ -89,6 +90,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       "media.title",
       "media.type",
       "media.poster_url",
+      "media.release_year",
     ])
     .orderBy(sql`watch_sessions.date_watched desc nulls last`)
     .limit(20)
@@ -113,6 +115,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       title: p.title,
       type: p.type,
       poster_url: p.poster_url,
+      release_year: p.release_year,
       avgScore: Number(p.rating_count) >= 2 ? Math.round(Number(p.avg_score) * 10) / 10 : null,
     })),
   });

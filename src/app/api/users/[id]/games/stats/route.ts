@@ -62,24 +62,27 @@ async function buildGameTypeStats(
   if (normalEntry !== undefined) {
     const rankResult = await db
       .selectFrom("game_leaderboard")
-      .select(({ fn }) => fn.countAll<number>().as("count"))
+      // Typed <string> to match the runtime: Neon returns count as a string, so
+      // the type must say so or `Number(...) + 1` below reads as unnecessary. Any
+      // <number> cast is a lie that makes `count + 1` concatenate ("1"+1="11").
+      .select(({ fn }) => fn.countAll<string>().as("count"))
       .where("game_type", "=", gameType)
       .where("category", "=", "normal_ranked")
       .where("best_score", ">", normalEntry.best_score)
       .executeTakeFirstOrThrow();
-    globalRankNormal = rankResult.count + 1;
+    globalRankNormal = Number(rankResult.count) + 1;
   }
 
   let globalRankHard: number | null = null;
   if (hardEntry !== undefined) {
     const rankResult = await db
       .selectFrom("game_leaderboard")
-      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .select(({ fn }) => fn.countAll<string>().as("count"))
       .where("game_type", "=", gameType)
       .where("category", "=", "hard_ranked")
       .where("best_score", ">", hardEntry.best_score)
       .executeTakeFirstOrThrow();
-    globalRankHard = rankResult.count + 1;
+    globalRankHard = Number(rankResult.count) + 1;
   }
 
   return {
@@ -219,16 +222,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const ratingGuessRecent = recentGamesWithStats
     .filter((game) => game.gameType === "rating_guess")
     .slice(0, 10);
+  const yearGuessRecent = recentGamesWithStats
+    .filter((game) => game.gameType === "year_guess")
+    .slice(0, 10);
 
   // Build per-game-type stats in parallel
-  const [posterReveal, ratingGuess] = await Promise.all([
+  const [posterReveal, ratingGuess, yearGuess] = await Promise.all([
     buildGameTypeStats(userId, "poster_reveal", posterRevealRecent),
     buildGameTypeStats(userId, "rating_guess", ratingGuessRecent),
+    buildGameTypeStats(userId, "year_guess", yearGuessRecent),
   ]);
 
   const response: UserGameStatsResponse = {
     posterReveal,
     ratingGuess,
+    yearGuess,
   };
 
   return successResponse(response);

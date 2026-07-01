@@ -62,6 +62,8 @@ export interface RecentPick {
   title: string;
   type: MediaType;
   poster_url: string | null;
+  /** Media release year, shown in the pick card meta (null if unknown). */
+  release_year: number | null;
   /** Avg session rating (null if < 2 ratings) */
   avgScore: number | null;
 }
@@ -109,4 +111,5 @@ export interface GameTypeStats {
 export interface UserGameStatsResponse {
   posterReveal: GameTypeStats | null;
   ratingGuess: GameTypeStats | null;
+  yearGuess: GameTypeStats | null;
 }
