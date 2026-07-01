@@ -192,9 +192,21 @@ function ProfileForm({ user, onSaved, avatarFocusKey }: ProfileFormProps) {
           />
         </div>
 
-        <div className="mt-2">
+        <div className="mt-2 flex gap-2.5">
           <Button type="submit" disabled={isUpdating}>
             {isUpdating ? "Saving..." : "Save Changes"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setDisplayName(user.displayName ?? "");
+              setUsername(user.username);
+              setEmail(user.email);
+              setAvatarUrl(user.avatarUrl ?? "");
+            }}
+          >
+            Discard
           </Button>
         </div>
       </form>

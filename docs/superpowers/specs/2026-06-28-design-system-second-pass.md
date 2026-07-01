@@ -948,3 +948,84 @@ Four more kit differences the owner wants adopted after living with the first pa
    always-visible inline block, matching the kit's all-inline card rhythm.
 3. **Watchlist prediction → keep the tooltip.** New kit-style footer text (`★ score predicted`), but
    hover still reveals verdict + confidence.
+
+---
+
+## Page — Settings ✅ implemented 2026-07-01 (pending review)
+
+Audited 2026-07-01 against `Settings.jsx` + `kit.css` (`cdb-st-*` — **not** `cdb-set-*`). **Lowest
+drift of any page so far.** The current `src/app/(main)/settings/page.tsx` (single file) already
+implemented the kit's magazine layout end to end: editorial header (eyebrow → serif "The _fine
+print_" → italic lede → avatar with "Change" affordance), sticky left rail
+(`Profile / Password / Notifications`, gold-active soft-chip with the left accent bar), and the
+three utility panes on the right, each with the shared `PaneHead` chrome. This predates the
+second-pass rollout — it looks like Settings got the kit treatment already, just never got added to
+the spec. The only real gap — Profile pane missing a Discard action — was closed this session.
+`pnpm typecheck` / `pnpm lint` / `pnpm test` (533) all green; headless smoke (tester login, 1280px):
+Discard button present, clicking it reverts an edited field to the last-saved value, 0px overflow,
+no console errors on `/settings`. Owner does the real visual pass.
+
+Current file: `src/app/(main)/settings/page.tsx` (also touches `src/hooks/use-settings.ts`,
+`src/hooks/use-notifications.ts`).
+
+### Kit section order (target)
+
+1. Editorial header: eyebrow (`Account · {name}`) → serif title "The _fine print_" → italic lede →
+   avatar (88px) with "Change" pill overlay
+2. Sticky rail (200px): Profile / Password / Notifications + divider + Log out
+3. Content pane, per section:
+   - **Profile:** pane head → Display name / Username / Email / Avatar URL fields (460px max) →
+     **Save changes + Discard** actions
+   - **Password:** pane head → Current password → divider → New password / Confirm → Change password
+     action
+   - **Notifications:** pane head → row list (label + description + switch), no dividers on the last
+     row
+
+### Current order (live) — matches
+
+Same header → rail → pane structure, same field order in all three panes, same 460px field cap, same
+divider placement in Password, same row-list shape in Notifications. No reordering needed.
+
+### Drift checklist
+
+- [ ] **Rail icons differ from the kit.** Kit: `UserPlus` (profile), `Settings` (password), `Bell`
+      (notifications), `X` (logout). Live: `UserIcon`, `KeyIcon`, `BellIcon`, `LogOutIcon`. **Owner
+      call: keep the current icons** — `KeyIcon`/`LogOutIcon` read clearer for their actions than
+      the kit's literal picks. Documenting as an intentional deviation, not fixing.
+- [x] **Profile pane is missing the kit's "Discard" button.** Kit's `cdb-st-actions` row has
+      `Save changes` (primary) + `Discard` (ghost). Live only rendered `Save Changes` — no way to
+      revert in-progress edits back to the last-saved values without navigating away and back.
+      **DONE** — added a ghost "Discard" button next to Save that resets `displayName` / `username`
+      / `email` / `avatarUrl` back to the current `user` prop's values.
+- [x] Header eyebrow/title/lede/avatar structure — matches (`Account · {name}`, "The _fine print_",
+      italic lede, 88px avatar, Change pill).
+- [x] Rail: sticky, 200px, gold-active + left accent bar, divider before Log out — matches.
+- [x] Pane head chrome (serif 28px title + muted sub, border-bottom) — matches `cdb-st-pane-head`
+      exactly, shared via the local `PaneHead` component.
+- [x] Field layout (460px max-width, 18px gap, label-above-input) — matches `cdb-st-fields` /
+      `cdb-st-field` exactly, including the divider before "New password" in the Password pane.
+- [x] Notification rows (label + description + switch, border-bottom except last row) — matches
+      `cdb-st-notif-row`; shadcn `Switch` used in place of the kit's custom `cdb-st-switch` (same
+      established primitive-swap pattern as elsewhere).
+- [x] Password pane's masked-dots `defaultValue` in the kit is mock-data only (fake pre-filled
+      password) — correctly not replicated; live starts empty, which is the only correct behavior.
+
+### Judgment call — Discard button (RESOLVED with the owner 2026-07-01)
+
+**Add it** (matches kit exactly): a ghost "Discard" button next to Save that resets the four fields
+back to `user`'s last-saved values. Small, contained change to `ProfileForm` — no touch to
+`avatarFocusKey`/focus logic, no new query, no new test needed (plain state reset, no pure logic to
+extract).
+
+### Acceptance criteria
+
+- [x] Icon choice and Discard button both explicitly resolved with the owner (this session): keep
+      current icons, add Discard.
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (533 tests), manual click-test (edit a
+      field, Discard, confirm it reverts) done headless.
+- [x] feature-dev code-reviewer pass — clean, no Critical/Important findings. Confirmed no
+      stale-closure risk (fresh `user` prop after `mutate`), kit-matching markup, no a11y issue with
+      the adjacent submit/button pair. Two sub-80-confidence nitpicks noted and left as-is (stale
+      error banner not cleared on discard; Discard not disabled mid-save) — harmless, out of the
+      approved scope.
+- [ ] Light mode readable, no broken tokens (owner visual pass).
