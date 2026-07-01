@@ -48,9 +48,9 @@ the lower rows are placeholders until then.
 3. **Media detail** — ✅ implemented (below). Done out of order, owner-driven (kit barely mocks it).
 4. **For You (recommendations)** — ✅ implemented (below).
 5. **Users + User Profile** — ✅ implemented (below). Low drift.
-6. **Settings** — next, to audit
-7. Auth (login / signup) — to audit
-8. Landing — to audit
+6. **Settings** — ✅ implemented (below). Lowest drift so far.
+7. **Auth (login / signup)** — ✅ implemented (below). Low drift, copy + spacing only.
+8. **Landing** — next, to audit
 9. Play hub — to audit
 
 ---
@@ -1028,4 +1028,84 @@ extract).
       the adjacent submit/button pair. Two sub-80-confidence nitpicks noted and left as-is (stale
       error banner not cleared on discard; Discard not disabled mid-save) — harmless, out of the
       approved scope.
+- [ ] Light mode readable, no broken tokens (owner visual pass).
+
+---
+
+## Page — Auth (Login / Signup) ✅ implemented 2026-07-01 (pending review)
+
+Audited 2026-07-01 against `Login.jsx` (single component drives both `mode="login"` and
+`mode="signup"`) + `kit.css` (`.cdb-auth-*`, shared `.cdb-eyebrow`/`.cdb-field`). **Low drift**,
+same class as Settings — layout, split-screen art panel, field order, and form structure all already
+match. The gap here was entirely **copy and micro-spacing**, no structural rework. The art panel
+(`AuthArtPanel`) already goes beyond the kit (real top-media posters + live title/friend counts vs.
+the kit's static mock list) — that's a deliberate improvement from the first rollout, not drift.
+`pnpm typecheck` / `pnpm lint` / `pnpm test` (533) all green; headless smoke (1280px) on both pages:
+eyebrow/title gap measured at 8px (matches kit), login title reads "Ready for _another?_" (no more
+duplicate "Welcome back"), both submit buttons render the trailing arrow icon, signup switch-link
+reads "Have an account? Log in", 0px overflow, no console errors beyond the expected pre-login
+`/api/auth/me` 401. Owner does the real visual pass.
+
+Current files: `src/app/(auth)/login/page.tsx`, `src/app/(auth)/signup/page.tsx`,
+`src/app/(auth)/_components/auth-art-panel.tsx`.
+
+### Kit section order (target) — already matches
+
+1. Split-screen: art panel (left, desktop only) + form (right)
+2. Eyebrow micro-label → serif title (plain + italic-amber accent word) → sub-line
+3. Form fields in kit order (signup: invite code → email → username → display name (optional) →
+   password + hint; login: email/username → password)
+4. Full-width primary submit button
+5. Switch-mode link line below the form
+
+### Current order (live) — matches
+
+Same structure on both pages. No reordering needed.
+
+### Drift checklist
+
+- [x] **Eyebrow-to-title gap is looser than the kit.** Root cause found in `kit.css`:
+      `.cdb-auth-form` wraps everything in `gap: 16px`, but `.cdb-auth-form .cdb-eyebrow` gets an
+      extra `margin-bottom: -8px` — so the eyebrow sits ~8px from the title, not the full 16px. Live
+      used a flat `gap-4` (16px) on both pages with no compensating negative margin, so the small
+      label sat noticeably farther from the headline than the kit. **DONE** — added `-mb-2`
+      (Tailwind for -8px) to the eyebrow `<p>` on both pages; headless-measured gap is now 8px,
+      matching.
+- [x] **Login page duplicated "Welcome back."** Eyebrow read "Welcome back" and the title also read
+      "Welcome _back_" — same phrase twice stacked. Kit's login eyebrow/title pair is "Welcome back"
+      (eyebrow) → "Ready for _another?_" (title) — no repeat. **DONE** — swapped the live title to
+      "Ready for _another?_" per the kit.
+- [x] **Signup page eyebrow-title pair already matched kit copy** ("Sign up" → "Join _the group_") —
+      only the spacing item above applied here, not a copy swap.
+- [x] **Neither submit button had the kit's trailing arrow.** Kit: both `Log in` and
+      `Create account` buttons end with `<I.ArrowRight size={14} />` inside the button
+      (`cdb-btn-primary     cdb-btn-lg cdb-btn-block`). Live: plain text, no icon, on both pages.
+      **DONE** — added `lucide-react`'s `ArrowRightIcon` after the button label on both submit
+      buttons (hidden during the loading state, when the label swaps to "Signing in..."/"Creating
+      account...") — already the established icon in this codebase (used in
+      Users/Recent-picks/Game-stats trailing-arrow spots).
+- [x] **Switch-link copy differed slightly from the kit on both pages** — resolved as a mixed owner
+      call, see below.
+
+### Judgment calls — RESOLVED with the owner (2026-07-01)
+
+1. **Switch-link copy — mixed call, not a blanket match-the-kit.**
+   - Login bottom link — **keep current wording** ("Have an invite code? Sign up"). Not changing.
+   - Signup bottom link — **adopt the kit's copy**: "Already have an account? Log in" → "Have an
+     account? Log in".
+
+### Acceptance criteria
+
+- [x] Switch-link copy calls resolved with the owner: keep login's wording, adopt kit's signup
+      wording.
+- [x] Eyebrow/title spacing tightened to match kit on both login and signup (headless-measured:
+      8px).
+- [x] Login title swapped to "Ready for _another?_", no duplicate "Welcome back."
+- [x] Trailing `ArrowRightIcon` added to both submit buttons.
+- [x] Signup switch-link copy shortened to "Have an account? Log in".
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (533 tests).
+- [x] Manual click-test both pages (headless smoke, 1280px) + feature-dev review — clean, no
+      Critical/Important findings. Confirmed correct conditional icon rendering (no key/fragment
+      issue), correct auto-sizing via the `Button` primitive's `size-4` svg rule, no a11y gap (icon
+      is decorative, button's accessible name comes from its visible text), no lint gotchas.
 - [ ] Light mode readable, no broken tokens (owner visual pass).

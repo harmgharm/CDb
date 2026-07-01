@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRightIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -56,7 +57,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground text-[11px] font-medium tracking-[0.18em] uppercase">
+      <p className="text-muted-foreground -mb-2 text-[11px] font-medium tracking-[0.18em] uppercase">
         Sign up
       </p>
       <h1 className="font-display text-[clamp(40px,6vw,56px)] leading-[1.0] tracking-tight">
@@ -157,10 +158,11 @@ export default function SignupPage() {
 
         <Button type="submit" className="mt-2 w-full" disabled={loading}>
           {loading ? "Creating account..." : "Create account"}
+          {!loading && <ArrowRightIcon />}
         </Button>
 
         <p className="text-muted-foreground text-center text-sm">
-          Already have an account?{" "}
+          Have an account?{" "}
           <Link
             href="/login"
             className="text-cdb-marquee font-medium underline underline-offset-[3px]"
