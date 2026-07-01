@@ -5,7 +5,7 @@ import {
   EllipsisVerticalIcon,
   EyeIcon,
   ListIcon,
-  SparklesIcon,
+  StarIcon,
   UsersIcon,
   XCircleIcon,
 } from "lucide-react";
@@ -18,7 +18,6 @@ import { ImportMediaDialog } from "@/components/media/import-media-dialog";
 import { MediaPoster } from "@/components/media/media-poster";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -158,13 +157,6 @@ function WatchlistCardLink({
   );
 }
 
-function getPredictionColor(score: number): string {
-  if (score >= 8) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
-  if (score >= 6.5) return "border-blue-500/30 bg-blue-500/10 text-blue-400";
-  if (score >= 5) return "border-yellow-500/30 bg-yellow-500/10 text-yellow-400";
-  return "border-red-500/30 bg-red-500/10 text-red-400";
-}
-
 interface WatchlistCardProps {
   readonly entry: WatchlistItem;
   readonly index: number;
@@ -254,31 +246,35 @@ export function WatchlistCard({
         title={entry.title}
         className="h-24 w-16 shrink-0"
       />
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <h4 className="truncate text-sm font-medium">{entry.title}</h4>
         <div className="mt-1 flex items-center gap-1.5">
           <MediaTypeBadge type={entry.media_type} />
           <WatchlistStatusBadge status={entry.status} />
-          {prediction !== undefined && (
+        </div>
+        {entry.notes !== null && entry.notes.length > 0 && (
+          <p className="text-muted-foreground mt-1.5 line-clamp-2 text-xs">{entry.notes}</p>
+        )}
+        {/* Prediction as the kit's cdb-wl-pred footer text (star + score +
+            "predicted" caption), bottom-right. Hover keeps the verdict/confidence. */}
+        {prediction !== undefined && (
+          <div className="mt-auto flex justify-end pt-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge
-                  variant="outline"
-                  className={`gap-0.5 text-[10px] ${getPredictionColor(prediction.predictedScore)}`}
-                >
-                  <SparklesIcon className="size-2.5" />
+                <span className="inline-flex items-center gap-1 text-[13px] font-semibold tabular-nums">
+                  <StarIcon className="size-3 fill-amber-500 text-amber-500" />
                   {String(prediction.predictedScore)}
-                </Badge>
+                  <span className="ml-0.5 text-[10px] font-normal text-[var(--fg-dim)]">
+                    predicted
+                  </span>
+                </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
                 Predicted rating: {String(prediction.predictedScore)}/10 — {prediction.verdict} (
                 {prediction.confidence} confidence)
               </TooltipContent>
             </Tooltip>
-          )}
-        </div>
-        {entry.notes !== null && entry.notes.length > 0 && (
-          <p className="text-muted-foreground mt-1.5 line-clamp-2 text-xs">{entry.notes}</p>
+          </div>
         )}
       </div>
     </div>

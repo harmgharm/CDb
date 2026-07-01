@@ -24,7 +24,7 @@ import {
 } from "@/components/editorial/magazine-cover-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserGameStats } from "@/components/users/game-stats";
@@ -37,6 +37,16 @@ import { useUserList, useUserProfile, useUserStats } from "@/hooks/use-users";
 import { resolveDetailState } from "@/lib/api/detail-state";
 import { type ProfileTab, resolveProfileTab } from "@/lib/users/profile-tabs";
 import type { UserProfile } from "@/types/user-responses";
+
+// Gold-active soft-chip tabs (kit's cdb-up-tab.active). Overrides the shadcn
+// TabsTrigger's white-active bordered chip via className — same pattern as the
+// For You tools card's TOOLS_TAB_CLASS. The dark: variants are needed to beat
+// the primitive's own dark:data-[state=active]:* rules.
+const PROFILE_TAB_CLASS = [
+  "data-[state=active]:text-cdb-marquee-text dark:data-[state=active]:text-cdb-marquee-text",
+  "data-[state=active]:border-transparent dark:data-[state=active]:border-transparent",
+  "data-[state=active]:shadow-none",
+].join(" ");
 
 function getInitials(displayName: string | null, username: string): string {
   const name = displayName ?? username;
@@ -60,32 +70,49 @@ interface StatCardProps {
   readonly value: string;
   readonly icon: React.ReactNode;
   readonly index: number;
+  /** Tints the value amber (the kit accents the Avg-rating tile). */
+  readonly accent?: boolean;
 }
 
-function StatCard({ title, value, icon, index }: StatCardProps) {
+/**
+ * Kit's cdb-up-stat-card: an uppercase micro-label + quiet fg-dim icon in a head
+ * row, then a large display-serif number below. The Avg-rating tile is tinted
+ * amber via `accent`.
+ */
+function StatCard({ title, value, icon, index, accent = false }: StatCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 + index * 0.1, duration: 0.3, ease: "easeOut" as const }}
     >
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          {icon}
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{value}</div>
-        </CardContent>
+      <Card className="px-4 py-3.5">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[10px] font-semibold tracking-[0.1em] text-[var(--fg-muted)] uppercase">
+            {title}
+          </span>
+          <span className="text-[var(--fg-dim)]">{icon}</span>
+        </div>
+        <div
+          className={`font-display mt-1.5 text-[32px] leading-none tracking-[-0.02em] tabular-nums ${
+            accent ? "text-cdb-marquee" : ""
+          }`}
+        >
+          {value}
+        </div>
       </Card>
     </motion.div>
   );
 }
 
+// Kit's cdb-up-role-badge: an amber pill (marquee tints) around the role.
+const ROLE_PILL_CLASS =
+  "text-cdb-marquee-text inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--cdb-marquee)_32%,transparent)] bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)] px-2.5 py-1 text-[11px] font-semibold tracking-[0.04em]";
+
 function ProfileRoleBadge({ role }: Readonly<{ role: UserProfile["role"] }>) {
   if (role === "admin") {
     return (
-      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+      <span className={ROLE_PILL_CLASS}>
         <ShieldIcon className="size-3" />
         Admin
       </span>
@@ -93,7 +120,7 @@ function ProfileRoleBadge({ role }: Readonly<{ role: UserProfile["role"] }>) {
   }
   if (role === "moderator") {
     return (
-      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+      <span className={ROLE_PILL_CLASS}>
         <ShieldCheckIcon className="size-3" />
         Mod
       </span>
@@ -237,22 +264,26 @@ function ProfileView({
     {
       title: "Sessions",
       value: String(profile.stats.sessionsAttended),
-      icon: <ClapperboardIcon className="text-muted-foreground size-4" />,
+      icon: <ClapperboardIcon className="size-3.5" />,
+      accent: false,
     },
     {
       title: "Avg Rating",
       value: profile.stats.avgScore === null ? "—" : profile.stats.avgScore.toFixed(1),
-      icon: <StarIcon className="text-muted-foreground size-4" />,
+      icon: <StarIcon className="size-3.5" />,
+      accent: true,
     },
     {
       title: "Picks",
       value: String(profile.stats.pickCount),
-      icon: <CrownIcon className="text-muted-foreground size-4" />,
+      icon: <CrownIcon className="size-3.5" />,
+      accent: false,
     },
     {
       title: "Ratings",
       value: String(profile.stats.ratingsGiven),
-      icon: <StarIcon className="text-muted-foreground size-4" />,
+      icon: <StarIcon className="size-3.5" />,
+      accent: false,
     },
   ];
 
@@ -295,26 +326,30 @@ function ProfileView({
               value={card.value}
               icon={card.icon}
               index={index}
+              accent={card.accent}
             />
           ))}
         </div>
 
         {/* Tabbed content — active tab mirrors the `?tab=` query param. */}
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="overview">
+          {/* Kit's cdb-up-tabs hugs its content, left-aligned. The list is w-fit
+              but the Tabs root is a flex column that stretches it — self-start
+              (the kit's align-self: flex-start) stops the stretch. */}
+          <TabsList className="self-start">
+            <TabsTrigger value="overview" className={PROFILE_TAB_CLASS}>
               <LayoutDashboardIcon className="size-4" />
               <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="stats">
+            <TabsTrigger value="stats" className={PROFILE_TAB_CLASS}>
               <BarChart3Icon className="size-4" />
               <span className="hidden sm:inline">Stats</span>
             </TabsTrigger>
-            <TabsTrigger value="games">
+            <TabsTrigger value="games" className={PROFILE_TAB_CLASS}>
               <Gamepad2Icon className="size-4" />
               <span className="hidden sm:inline">Games</span>
             </TabsTrigger>
-            <TabsTrigger value="watchlist">
+            <TabsTrigger value="watchlist" className={PROFILE_TAB_CLASS}>
               <BookmarkIcon className="size-4" />
               <span className="hidden sm:inline">Watchlist</span>
             </TabsTrigger>

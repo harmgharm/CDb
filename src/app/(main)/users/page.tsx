@@ -9,7 +9,9 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOnlineUsers } from "@/hooks/use-online-users";
+import { useDashboardStats } from "@/hooks/use-stats";
 import { useUserList } from "@/hooks/use-users";
+import { buildRosterLede } from "@/lib/users/roster-lede";
 import type { UserListItem } from "@/types/user-responses";
 
 function getInitials(displayName: string | null, username: string): string {
@@ -157,10 +159,18 @@ function RosterRowSkeleton() {
 export default function UsersPage() {
   const { user } = useAuth();
   const { data: users, isLoading } = useUserList();
+  // The roster lede's "N weeks in" reads the same group-wide aggregate as the
+  // Database masthead; null until the dashboard stats land (lede degrades).
+  const { data: dashboardStats } = useDashboardStats();
 
   return (
     <div className="mx-auto max-w-5xl">
-      <RosterContent users={users} isLoading={isLoading} authReady={user !== null} />
+      <RosterContent
+        users={users}
+        isLoading={isLoading}
+        authReady={user !== null}
+        weeksActive={dashboardStats?.weeksSinceFirstSession ?? null}
+      />
     </div>
   );
 }
@@ -174,36 +184,64 @@ function RosterContent({
   users,
   isLoading,
   authReady,
-}: Readonly<{ users: UserListItem[] | undefined; isLoading: boolean; authReady: boolean }>) {
+  weeksActive,
+}: Readonly<{
+  users: UserListItem[] | undefined;
+  isLoading: boolean;
+  authReady: boolean;
+  weeksActive: number | null;
+}>) {
   if (!authReady) {
-    return <RosterShell users={users} isLoading={isLoading} onlineIds={new Set()} />;
+    return (
+      <RosterShell
+        users={users}
+        isLoading={isLoading}
+        onlineIds={new Set()}
+        weeksActive={weeksActive}
+      />
+    );
   }
-  return <RosterWithPresence users={users} isLoading={isLoading} />;
+  return <RosterWithPresence users={users} isLoading={isLoading} weeksActive={weeksActive} />;
 }
 
 function RosterWithPresence({
   users,
   isLoading,
-}: Readonly<{ users: UserListItem[] | undefined; isLoading: boolean }>) {
+  weeksActive,
+}: Readonly<{
+  users: UserListItem[] | undefined;
+  isLoading: boolean;
+  weeksActive: number | null;
+}>) {
   const onlineUsers = useOnlineUsers();
   const onlineIds = new Set(onlineUsers.map((u) => u.userId));
-  return <RosterShell users={users} isLoading={isLoading} onlineIds={onlineIds} />;
+  return (
+    <RosterShell
+      users={users}
+      isLoading={isLoading}
+      onlineIds={onlineIds}
+      weeksActive={weeksActive}
+    />
+  );
 }
 
 function RosterShell({
   users,
   isLoading,
   onlineIds,
+  weeksActive,
 }: Readonly<{
   users: UserListItem[] | undefined;
   isLoading: boolean;
   onlineIds: Set<string>;
+  weeksActive: number | null;
 }>) {
   const memberCount = users?.length ?? 0;
   const onlineCount = users === undefined ? 0 : users.filter((u) => onlineIds.has(u.id)).length;
   const memberNoun = memberCount === 1 ? "member" : "members";
   const eyebrow =
     users === undefined ? "Ensemble cast" : `Ensemble cast · ${String(memberCount)} ${memberNoun}`;
+  const lede = buildRosterLede({ memberCount, weeksActive });
 
   return (
     <>
@@ -215,7 +253,7 @@ function RosterShell({
           The <em className="text-cdb-marquee tracking-[-0.06em] italic">cast</em>
         </h1>
         <p className="font-display text-muted-foreground mx-auto max-w-[560px] text-center text-lg leading-[1.4] italic">
-          Everyone who shows up for the group&apos;s screening room.
+          {lede}
         </p>
       </header>
 

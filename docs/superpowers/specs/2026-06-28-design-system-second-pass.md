@@ -46,9 +46,9 @@ the lower rows are placeholders until then.
 2. **Database** — ✅ implemented (below). Low drift (Phase 6 shipped
    masthead/featured/filters/timeline).
 3. **Media detail** — ✅ implemented (below). Done out of order, owner-driven (kit barely mocks it).
-4. **For You (recommendations)** — next, to audit
-5. Users + User Profile — to audit
-6. Settings — to audit
+4. **For You (recommendations)** — ✅ implemented (below).
+5. **Users + User Profile** — ✅ implemented (below). Low drift.
+6. **Settings** — next, to audit
 7. Auth (login / signup) — to audit
 8. Landing — to audit
 9. Play hub — to audit
@@ -646,3 +646,305 @@ fitted to the _Database_-shaped shared masthead and a split section head, not th
       head, no colored left bar; poster row + dismiss + refresh + expand all still work.
 - [ ] Light mode readable, no broken contrast, no missing tokens. **(owner visual pass)**
 - [x] No regression on Database / not-found mastheads (smoke check). Overflow 0px at 375–1920.
+
+---
+
+## Page — Users + User Profile ✅ implemented 2026-06-30 (pending review)
+
+Audited + implemented 2026-06-30. **Low drift, as predicted.** Backend slice is TDD (6 new tests in
+`tests/lib/users/roster-lede.test.ts`). `pnpm typecheck`, `pnpm lint`, `pnpm test` (**533**) all
+green. Headless smoke (tester login, 1280px): roster + admin profile both **0px overflow, 0 console
+errors**; roster lede renders "8 regulars · 80 weeks in, one Sunday slot." on real data; profile
+shows the gold-active tab, serif/amber stat tiles, and the 4-up pick grid with W/L badges (City of
+God 7.6 → W, Hard Candy 3.1 → L). Owner does the real visual pass.
+
+**What shipped:**
+
+- **No new DB query.** The roster lede's "N weeks in" reads the _existing_ `weeksSinceFirstSession`
+  from `/api/stats` (same aggregate driving the Database masthead) via `useDashboardStats()`. The
+  only new logic is a pure `buildRosterLede({ memberCount, weeksActive })` helper
+  (`src/lib/users/roster-lede.ts`, TDD): pluralizes regulars/weeks, drops the weeks clause when null
+  (pre-first-session), and falls back to the evergreen line when `memberCount <= 0` (also the
+  loading state, since `memberCount` derives from `users?.length ?? 0`).
+- **`weeksActive` threaded** through `UsersPage → RosterContent → RosterWithPresence → RosterShell`
+  as a plain prop (null until dashboard stats land; lede degrades gracefully, no flicker to wrong
+  numbers — it goes evergreen → full, never wrong→right).
+- **Profile tab bar** restyled to the kit's gold-active soft-chip via a `PROFILE_TAB_CLASS`
+  className (the For You `TOOLS_TAB_CLASS` pattern verbatim); shadcn `Tabs` primitive untouched.
+- **Profile stat tiles** rebuilt to `cdb-up-stat-card`: uppercase mono micro-label + quiet `fg-dim`
+  icon head row, **display-serif 32px** value, **Avg-rating tile tinted amber** via an `accent`
+  flag. Dropped the old `CardHeader/Content/Title` chrome (and trimmed those imports).
+- **Recent picks** rebuilt from the 2-up card list to the kit's **4-up editorial poster grid**
+  (`grid-cols-2 lg:grid-cols-4`): full 2:3 poster, numbered serif title (`01`…), `type · year` meta,
+  `★ avg /10 group avg` line, **plus the kept W/L badge** (avg ≥ 7 = W). Collapsed to one 4-up row
+  (`COLLAPSED_COUNT`) with a "See all N more" / "Show less" toggle (see owner follow-up below — the
+  initial hard cap was replaced). Added `media.release_year` to the recentPicks query (select +
+  groupBy) and the `RecentPick` type to feed the year in the meta.
+
+### Surface A — Users roster ("The Cast")
+
+**Two surfaces, both editorial.** Audited against `Users.jsx` + `UserProfile.jsx` /
+`UserProfileTabs.jsx` and `kit.css` (`cdb-us-*`, `cdb-up-*`). Headline finding: **low drift
+overall.** The first rollout (Phase 7/8) already shipped the credits-page roster, the
+`MagazineCoverHeader`, the stat tiles, and the Stats / Games / Watchlist panes — all of those
+already match the kit structurally. The remaining gap is concentrated in **two spots on the
+profile's Overview tab** plus the **tab bar chrome**, and one **mock-data line** on the roster. No
+section needs reordering; no pane needs rebuilding.
+
+Current files: `src/app/(main)/users/page.tsx` (roster), `src/app/(main)/users/[id]/page.tsx`
+(profile) + `src/components/users/*`, `src/components/stats/*`, `src/components/watchlist/*`.
+
+### Review (feature-dev code-reviewer + manual, 2026-06-30)
+
+No Critical findings. Two Important findings, both reconciled:
+
+- **Recent-picks header count over-counted (conf 88).** The header showed `picks.length` (the API's
+  `.limit(20)`) while the grid renders only `MAX_PICKS` (4) — "Recent picks (20)" above 4 cards.
+  **Fixed**, kit-faithfully: dropped the parenthetical count entirely (the kit's header is just
+  "Recent picks", no count). A `(4)` would have been redundant; a `(20)` misleading.
+- **Roster lede flicker (conf 80).** `users` and `dashboardStats` are independent SWR reads, so the
+  lede can render "N regulars, one Sunday slot." then update to add "· W weeks in" when stats land.
+  **Left as-is (accepted):** it's the documented Database-masthead pattern (`buildFootnote` does the
+  same), and it only ever goes evergreen → partial → full — **never shows a wrong number**, just a
+  less-complete sentence. Co-locating the read to defer the lede would trade the flicker for a
+  _missing_ lede, which is worse in the hero position.
+
+Everything else the reviewer checked (SQL group-by correctness, `Number()`-wrapping, the
+`avg_score`/`rating_count` null guard, Readonly props, `String()` in JSX, named exports, the
+`PickCard` key, the `authReady` presence guard) came back clean.
+
+### Owner follow-ups (second visual pass, 2026-06-30)
+
+Three adjustments after the owner's first look, all verified headless (admin profile, 0px overflow):
+
+1. **Warmer profile backdrop.** The kit's profile scrim sits over a browner near-black
+   (`rgba(15,11,10)`) than our neutral `--bg` (`oklch(0.13 0.008 60)` — warm hue but ~0 chroma).
+   Added a faint amber wash to `MagazineCoverBackdrop`
+   (`bg-gradient-to-b from-[color-mix(in_oklch,var(--cdb-marquee)_9%,transparent)] to-transparent`,
+   strongest at top, fading down) to recover the magazine-cover warmth. Stays on-token (light-mode
+   safe). **Scope-safe:** `MagazineCoverBackdrop` is consumed only by the profile page — no other
+   screen uses it, so no shared-primitive regression.
+2. **Tab bar is content-width, not full-width.** The shadcn `TabsList` is `w-fit`, but the `Tabs`
+   root is a flex column that stretched it to full width. Added `self-start` (the kit's
+   `align-self: flex-start`) so the bar hugs its tabs, left-aligned — matching `cdb-up-tabs`.
+3. **Recent picks → show more/less, not a hard cap.** Replaced the 4-cap with the For You section's
+   expand pattern: collapsed shows one 4-up row, a centered ghost toggle reads "See all N more" /
+   "Show less" (`COLLAPSED_COUNT = 4`). Verified: admin (20 picks) → "See all 16 more" → expands to
+   all 20 → "Show less". Animation stagger capped (`Math.min(index, COLLAPSED_COUNT)`) so a 20-pick
+   expand doesn't trail in over a second.
+
+### Surface A — Users roster ("The Cast")
+
+Already a faithful match: editorial header (eyebrow · N members → serif "The _cast_" → italic lede),
+`IssueLine`, numbered rows (rank · avatar+presence dot · name+role+tagline+handle ·
+Picks/Watched/Avg stats · arrow). Tokens, fonts, ratios, hover all line up with `cdb-us-*`.
+
+#### Drift checklist (roster)
+
+- [x] **Lede subtext is hardcoded mock copy.** Live read
+      `"Everyone who shows up for the group's screening room."` (kit mocks
+      `"Five regulars, one Sunday slot, 23 weeks in."`). **DONE** — now data-driven via
+      `buildRosterLede` ("N regulars · K weeks in, one Sunday slot."), reusing the existing
+      `weeksSinceFirstSession` aggregate. Evergreen line kept as the empty/loading fallback.
+- [ ] **`IssueLine` date is `MMMM YYYY` via `formatIssueDate`; kit shows roman-numeral month**
+      (`Roster · May MMMM`). This is the same issue-line primitive used app-wide; **keep as-is**
+      (the roman-numeral month is a kit affectation we standardized away from — flagging, not
+      changing).
+
+### Surface B — User profile
+
+Header (`MagazineCoverHeader` + `MagazineCoverBackdrop`), the 4 stat tiles, and the Stats / Games /
+Watchlist tab panes all already match `cdb-up-*` / the `UserProfileTabs.jsx` recreations (the kit
+file literally annotates those panes as "faithful to the real app surfaces"). Confirmed component by
+component. The drift is the **Overview tab** and the **tab bar**.
+
+#### Kit section order (target) — already matches
+
+1. Back-to-cast link
+2. Magazine-cover header (roster #, credit, avatar+presence, serif name, role badge, italic tagline,
+   meta)
+3. 4 stat tiles (Sessions / Avg rating / Picks / Ratings)
+4. Tab bar (Overview / Stats / Games / Watchlist)
+5. Overview: **Rating distribution** card, then **Recent picks** card
+
+#### Current order (live) — same as target
+
+`Back → MagazineCoverHeader → 4 StatCards → Tabs[Overview|Stats|Games|Watchlist]`, Overview =
+`RatingDistribution → RecentPicks`. **No reordering needed.**
+
+#### Drift checklist (profile)
+
+- [x] **Tab bar uses default shadcn `TabsList` chrome (white-active, bordered/shadowed chip).**
+      **DONE** — `PROFILE_TAB_CLASS` (the For You `TOOLS_TAB_CLASS` pattern) applied to all four
+      triggers via `className`; primitive untouched. Verified headless: Overview tab renders amber.
+
+- [x] **Recent picks: wrong layout.** **DONE** — rebuilt to the kit's 4-up editorial poster grid
+      (full 2:3 poster, numbered serif title, type · year meta, `★ avg /10 group avg`). **W/L badge
+      kept** (owner decision). `avgScore` → the group-avg line + the W badge; `release_year` added
+      to the API for the year.
+
+- [x] **Recent picks count.** **DONE** — `grid-cols-2 lg:grid-cols-4` (2-up narrow, 4-up wide).
+      Initially a hard 4-cap; the owner-follow-up pass replaced it with a collapse-to-one-row + "See
+      all N more" toggle (`COLLAPSED_COUNT`). API returns up to 20.
+
+- [ ] **Rating distribution card chrome (minor).** Live bars are interactive (click to expand a
+      per-score rated-titles list) — a **real feature the kit doesn't have** and we keep. Structure
+      (10 cols, count above, axis below, avg bar amber) already matches. Only token nits: kit fill
+      for the avg column is `var(--cdb-marquee)` and others `var(--bg-elev-3)`; live uses
+      `bg-primary` (= marquee) for avg and `bg-[var(--bg-elev-3)]` otherwise — **already matches.**
+      The header "N ratings · avg X.X" matches. → **Keep as-is**; the expand interaction is an
+      intentional improvement over the kit.
+
+- [x] **Stat tiles — confirm chrome.** **DONE** — matched the kit (owner decision): uppercase mono
+      micro-label + quiet `fg-dim` icon head row, **display-serif 32px** value, **Avg-rating tile
+      tinted amber** via `accent`. Old `CardHeader/Content/Title` chrome dropped.
+
+### Keep as-is (flagged, not matching the kit literally)
+
+- **Roster `IssueLine` month format** — roman-numeral month is a kit affectation; we standardized on
+  `MMMM YYYY`. Not changing.
+- **Rating-distribution click-to-expand** — a real feature beyond the kit; keep it.
+- **Profile tagline source** — kit hardcodes `USER_TAGLINES`; live reads the real `tagline` column
+  (already wired). No change.
+
+### Net new backend work for this page
+
+- **No new query.** The roster's "weeks in" reuses the existing `/api/stats`
+  `weeksSinceFirstSession`. The only schema-touching change was additive: `media.release_year` added
+  to the existing `recentPicks` select/groupBy (+ the `RecentPick` type) so the pick card can show
+  the year. No migration.
+
+### Judgment calls — RESOLVED with the owner (2026-06-30)
+
+1. **Roster lede → wire to real data.** Render "N regulars · K weeks in" style copy from real
+   aggregates (member count is already real; add a cheap `MIN(date_watched)` →
+   weeks-since-first-session). Keep the editorial cadence ("one Sunday slot") around the live
+   numbers; sentence case, `·` separator, no em-dash.
+2. **Recent-picks W/L badge → keep it.** Rebuild to the kit's 4-up editorial poster grid but retain
+   our real W/L chip near the rating (pick rated ≥7 group avg = W). Tasteful, small; substance over
+   pure kit fidelity.
+3. **Profile stat tiles → match the kit.** Display-serif 32px value, Avg-rating tile tinted amber.
+   (Diverges from the homepage strip, which stayed sans — but this is the profile's own tile
+   treatment and the owner wants the editorial serif here.)
+
+### Acceptance (Users + Profile)
+
+- [x] `pnpm typecheck && pnpm lint && pnpm test` (**533**) pass.
+- [x] Roster lede data-driven ("8 regulars · 80 weeks in, one Sunday slot."); member count stays
+      real; evergreen fallback for empty/loading.
+- [x] Profile tab bar is the gold-active soft-chip control (For You pattern), primitive untouched.
+- [x] Recent picks is the 4-up editorial poster grid (numbered serif title, type·year, group-avg
+      rating + kept W/L badge), `grid-cols-2 lg:grid-cols-4`, with a show more/less toggle
+      (collapsed to one row, "See all N more" → "Show less").
+- [x] Stat tiles match the kit (serif value, amber Avg).
+- [x] Rating-distribution expand interaction still works (verified headless: 5 `/database/` links =
+      4 picks + 1 dist-expand link).
+- [ ] Light mode readable, no broken tokens. **(owner visual pass)**
+- [x] No regression on the roster or other editorial surfaces (smoke check: roster + profile 0px
+      overflow, 0 console errors).
+
+### Second-pass owner asks (2026-06-30, third visual pass) — ✅ implemented (pending review)
+
+Implemented 2026-06-30/07-01. `pnpm typecheck`, `pnpm lint`, `pnpm test` (533) all green. **Summary
+of what shipped** (details per item below):
+
+- **Games (1):** `year_guess` wired through the type (`UserGameStatsResponse.yearGuess`) + the
+  `/api/users/[id]/games/stats` route (partition + `buildGameTypeStats`) — additive, no migration.
+  `UserGameStats` rewritten: each game is now a `Card` (`bg-elev-1`, kit's `cdb-game-section`) with
+  an icon-tinted header, hero row, and **inline** sub-heads (Ranked best scores / Game details /
+  Recent games) — no more accordions. Per-game icon tint (poster→amber, rating→rose, year→tv-cyan;
+  cherry stays reserved for live MP). **Game details kept** (Rounds/Games Won) as an inline block.
+  **Recent games** collapses to 3 with a "See all N more" / "Show less" toggle. year_guess's recent
+  subtitle uses the existing "X/Y correct" branch (accuracy-scored).
+- **Watchlist (2):** prediction moved from the top outline `<Badge>` to the kit's `cdb-wl-pred`
+  footer text (`★ score predicted`, amber star + bold score + `fg-dim` caption), bottom-right of the
+  content column. Tooltip (verdict + confidence) kept on hover. Dropped `getPredictionColor` +
+  `Badge`/`SparklesIcon` imports.
+- **Role badge (3):** `ProfileRoleBadge` is now the kit's amber pill (`cdb-up-role-badge`: marquee
+  16% bg, 32% border, marquee text, rounded-full), shared `ROLE_PILL_CLASS` for Admin + Mod.
+- **Tagline (4):** `MagazineCoverHeader` wraps the tagline in curly quotes (`&ldquo;…&rdquo;`).
+  Scope-safe — that primitive renders only on the profile page.
+
+#### Review (feature-dev + manual, 2026-07-01)
+
+One Critical + one Important, both fixed and re-verified:
+
+- **Global rank was corrupt (Critical, conf 95).** `buildGameTypeStats` did `rankResult.count + 1`
+  where `count` came from `countAll<number>()` — a compile-time cast over a value Neon returns as a
+  **string**, so `"1" + 1` concatenated to `"11"`. **Pre-existing** (poster/rating already shipped
+  it), but my change amplified it to 3 games and it violates CLAUDE.md's "`Number()`-wrap
+  `countAll()`" rule. Verified live against admin: API returned `globalRankNormal: '01'`,
+  `globalRankHard: '11'`. **Fixed** by typing the query `countAll<string>()` (matches runtime;
+  `no-unnecessary-type-conversion` would flag `Number()` over a `<number>` cast) + wrapping with
+  `Number()`. Re-verified live: ranks now `1` and `2` (integers).
+- **Skeleton showed 2 cards for a 3-card tab (Important, conf 85).** `GameStatsSkeleton` looped
+  `length: 2`; bumped to 3 to match the three game cards (no load-time layout snap).
+
+Everything else the reviewer checked came back clean: `GAME_TONE` exhaustiveness (typed
+`Record<GameType, string>`), the `RecentGamesList` toggle logic + delay cap, the watchlist `mt-auto`
+footer layout (incl. no-prediction cards), `hasAnyGames` including `yearGuess`, the year_guess API
+partition, all removed imports (`getPredictionColor`/`Badge`/`SparklesIcon` gone, `StatsSection`
+still used by the Stats tab), the `ROLE_PILL_CLASS` refactor, and the tagline entities.
+
+#### Audit (kept for reference)
+
+Four more kit differences the owner wants adopted after living with the first pass. Audited against
+`UserProfileTabs.jsx` (`GamesPane`, `WatchlistPane`) + `UserProfile.jsx` and `kit.css`.
+
+**1. Games tab — restructure to one card per game + add the missing Year Guesser.**
+
+- **Current:** `UserGameStats` renders only `posterReveal` + `ratingGuess`, each as a header + hero
+  row + **three collapsible `StatsSection` accordions** (Ranked Best Scores / Game Details / Recent
+  Games). **`year_guess` is missing end-to-end** — not in `UserGameStatsResponse`, not in the API
+  route, not rendered.
+- **Kit:** each game is one `cdb-game-section` card — icon-tinted header, hero-stats row, a "Ranked
+  best scores" sub-head + grid, and a "Recent games" sub-head + list, **all inline** (no
+  accordions). The kit omits the "Game Details" (Rounds Won / Games Won) block.
+- **Target (owner):** **three** big cards (Poster Reveal, Rating Guesser, **Year Guesser**), each
+  with inline sections like the kit — but **keep our Game Details stats** (the kit dropped them; we
+  don't want to lose them). So: wire year_guess through the type + API + UI, wrap each game in a
+  `Card`, and de-accordion the sections (Ranked Best Scores + Game Details + Recent Games all
+  inline). year_guess's "Recent games" subtitle falls into the existing "X/Y correct" branch (it's
+  accuracy-scored with `is_correct` per round) — no special-casing needed.
+- **Backend:** additive, no migration. `game_leaderboard` + `game_sessions` already carry year_guess
+  rows; the route just doesn't partition/build them. Add
+  `buildGameTypeStats(userId, "year_guess", …)` + a `yearGuessRecent` partition + `yearGuess` on the
+  response, and `yearGuess: GameTypeStats | null` on the type. `getClientGameConfig` already has the
+  Year Guesser config (calendar icon, `/play/year-guess`).
+- **Open judgment calls (below):** do Recent Games / Game Details stay collapsible or go inline?
+
+**2. Watchlist card — prediction as kit's footer text, not our badge.**
+
+- **Current:** `WatchlistCard` shows the prediction as an outline `<Badge>` (sparkles icon + score,
+  color-tiered) in the **top meta row**, with a tooltip (verdict + confidence).
+- **Kit:** `cdb-wl-pred` is a **bottom-right footer** treatment — `★ 7.4 predicted` (star, score
+  size-13 bold, tiny "predicted" caption in `fg-dim`), opposite the status pill in a
+  `cdb-wl-card-foot` row.
+- **Target:** move the prediction to a kit-style footer text (star + score + "predicted"). Owner
+  said the other watchlist-card differences are **not** in scope — only the prediction treatment.
+- **Decision needed:** keep the tooltip (verdict/confidence) on the new footer text, or drop it? The
+  kit has no tooltip; the data is useful. Leaning keep-on-hover.
+
+**3. Role badge — pill around "icon + Admin/Mod" at the top of the profile.**
+
+- **Current:** `ProfileRoleBadge` is plain muted text (`ShieldIcon` + "Admin"), no chrome.
+- **Kit:** `cdb-up-role-badge` is an amber pill — `color-mix(marquee 16%)` bg, `marquee 32%` border,
+  marquee text, `rounded-full`, `4px 11px` padding. Small change, header only.
+
+**4. Tagline — curly quotes around the user's custom quote.**
+
+- **Current:** `MagazineCoverHeader` renders the tagline bare (italic serif, no quotes).
+- **Kit:** wraps it in curly quotes (`&ldquo;…&rdquo;`). Small. **Note:** `MagazineCoverHeader` is a
+  shared primitive — but it's consumed only by the profile page (confirmed), so quoting the tagline
+  there is scope-safe. (If the roster's inline tagline should also get quotes for consistency, flag
+  — the roster tagline is a different element, currently unquoted.)
+
+#### Judgment calls — RESOLVED with the owner (2026-06-30)
+
+1. **Recent Games → inline + show-more.** Kit's inline look, but collapsed to ~3 rows with a "See
+   all N more" / "Show less" toggle per game (the RecentPicks/For You pattern) so 3 active games
+   don't make a wall of rows.
+2. **Game Details → inline sub-section.** Keep Rounds Won / Games Won (kit dropped them) as an
+   always-visible inline block, matching the kit's all-inline card rhythm.
+3. **Watchlist prediction → keep the tooltip.** New kit-style footer text (`★ score predicted`), but
+   hover still reveals verdict + confidence.

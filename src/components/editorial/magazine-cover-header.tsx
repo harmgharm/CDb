@@ -34,6 +34,11 @@ export function MagazineCoverBackdrop({ avatarUrl }: Readonly<{ avatarUrl?: stri
         <div className="bg-cdb-marquee/20 absolute inset-0 opacity-45 blur-[80px]" />
       )}
       <div className="from-background/50 via-background/85 to-background absolute inset-0 bg-gradient-to-b" />
+      {/* Warm "magazine cover" wash: the kit's scrim sits over a browner near-black
+          (rgba(15,11,10)) than our neutral --bg. A faint amber overlay, strongest at
+          the top and fading out downward, recovers that warmth while staying on-token
+          (light mode safe). */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[color-mix(in_oklch,var(--cdb-marquee)_9%,transparent)] to-transparent" />
       <div className="cdb-grain" style={{ "--cdb-grain-opacity": "0.15" } as React.CSSProperties} />
     </div>
   );
@@ -126,7 +131,9 @@ export function MagazineCoverHeader({
             {roleBadge}
           </div>
           {hasText(tagline) && (
-            <p className="font-display text-cdb-marquee-text m-0 text-xl italic">{tagline}</p>
+            <p className="font-display text-cdb-marquee-text m-0 text-xl italic">
+              &ldquo;{tagline}&rdquo;
+            </p>
           )}
           <div className="text-muted-foreground flex flex-wrap items-center gap-2 font-mono text-xs tracking-[0.04em]">
             <span>{handle}</span>

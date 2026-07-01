@@ -3,10 +3,15 @@
 /**
  * UserGameStats — Game performance section for user profiles
  *
- * Shows per-game-type stats: hero metrics, ranked best scores, and recent game history.
+ * One card per game type (Poster Reveal / Rating Guesser / Year Guesser),
+ * matching the kit's cdb-game-section: an icon-tinted header, a hero-stats row,
+ * then inline sub-sections — Ranked best scores, Game details, and Recent games
+ * (collapsed to a few rows with a show-more toggle).
  */
 
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   FlameIcon,
   Gamepad2Icon,
   HashIcon,
@@ -18,10 +23,12 @@ import {
 } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
+import { useState } from "react";
 
 import { HeroStat } from "@/components/stats/hero-stat";
-import { StatsSection } from "@/components/stats/stats-section";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserGameStats } from "@/hooks/use-users";
 import type { GameType } from "@/lib/db/types";
@@ -32,15 +39,22 @@ interface UserGameStatsProps {
   readonly userId: string;
 }
 
+/** Recent games collapse to this many rows; the rest sit behind a toggle. */
+const RECENT_COLLAPSED = 3;
+
+/** Per-game icon-chip tint (brand tokens; cherry stays reserved for live MP). */
+const GAME_TONE: Record<GameType, string> = {
+  poster_reveal: "bg-amber-500/15 text-amber-500",
+  rating_guess: "bg-rose-500/15 text-rose-500",
+  year_guess: "bg-[color-mix(in_oklch,var(--cdb-tv)_18%,transparent)] text-cdb-tv",
+};
+
 function GameStatsSkeleton() {
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-20 rounded-lg" />
-        ))}
-      </div>
-      <Skeleton className="h-12 rounded-lg" />
+    <div className="space-y-6">
+      {Array.from({ length: 3 }, (_, index) => (
+        <Skeleton key={index} className="h-64 rounded-xl" />
+      ))}
     </div>
   );
 }
@@ -69,6 +83,19 @@ const MODE_LABELS: Record<string, string> = {
   multiplayer: "Multi",
 };
 
+/** Kit's cdb-sub-head: an uppercase micro-label with a small leading icon. */
+function SubHead({
+  icon,
+  children,
+}: Readonly<{ icon: React.ReactNode; children: React.ReactNode }>) {
+  return (
+    <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.07em] text-[var(--fg-dim)] uppercase">
+      {icon}
+      {children}
+    </div>
+  );
+}
+
 function RecentGameRow({
   game,
   index,
@@ -86,7 +113,7 @@ function RecentGameRow({
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.2 }}
+      transition={{ delay: Math.min(index, RECENT_COLLAPSED) * 0.05, duration: 0.2 }}
     >
       <Link
         href={game.mode === "multiplayer" ? `${basePath}/${game.gameId}` : basePath}
@@ -128,6 +155,49 @@ function RecentGameRow({
   );
 }
 
+function RecentGamesList({
+  games,
+  basePath,
+}: Readonly<{ games: UserRecentGame[]; basePath: string }>) {
+  const [expanded, setExpanded] = useState(false);
+
+  const visible = expanded ? games : games.slice(0, RECENT_COLLAPSED);
+  const hiddenCount = games.length - RECENT_COLLAPSED;
+  const canExpand = hiddenCount > 0;
+
+  return (
+    <div className="space-y-2">
+      {visible.map((game, index) => (
+        <RecentGameRow key={game.gameId} game={game} index={index} basePath={basePath} />
+      ))}
+      {canExpand && (
+        <div className="flex justify-center pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setExpanded((previous) => !previous);
+            }}
+          >
+            {expanded ? (
+              <>
+                <ArrowLeftIcon className="mr-1 size-3" />
+                Show less
+              </>
+            ) : (
+              <>
+                <ArrowRightIcon className="mr-1 size-3" />
+                See all {String(hiddenCount)} more
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GameTypeStatsSection({
   gameType,
   stats,
@@ -141,10 +211,14 @@ function GameTypeStatsSection({
     stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0;
 
   return (
-    <div className="space-y-4">
-      {/* Section header */}
-      <div className="flex items-center gap-2">
-        <Icon className="text-muted-foreground size-5" />
+    <Card className="gap-3.5 border-[var(--border)] bg-[var(--bg-elev-1)] p-5">
+      {/* Section header — icon chip + title */}
+      <div className="flex items-center gap-2.5">
+        <div
+          className={`flex size-8 items-center justify-center rounded-md ${GAME_TONE[gameType]}`}
+        >
+          <Icon className="size-4" />
+        </div>
         <h2 className="text-lg font-semibold">{displayName}</h2>
       </div>
 
@@ -181,53 +255,44 @@ function GameTypeStatsSection({
         />
       </div>
 
-      {/* Best scores + ranks */}
-      <StatsSection title="Ranked Best Scores" icon={<ZapIcon className="size-4" />}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BestScoreCard
-            label="Normal"
-            score={stats.bestScoreNormal}
-            rank={stats.globalRankNormal}
-          />
-          <BestScoreCard label="Hard" score={stats.bestScoreHard} rank={stats.globalRankHard} />
-        </div>
-      </StatsSection>
+      {/* Ranked best scores */}
+      <SubHead icon={<ZapIcon className="size-3" />}>Ranked best scores</SubHead>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <BestScoreCard label="Normal" score={stats.bestScoreNormal} rank={stats.globalRankNormal} />
+        <BestScoreCard label="Hard" score={stats.bestScoreHard} rank={stats.globalRankHard} />
+      </div>
 
-      {/* Additional stats */}
-      <StatsSection title="Game Details" icon={<TargetIcon className="size-4" />}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15">
-              <TargetIcon className="size-4 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">Rounds Won</p>
-              <p className="text-lg font-bold">{String(stats.roundsWon)}</p>
-            </div>
+      {/* Game details (kept — the kit drops these) */}
+      <SubHead icon={<TargetIcon className="size-3" />}>Game details</SubHead>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="bg-card flex items-center gap-3 rounded-lg border p-3">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15">
+            <TargetIcon className="size-4 text-emerald-500" />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-violet-500/15">
-              <Gamepad2Icon className="size-4 text-violet-500" />
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">Games Won</p>
-              <p className="text-lg font-bold">{String(stats.gamesWon)}</p>
-            </div>
+          <div>
+            <p className="text-muted-foreground text-xs">Rounds Won</p>
+            <p className="text-lg font-bold">{String(stats.roundsWon)}</p>
           </div>
         </div>
-      </StatsSection>
+        <div className="bg-card flex items-center gap-3 rounded-lg border p-3">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-violet-500/15">
+            <Gamepad2Icon className="size-4 text-violet-500" />
+          </div>
+          <div>
+            <p className="text-muted-foreground text-xs">Games Won</p>
+            <p className="text-lg font-bold">{String(stats.gamesWon)}</p>
+          </div>
+        </div>
+      </div>
 
-      {/* Recent games */}
+      {/* Recent games (inline, collapsed to a few rows) */}
       {stats.recentGames.length > 0 && (
-        <StatsSection title="Recent Games" icon={<Gamepad2Icon className="size-4" />}>
-          <div className="space-y-2">
-            {stats.recentGames.map((game, index) => (
-              <RecentGameRow key={game.gameId} game={game} index={index} basePath={basePath} />
-            ))}
-          </div>
-        </StatsSection>
+        <>
+          <SubHead icon={<Gamepad2Icon className="size-3" />}>Recent games</SubHead>
+          <RecentGamesList games={stats.recentGames} basePath={basePath} />
+        </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -240,18 +305,22 @@ export function UserGameStats({ userId }: UserGameStatsProps) {
     return null;
   }
 
-  const hasAnyGames = stats.posterReveal !== null || stats.ratingGuess !== null;
+  const hasAnyGames =
+    stats.posterReveal !== null || stats.ratingGuess !== null || stats.yearGuess !== null;
   if (!hasAnyGames) {
     return null;
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {stats.posterReveal !== null && (
         <GameTypeStatsSection gameType="poster_reveal" stats={stats.posterReveal} />
       )}
       {stats.ratingGuess !== null && (
         <GameTypeStatsSection gameType="rating_guess" stats={stats.ratingGuess} />
+      )}
+      {stats.yearGuess !== null && (
+        <GameTypeStatsSection gameType="year_guess" stats={stats.yearGuess} />
       )}
     </div>
   );
