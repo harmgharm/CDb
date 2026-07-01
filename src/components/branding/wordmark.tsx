@@ -8,7 +8,7 @@ const SIZE_CLASSES: Record<WordmarkSize, string> = {
   sm: "text-2xl",
   md: "text-5xl",
   xl: "text-[clamp(56px,7vw,88px)]",
-  lg: "text-[clamp(64px,12vw,144px)]",
+  lg: "text-[clamp(110px,15vw,220px)]",
 };
 
 interface WordmarkProps {

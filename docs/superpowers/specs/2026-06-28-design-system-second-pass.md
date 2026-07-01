@@ -50,8 +50,8 @@ the lower rows are placeholders until then.
 5. **Users + User Profile** — ✅ implemented (below). Low drift.
 6. **Settings** — ✅ implemented (below). Lowest drift so far.
 7. **Auth (login / signup)** — ✅ implemented (below). Low drift, copy + spacing only.
-8. **Landing** — next, to audit
-9. Play hub — to audit
+8. **Landing** — ✅ implemented (below). Low drift, sizing/alignment only.
+9. **Play hub** — next, to audit
 
 ---
 
@@ -1108,4 +1108,111 @@ Same structure on both pages. No reordering needed.
       Critical/Important findings. Confirmed correct conditional icon rendering (no key/fragment
       issue), correct auto-sizing via the `Button` primitive's `size-4` svg rule, no a11y gap (icon
       is decorative, button's accessible name comes from its visible text), no lint gotchas.
+- [ ] Light mode readable, no broken tokens (owner visual pass).
+
+---
+
+## Page — Landing ✅ implemented 2026-07-01 (pending review)
+
+Audited 2026-07-01 against `Landing.jsx` + `kit.css` (`.cdb-hero-*`, `.cdb-section*`, `.cdb-btn-*`,
+`.cdb-landing-footer`). **Low drift** — hero, feature grid, top-rated row, ticker, and footer
+sections all already present in the right order with the right content. The gap was entirely
+**sizing/alignment/button-treatment**, no structural or copy rework. Owner did their own visual pass
+first and flagged 5 items; all 5 confirmed via headless measurement + screenshot at 1440px before
+implementing. `pnpm typecheck` / `pnpm lint` / `pnpm test` (533) all green; headless re-measurement
+post-fix: title/first-poster left edges now identical (was 62px apart), wordmark height 324px (was
+~148px at this viewport), both buttons 44px tall, Sign up background fully transparent
+(`rgba(0,0,0,0)`, was a faint `oklab(...0.054)` tint), footer buttons stacked, 0px overflow. Owner
+does the real visual pass.
+
+Current files: `src/app/page.tsx`, `src/app/_landing/hero-section.tsx`,
+`src/app/_landing/top-rated-row.tsx`, `src/app/_landing/landing-footer.tsx`,
+`src/components/branding/wordmark.tsx`, `src/components/ui/button.tsx` (shared primitive, not
+touched — see notes below).
+
+### Kit section order (target) — already matches
+
+1. Hero: poster backdrop → CDb wordmark → tagline → stats line → Log in / Sign up (side by side)
+2. Feature grid (Track & rate / Smart picks / Stats & insights / Games)
+3. "Top rated by _the group_" + 6-poster row
+4. Recent ticker
+5. Footer: Log in / Sign up (stacked) + GitHub link + copyright line
+
+### Current order (live) — matches
+
+Same 5 sections, same order. No reordering needed.
+
+### Drift checklist
+
+- [x] **CDb wordmark is smaller than the kit.** Kit's `.cdb-hero-title` is
+      `clamp(110px, 15vw,     220px)`. Live's `Wordmark size="lg"` (used only here) was
+      `clamp(64px, 12vw, 144px)` — at a 1440px viewport that's 216px (kit) vs. 144px (live), a real
+      ~35% gap, not just a rounding difference. **DONE** — bumped the `lg` wordmark size to match
+      the kit's clamp exactly. `Wordmark` is a shared component (also used at `xl`/`md`/`sm`
+      elsewhere), but `lg` itself is **only consumed by the landing hero** (confirmed via grep) —
+      safe to resize without touching other call sites.
+- [x] **Hero + footer "Sign up" button reads as a whitish/filled shade, not clear.** Root cause:
+      shadcn's `outline` variant (`src/components/ui/button.tsx`) is `bg-background` +
+      `dark:bg-input/30` — a faint fill, not `background: transparent` like the kit's
+      `.cdb-btn-outline`. **This is the shared Button primitive, used app-wide — not changing the
+      global `outline` variant.** **DONE** — scoped `className` override on the two landing "Sign
+      up" buttons: `bg-transparent dark:bg-transparent` (both needed — the plain `bg-transparent`
+      alone didn't beat the variant's `dark:bg-input/30`, confirmed by computed-style check going
+      from a faint `oklab(...0.054)` tint to `rgba(0,0,0,0)` once the dark: override was added too).
+- [x] **Both hero + footer buttons are a bit smaller than the kit.** Kit's `.cdb-btn-lg` is
+      `height:     44px, padding: 0 22px`. Live's shared `Button` `lg` size was `h-10` (40px) +
+      `px-6` (24px) — close but shorter. Same reasoning as above: `size="lg"` is a shared prop used
+      elsewhere in the app, so **not resizing the global variant** — **DONE** via scoped
+      `className="h-11"` (44px) on the 4 landing buttons (2 hero + 2 footer).
+- [x] **"Sign up" button looking slightly bigger than "Log in" is not a deliberate kit size
+      difference** — checked `kit.css`: both are `cdb-btn-lg`, same height/padding. The kit's own
+      screenshot shows the same natural width difference (longer label + icon). **Left as-is** — no
+      fix needed, it's expected content-driven width, not something to force-equalize (owner
+      agreed).
+- [x] **"Top rated by the group" title doesn't sit above the first poster.** Confirmed via headless
+      measurement at 1440px: title's left edge sat **62px left of** the first poster's left edge in
+      the same container. Root cause: `top-rated-row.tsx`'s poster row used `sm:justify-center` to
+      center the poster group as a unit once it's narrower than the container, while the `<h2>`
+      above it stayed left-anchored in the same `mx-auto max-w-5xl` wrapper — the two never shared a
+      common left edge once the row didn't fill the container width. Kit's `.cdb-poster-row` is a
+      `grid` that always fills the section's full width (`repeat(6, minmax(0,1fr))`), so its first
+      cell's left edge is always the section's left edge, same as the title. **DONE** — dropped
+      `sm:justify-center` from the poster row (kept `overflow-x-auto` / `sm:overflow-x-visible`).
+      Re-measured: title and first poster now share the exact same x-position (0px gap) at 1440px.
+- [x] **Footer buttons are side by side; kit stacks them.** Kit's `.cdb-landing-footer` is
+      `flex-direction: column` — Log in above Sign up, not side by side (its `.cdb-hero-cta` row, by
+      contrast, genuinely is `inline-flex` / side by side — the hero and footer are NOT meant to
+      match each other here). Live's `LandingFooter` used `flex gap-3` (row, no direction override).
+      **DONE** — added `flex-col` to the footer's button wrapper only (hero stays a row,
+      unaffected).
+
+### Judgment calls
+
+None — all 5 owner-flagged items check out against the kit with a clear, scoped fix; no tradeoffs to
+weigh. The only editorial note is the "Sign up button looks bigger" item above, which inspection
+shows isn't a real kit difference to replicate.
+
+**Reviewed side-effect (not a tradeoff, just documenting):** removing `sm:justify-center` means that
+on very wide viewports where the poster row is narrower than the `max-w-5xl` container, the leftover
+space now trails on the right instead of splitting both sides. This is exactly the intended behavior
+(title and posters must share a left edge, per the kit's grid-fills-width model), confirmed by the
+feature-dev reviewer as correctly scoped, not a regression.
+
+### Acceptance criteria
+
+- [x] Wordmark `lg` size bumped to match kit's `clamp(110px, 15vw, 220px)` (landing-only impact,
+      confirmed no other call site uses `lg`).
+- [x] Hero + footer buttons bumped to `h-11` (44px) via scoped className, not the shared variant.
+- [x] "Sign up" buttons (hero + footer) get a `bg-transparent dark:bg-transparent` override so they
+      read as a true outline, not a faint fill (both prefixes needed — confirmed via computed
+      style).
+- [x] "Top rated by the group" title and first poster share a left edge at common viewport widths
+      (`sm:justify-center` removed from the poster row; re-measured 0px gap, was 62px).
+- [x] Footer's Log in / Sign up stack vertically; hero's stay side by side (unchanged).
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (533 tests).
+- [x] Manual click-test (headless smoke, 1440px) + feature-dev review — clean, no Critical/Important
+      findings. Confirmed the `sm:justify-center` removal is a correctly-scoped, intended tradeoff
+      (not a regression), the `size="lg"` wordmark scope is accurate (only consumer is the landing
+      hero), the `dark:bg-transparent` override is the idiomatic fix given tailwind-merge's per-slot
+      dedup behavior, and no lint gotchas apply.
 - [ ] Light mode readable, no broken tokens (owner visual pass).

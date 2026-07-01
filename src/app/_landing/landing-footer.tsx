@@ -18,14 +18,19 @@ export function LandingFooter() {
       className="border-border border-t px-6 py-12"
     >
       <div className="mx-auto flex max-w-4xl flex-col items-center gap-6">
-        <div className="flex gap-3">
-          <Button asChild size="lg">
+        <div className="flex flex-col gap-3">
+          <Button asChild size="lg" className="h-11">
             <Link href="/login">
               <LogInIcon className="mr-2 size-4" />
               Log in
             </Link>
           </Button>
-          <Button asChild variant="outline" size="lg">
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="h-11 bg-transparent dark:bg-transparent"
+          >
             <Link href="/signup">
               <UserPlusIcon className="mr-2 size-4" />
               Sign up

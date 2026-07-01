@@ -102,13 +102,18 @@ export function HeroSection({ stats }: HeroSectionProps) {
         </motion.div>
 
         <motion.div {...stagger(0.8)} className="mt-8 flex gap-3">
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="h-11">
             <Link href="/login">
               <LogInIcon className="mr-2 size-4" />
               Log in
             </Link>
           </Button>
-          <Button asChild variant="outline" size="lg">
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="h-11 bg-transparent dark:bg-transparent"
+          >
             <Link href="/signup">
               <UserPlusIcon className="mr-2 size-4" />
               Sign up
