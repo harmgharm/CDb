@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    outputs:
+      e2e-ready: ${{ steps.e2e-secrets.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      # The e2e job is skipped (not failed) until its secrets exist, so CI stays
+      # green on a fresh clone/fork while still surfacing a warning about the gap.
+      - name: Check e2e secrets
+        id: e2e-secrets
+        env:
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+        run: |
+          if [ -n "$E2E_DATABASE_URL" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::e2e job skipped — add E2E_DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, TMDB_API_KEY, ABLY_API_KEY as repository secrets to enable it."
+          fi
+
+  e2e:
+    name: Playwright e2e
+    runs-on: ubuntu-latest
+    needs: checks
+    if: needs.checks.outputs.e2e-ready == 'true'
+    # The e2e Neon branch is one shared database that global-setup wipes and
+    # reseeds — overlapping runs would corrupt each other. Queue, never overlap.
+    concurrency:
+      group: e2e-shared-db
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # playwright.config.ts and e2e/global-setup.ts both read .env.test from disk.
+      - name: Write .env.test
+        env:
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          ABLY_API_KEY: ${{ secrets.ABLY_API_KEY }}
+        run: |
+          {
+            printf 'DATABASE_URL=%s\n' "$E2E_DATABASE_URL"
+            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
+            printf 'JWT_REFRESH_SECRET=%s\n' "$JWT_REFRESH_SECRET"
+            printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            printf 'ABLY_API_KEY=%s\n' "$ABLY_API_KEY"
+            printf 'NEXT_PUBLIC_APP_URL=http://localhost:3001\n'
+          } > .env.test
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
