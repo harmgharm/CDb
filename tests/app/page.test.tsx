@@ -19,15 +19,46 @@ vi.mock("next/link", () => ({
     React.createElement("a", { href, ...rest }, children),
 }));
 
-// Mock motion/react-client — each named export (div, span, etc.) becomes
-// a plain HTML tag string so React renders the element without animation internals.
+// Mock motion/react-client — each named export (div, span, etc.) becomes a
+// plain HTML element with the motion-only props stripped, so React neither runs
+// animation internals nor warns about unknown DOM attributes (e.g. whileInView).
 vi.mock("motion/react-client", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  const mocked: Record<string, unknown> = {};
 
+  const MOTION_ONLY_PROPS = new Set([
+    "animate",
+    "exit",
+    "initial",
+    "layout",
+    "layoutId",
+    "onViewportEnter",
+    "onViewportLeave",
+    "transition",
+    "variants",
+    "viewport",
+    "whileDrag",
+    "whileFocus",
+    "whileHover",
+    "whileInView",
+    "whileTap",
+  ]);
+
+  const createDomStub = (tag: string) => {
+    const Stub = (props: Record<string, unknown>) =>
+      React.createElement(
+        tag,
+        Object.fromEntries(Object.entries(props).filter(([key]) => !MOTION_ONLY_PROPS.has(key))),
+      );
+    Stub.displayName = `motion.${tag}`;
+    return Stub;
+  };
+
+  const mocked: Record<string, unknown> = {};
   for (const key of Object.keys(actual)) {
     mocked[key] =
-      typeof actual[key] === "object" || typeof actual[key] === "function" ? key : actual[key];
+      typeof actual[key] === "object" || typeof actual[key] === "function"
+        ? createDomStub(key)
+        : actual[key];
   }
 
   return mocked;
