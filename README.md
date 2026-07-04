@@ -33,8 +33,8 @@ See [CLAUDE.md](./CLAUDE.md) for full conventions and development details.
 
 ### Prerequisites
 
-- Node.js 22+
-- pnpm 10+
+- Node.js 24+
+- pnpm 11+
 - A [Neon](https://neon.tech) Postgres database
 - [TMDB API key](https://developer.themoviedb.org)
 - [Ably API key](https://ably.com)
