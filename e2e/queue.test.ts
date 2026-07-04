@@ -24,6 +24,12 @@ neonConfig.webSocketConstructor = ws;
 
 const [MEDIA_A, MEDIA_B, MEDIA_C] = E2E_QUEUE_MEDIA_IDS;
 
+// Fake-but-unique tmdb_ids: media_external_id_check (migration 0030) requires every
+// media row to carry at least one external id. Kept far from real ids used in tests.
+const E2E_QUEUE_TMDB_BASE = 900_001;
+const E2E_QUEUE_TMDB_IDS = E2E_QUEUE_MEDIA_IDS.map((_id, i) => E2E_QUEUE_TMDB_BASE + i);
+const [TMDB_A] = E2E_QUEUE_TMDB_IDS;
+
 const byName = (a: string, b: string): number => a.localeCompare(b);
 
 type TestDb = Kysely<Record<string, Record<string, unknown>>>;
@@ -49,6 +55,11 @@ async function resetQueue(db: TestDb): Promise<void> {
   await db.deleteFrom("queue_proposals").where("media_id", "in", E2E_QUEUE_MEDIA_IDS).execute();
   // Sessions that may have been created by the advance-hook tests.
   await db.deleteFrom("watch_sessions").where("media_id", "in", E2E_QUEUE_MEDIA_IDS).execute();
+  // Watchlist rows must go before media: since migration 0030 deleting media
+  // fires SET NULL on watchlist.media_id, and a leftover row would then trip
+  // watchlist_anchor_check (or collide on watchlist_user_tmdb_unique next run).
+  await db.deleteFrom("watchlist").where("media_id", "in", E2E_QUEUE_MEDIA_IDS).execute();
+  await db.deleteFrom("watchlist").where("tmdb_id", "in", E2E_QUEUE_TMDB_IDS).execute();
   await db.deleteFrom("media").where("id", "in", E2E_QUEUE_MEDIA_IDS).execute();
 
   await db
@@ -58,6 +69,7 @@ async function resetQueue(db: TestDb): Promise<void> {
         id,
         title: `Queue Test Media ${String(i + 1)}`,
         type: "movie",
+        tmdb_id: E2E_QUEUE_TMDB_BASE + i,
       })),
     )
     .execute();
@@ -397,18 +409,29 @@ test.describe.serial("group queue API", () => {
     expect(media).not.toBeUndefined();
   });
 
-  test("removing a proposal keeps media that a watchlist entry references", async ({ request }) => {
+  test("removing a proposal downgrades watchlist entries and reclaims the media", async ({
+    request,
+  }) => {
     const id = await seedProposal(db, {
       mediaId: MEDIA_A,
       status: "proposed",
       proposedAt: "2026-01-01T00:00:00Z",
     });
-    // Someone has MEDIA_A on their watchlist by media_id (an imported entry).
-    // watchlist.media_id is ON DELETE CASCADE, so reclaiming the media would
-    // silently nuke their bookmark — the orphan guard must keep the media row.
+    // Someone has MEDIA_A on their watchlist by media_id (an imported entry,
+    // carrying the external fallback fields the app always writes since
+    // migration 0030). Watchlist entries no longer block reclaiming orphaned
+    // media — the FK is SET NULL, so the bookmark must survive the media
+    // delete downgraded to external-only instead of being destroyed.
     await db
       .insertInto("watchlist")
-      .values({ media_id: MEDIA_A, user_id: E2E_ADMIN.id, status: "planning" })
+      .values({
+        media_id: MEDIA_A,
+        user_id: E2E_ADMIN.id,
+        status: "planning",
+        tmdb_id: TMDB_A,
+        ext_title: "Queue Test Media 1",
+        ext_media_type: "movie",
+      })
       .execute();
 
     const res = await request.delete(`/api/queue/${id}`);
@@ -419,7 +442,16 @@ test.describe.serial("group queue API", () => {
       .select("id")
       .where("id", "=", MEDIA_A)
       .executeTakeFirst();
-    expect(media).not.toBeUndefined();
+    expect(media).toBeUndefined();
+
+    const entry = await db
+      .selectFrom("watchlist")
+      .select(["media_id", "tmdb_id"])
+      .where("user_id", "=", E2E_ADMIN.id)
+      .where("tmdb_id", "=", TMDB_A)
+      .executeTakeFirst();
+    expect(entry).not.toBeUndefined();
+    expect(entry?.media_id).toBeNull();
   });
 
   test("deleting media that is the scheduled pick re-fills the slot", async ({ request }) => {
