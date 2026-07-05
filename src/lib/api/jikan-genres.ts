@@ -28,6 +28,9 @@ export const MAL_ANIME_GENRES: Readonly<Record<number, string>> = {
   29: "Space",
   38: "Military",
   40: "Psychological",
+  46: "Award Winning",
+  15: "Kids",
+  68: "Organized Crime",
 };
 
 /**
@@ -39,7 +42,9 @@ const GENRE_ALIASES: Readonly<Record<string, string>> = {
   thriller: "suspense",
   history: "historical",
   war: "military",
-  crime: "psychological",
+  // MAL's closest true crime genre — Psychological was the old proxy, but it
+  // drags in non-crime titles (character-study anime tagged Psychological).
+  crime: "organized crime",
 };
 
 /** Get the MAL genre ID for a genre name (case-insensitive), or null */

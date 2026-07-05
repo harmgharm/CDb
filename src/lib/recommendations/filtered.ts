@@ -66,11 +66,13 @@ export async function computeFilteredRecommendations(
   ]);
   const watched = mergeWatchedIds(watchedIds, dismissedIds);
 
-  // Determine which genres to use — prefer user-selected filter, fall back to user's top genre
-  const genres =
-    filters.genre !== undefined && filters.genre.length > 0
-      ? filters.genre
-      : await getUserTopGenre(userId).then((g) => (g === undefined ? [] : [g]));
+  // Determine which genres to use — prefer user-selected filter, fall back to user's top genre.
+  // Only an explicit selection is a hard constraint; the top-genre fallback is a quality seed,
+  // so verticals it doesn't map to still get queried unfiltered.
+  const genreFilterActive = filters.genre !== undefined && filters.genre.length > 0;
+  const genres = genreFilterActive
+    ? (filters.genre ?? [])
+    : await getUserTopGenre(userId).then((g) => (g === undefined ? [] : [g]));
   const dateRanges =
     filters.decade !== undefined && filters.decade.length > 0
       ? filters.decade.map((d) => decadeToDateRange(d)).filter((r): r is DecadeRange => r !== null)
@@ -82,21 +84,20 @@ export async function computeFilteredRecommendations(
 
   const results: RecommendationItem[] = [];
 
+  const options: DiscoverOptions = { genres, genreFilterActive, dateRanges, watched, animeTitles };
+
   for (const type of mediaTypes) {
     switch (type) {
       case "movie": {
-        const items = await discoverFilteredMovies({ genres, dateRanges, watched, animeTitles });
-        results.push(...items);
+        results.push(...(await discoverFilteredMovies(options)));
         break;
       }
       case "tv": {
-        const items = await discoverFilteredTv({ genres, dateRanges, watched, animeTitles });
-        results.push(...items);
+        results.push(...(await discoverFilteredTv(options)));
         break;
       }
       case "anime": {
-        const items = await discoverFilteredAnime({ genres, dateRanges, watched, animeTitles });
-        results.push(...items);
+        results.push(...(await discoverFilteredAnime(options)));
         break;
       }
     }
@@ -140,6 +141,8 @@ async function getUserTopGenre(userId: string): Promise<string | undefined> {
 
 interface DiscoverOptions {
   genres: string[];
+  /** True when the genres came from an explicit user filter, not the top-genre seed. */
+  genreFilterActive: boolean;
   dateRanges: DecadeRange[];
   watched: WatchedIds;
   animeTitles: Set<string>;
@@ -186,18 +189,25 @@ async function fetchMoviePages(options: FetchPagesOptions): Promise<Recommendati
 }
 
 async function discoverFilteredMovies(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genres, dateRanges, watched, animeTitles } = options;
+  const { genres, genreFilterActive, dateRanges, watched, animeTitles } = options;
   const baseParams: Record<string, string> = {
     sort_by: "vote_average.desc",
     "vote_count.gte": "100",
   };
 
-  const genreIds = genres.map((g) => getMovieGenreId(g)).filter((id): id is number => id !== null);
+  const mappedGenres = genres.filter((g) => getMovieGenreId(g) !== null);
+  const genreIds = mappedGenres
+    .map((g) => getMovieGenreId(g))
+    .filter((id): id is number => id !== null);
+  // A selected genre that maps to nothing for this vertical (e.g. a MAL-only genre)
+  // means no movie can match — skip instead of returning unfiltered top titles.
+  if (genreFilterActive && genreIds.length === 0) return [];
   if (genreIds.length > 0) {
     baseParams.with_genres = genreIds.join("|");
   }
 
-  const label = genreLabel(genres);
+  // Label with the genres that actually constrained this vertical's query.
+  const label = genreLabel(mappedGenres);
   const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
   const seen = new Set<number>();
   const results: RecommendationItem[] = [];
@@ -240,18 +250,22 @@ async function fetchTvPages(options: FetchPagesOptions): Promise<RecommendationI
 }
 
 async function discoverFilteredTv(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genres, dateRanges, watched, animeTitles } = options;
+  const { genres, genreFilterActive, dateRanges, watched, animeTitles } = options;
   const baseParams: Record<string, string> = {
     sort_by: "vote_average.desc",
     "vote_count.gte": "100",
   };
 
-  const genreIds = genres.map((g) => getTvGenreId(g)).filter((id): id is number => id !== null);
+  const mappedGenres = genres.filter((g) => getTvGenreId(g) !== null);
+  const genreIds = mappedGenres
+    .map((g) => getTvGenreId(g))
+    .filter((id): id is number => id !== null);
+  if (genreFilterActive && genreIds.length === 0) return [];
   if (genreIds.length > 0) {
     baseParams.with_genres = genreIds.join("|");
   }
 
-  const label = genreLabel(genres);
+  const label = genreLabel(mappedGenres);
   const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
   const seen = new Set<number>();
   const results: RecommendationItem[] = [];
@@ -313,20 +327,24 @@ async function fetchAnimeResults(options: FetchAnimeOptions): Promise<Recommenda
 }
 
 async function discoverFilteredAnime(options: DiscoverOptions): Promise<RecommendationItem[]> {
-  const { genres, dateRanges, watched } = options;
+  const { genres, genreFilterActive, dateRanges, watched } = options;
   const baseParams: Record<string, string> = {
     order_by: "score",
     sort: "desc",
     min_score: "7",
   };
 
-  const genreIds = genres.map((g) => getMalGenreId(g)).filter((id): id is number => id !== null);
+  const mappedGenres = genres.filter((g) => getMalGenreId(g) !== null);
+  const genreIds = mappedGenres
+    .map((g) => getMalGenreId(g))
+    .filter((id): id is number => id !== null);
+  if (genreFilterActive && genreIds.length === 0) return [];
 
   // Jikan doesn't support OR for genres natively — query each genre separately and merge
   const genreQueries =
     genreIds.length > 1 ? genreIds.map(String) : [genreIds.length === 1 ? String(genreIds[0]) : ""];
 
-  const label = genreLabel(genres);
+  const label = genreLabel(mappedGenres);
   const rangesToQuery = dateRanges.length > 0 ? dateRanges : [null];
   const seen = new Set<number>();
   const results: RecommendationItem[] = [];

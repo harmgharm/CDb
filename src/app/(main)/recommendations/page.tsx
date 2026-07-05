@@ -31,9 +31,10 @@ import {
   useRefreshRecommendations,
   useRefreshSection,
 } from "@/hooks/use-recommendations";
-// Import the constant from the leaf module, not the barrel: the barrel
-// re-exports server-only cache/db code that drags env validation into the
-// client bundle. types.ts is type-only and client-safe.
+// Import constants from leaf modules, not the barrel: the barrel re-exports
+// server-only cache/db code that drags env validation into the client bundle.
+// types.ts and genre-options.ts are client-safe.
+import { CANONICAL_GENRES } from "@/lib/recommendations/genre-options";
 import { MIN_RATINGS_FOR_PERSONALIZED } from "@/lib/recommendations/types";
 import type { MediaSearchResult } from "@/types/media";
 import type {
@@ -73,20 +74,6 @@ const ERA_OPTIONS = [
 /** Toggle an item in an array — add if absent, remove if present. */
 function toggleItem<T>(array: T[], item: T): T[] {
   return array.includes(item) ? array.filter((element) => element !== item) : [...array, item];
-}
-
-/** Collect unique genres from all recommendation items across all sections. */
-function collectGenres(dataSets: (RecommendationItem[] | undefined)[]): string[] {
-  const genreSet = new Set<string>();
-  for (const items of dataSets) {
-    if (items === undefined) continue;
-    for (const item of items) {
-      for (const genre of item.genres) {
-        genreSet.add(genre);
-      }
-    }
-  }
-  return [...genreSet].toSorted((a, b) => a.localeCompare(b));
 }
 
 /** Dedupe the friends who drove a collaborative section, keyed by username. */
@@ -208,13 +195,6 @@ export default function RecommendationsPage() {
   const { refresh: refreshFiltered, isRefreshing: isFilteredRefreshing } =
     useRefreshFilteredRecommendations(serverFilters);
 
-  // Genres for the filter sentence, from unfiltered data so they stay populated.
-  const availableGenres = useMemo(
-    () =>
-      collectGenres([content.data?.items, collab.data?.items, tmdb.data?.items, group.data?.items]),
-    [content.data?.items, collab.data?.items, tmdb.data?.items, group.data?.items],
-  );
-
   const handleRefresh = useCallback(() => {
     void refresh().then(() => {
       void mutate(
@@ -294,7 +274,9 @@ export default function RecommendationsPage() {
       {
         key: "genre",
         label: "from",
-        options: availableGenres.map((genre) => ({
+        // Canonical vocabulary, not derived from loaded items — the words must
+        // not flicker as recommendation caches churn (see genre-options.ts).
+        options: CANONICAL_GENRES.map((genre) => ({
           value: genre,
           word: genre.toLowerCase(),
           ariaLabel: `Toggle ${genre}`,
@@ -320,7 +302,7 @@ export default function RecommendationsPage() {
         },
       },
     ],
-    [filters.mediaTypes, filters.genres, filters.decades, availableGenres],
+    [filters.mediaTypes, filters.genres, filters.decades],
   );
 
   // Personalized / fallback section descriptors. Drives both the section bodies

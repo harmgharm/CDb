@@ -69,14 +69,41 @@ function buildReverseMapping(): Readonly<Record<string, readonly number[]>> {
 export const GENRE_NAME_TO_TMDB_IDS: Readonly<Record<string, readonly number[]>> =
   buildReverseMapping();
 
-/** Get the first TMDB movie genre ID for a genre name, or null */
-export function getMovieGenreId(genreName: string): number | null {
-  for (const [id, name] of Object.entries(TMDB_MOVIE_GENRES)) {
-    if (name.toLowerCase() === genreName.toLowerCase()) {
+/**
+ * Canonical-name aliases per vertical. TMDB's movie and TV vocabularies
+ * differ ("War" vs "War & Politics"); the canonical filter list uses one
+ * name, so lookups resolve through these before giving up.
+ */
+const MOVIE_GENRE_ALIASES: Readonly<Record<string, string>> = {
+  "sci-fi": "Science Fiction",
+};
+
+const TV_GENRE_ALIASES: Readonly<Record<string, string>> = {
+  war: "War & Politics",
+  action: "Action & Adventure",
+  adventure: "Action & Adventure",
+  "sci-fi": "Sci-Fi & Fantasy",
+  "science fiction": "Sci-Fi & Fantasy",
+  fantasy: "Sci-Fi & Fantasy",
+};
+
+function lookupGenreId(
+  genres: Readonly<Record<number, string>>,
+  aliases: Readonly<Record<string, string>>,
+  genreName: string,
+): number | null {
+  const target = (aliases[genreName.toLowerCase()] ?? genreName).toLowerCase();
+  for (const [id, name] of Object.entries(genres)) {
+    if (name.toLowerCase() === target) {
       return Number(id);
     }
   }
   return null;
+}
+
+/** Get the first TMDB movie genre ID for a genre name (alias-aware), or null */
+export function getMovieGenreId(genreName: string): number | null {
+  return lookupGenreId(TMDB_MOVIE_GENRES, MOVIE_GENRE_ALIASES, genreName);
 }
 
 /** Map TMDB genre IDs to names for movie results */
@@ -93,12 +120,7 @@ export function mapTvGenreIds(genreIds: number[]): string[] {
     .filter((name): name is string => name !== undefined);
 }
 
-/** Get the first TMDB TV genre ID for a genre name, or null */
+/** Get the first TMDB TV genre ID for a genre name (alias-aware), or null */
 export function getTvGenreId(genreName: string): number | null {
-  for (const [id, name] of Object.entries(TMDB_TV_GENRES)) {
-    if (name.toLowerCase() === genreName.toLowerCase()) {
-      return Number(id);
-    }
-  }
-  return null;
+  return lookupGenreId(TMDB_TV_GENRES, TV_GENRE_ALIASES, genreName);
 }
