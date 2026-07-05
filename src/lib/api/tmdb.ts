@@ -2,7 +2,9 @@
  * TMDB API v3 Client
  *
  * Rate limit: ~40 req/sec (soft cap).
- * Auth: API key as query parameter.
+ * Auth: Bearer read-access token (preferred, when TMDB_ACCESS_TOKEN is set) or
+ * API key as query parameter. The header keeps the credential out of URLs,
+ * which can end up in request logs and traces.
  */
 
 import { env } from "@/lib/env";
@@ -37,13 +39,17 @@ export function tmdbImageUrl(path: string | null, size: ImageSize = "w500"): str
 
 async function tmdbFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
   const url = new URL(`${BASE_URL}${endpoint}`);
-  url.searchParams.set("api_key", env.TMDB_API_KEY);
+  const accessToken = env.TMDB_ACCESS_TOKEN;
+  if (accessToken === undefined) {
+    url.searchParams.set("api_key", env.TMDB_API_KEY);
+  }
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
 
   const response = await fetch(url.toString(), {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    headers: accessToken === undefined ? undefined : { Authorization: `Bearer ${accessToken}` },
   });
 
   if (!response.ok) {
