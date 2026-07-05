@@ -24,16 +24,21 @@ import type { DatabaseTransaction } from "@/lib/db/transaction";
 import { promoteTopProposal } from "./promote";
 import { decideWatchClose } from "./ranking";
 
-export interface AdvanceResult {
-  /** Whether an active proposal for the logged media was closed. */
-  advanced: boolean;
-  /** The proposal marked `watched`, when a close happened. */
-  watchedProposalId?: string;
-  /** Whether the closed proposal was the scheduled pick (promotion ran). */
-  wasScheduled?: boolean;
-  /** The proposal promoted into the scheduled slot, or `null` if none remained. */
-  scheduledProposalId?: string | null;
-}
+export type AdvanceResult =
+  /** No active proposal for the logged media (or a historical backfill): queue untouched. */
+  | { advanced: false }
+  | {
+      advanced: true;
+      /** The proposal marked `watched`. */
+      watchedProposalId: string;
+      /** Whether the closed proposal was the scheduled pick (promotion ran). */
+      wasScheduled: boolean;
+      /**
+       * The proposal promoted into the scheduled slot; `null` when no promotion
+       * happened (a vote-list close, or no proposals remained).
+       */
+      scheduledProposalId: string | null;
+    };
 
 export interface AdvanceInput {
   /** The logged session's media. */
@@ -97,7 +102,12 @@ export async function advanceQueueOnWatch(
     .execute();
 
   if (action === "close") {
-    return { advanced: true, watchedProposalId: active.id, wasScheduled: false };
+    return {
+      advanced: true,
+      watchedProposalId: active.id,
+      wasScheduled: false,
+      scheduledProposalId: null,
+    };
   }
 
   // The scheduled pick was closed: promote the next top-voted proposal into the

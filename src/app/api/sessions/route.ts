@@ -158,7 +158,7 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
       userId: user.id,
       action: "queue.advanced",
       entityType: "queue_proposal",
-      entityId: advance.watchedProposalId ?? null,
+      entityId: advance.watchedProposalId,
       metadata: {
         watchedProposalId: advance.watchedProposalId,
         wasScheduled: advance.wasScheduled,
@@ -171,8 +171,8 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
     // pick. Awaited (not fire-and-forget): a dropped advance is high-stakes and
     // a serverless function can terminate before an unawaited publish lands.
     await publishToQueueAsync(QUEUE_EVENTS.advanced, {
-      watchedId: advance.watchedProposalId ?? null,
-      scheduledId: advance.scheduledProposalId ?? null,
+      watchedId: advance.watchedProposalId,
+      scheduledId: advance.scheduledProposalId,
     });
   }
 
