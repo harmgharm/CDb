@@ -64,7 +64,9 @@ export async function computeTmdbRecommendations(
     .where("ratings.user_id", "=", userId)
     .where(sql`ratings.score`, ">=", sql`7.5`)
     .orderBy("ratings.score", "desc")
-    .limit(30)
+    // Wide source pool: sources are randomly sampled per compute, so the more
+    // loved titles are eligible, the more the section varies between refreshes.
+    .limit(50)
     .execute();
 
   if (topRated.length === 0) return [];

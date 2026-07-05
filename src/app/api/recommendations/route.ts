@@ -27,6 +27,7 @@ import {
 import { shouldBackfill } from "@/lib/recommendations/backfill";
 import { getOrComputeRecommendationsWithMeta } from "@/lib/recommendations/cache";
 import { computeFilteredRecommendations } from "@/lib/recommendations/filtered";
+import { weightedSampleByScore } from "@/lib/recommendations/random";
 import { recommendationQuerySchema } from "@/lib/validations/recommendations";
 
 async function fetchAllTypes(userId: string, refresh: boolean): Promise<RecommendationItem[]> {
@@ -106,9 +107,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Filter out dismissed items and apply limit
+    // Filter out dismissed items and apply limit. Single-type sections serve a
+    // score-weighted random sample of the cached pool instead of a fixed
+    // top-by-score slice, so every page load rotates through the whole pool
+    // rather than pinning the same items until the cache expires. Filtered
+    // results are already sampled by their compute; the all-types merge keeps
+    // its ranked order.
     items = items.filter((item) => !isAlreadyWatched(dismissed, item));
-    items = items.slice(0, limit);
+    items =
+      type === undefined || hasFilters
+        ? items.slice(0, limit)
+        : weightedSampleByScore(items, limit);
 
     // Enrich with watchlist data
     items = await enrichWithWatchlistData(items, user.id);
