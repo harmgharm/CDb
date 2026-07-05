@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { RankableProposal } from "@/lib/queue/ranking";
 import {
   capturePromotionTally,
-  decideAdvance,
   decideFill,
+  decideWatchClose,
+  isHistoricalBackfill,
   pickNextScheduled,
   rankProposals,
 } from "@/lib/queue/ranking";
@@ -102,17 +103,83 @@ describe("pickNextScheduled", () => {
   });
 });
 
-describe("decideAdvance", () => {
-  it("advances when the watched media is the scheduled pick", () => {
-    expect(decideAdvance({ scheduledMediaId: "m1", watchedMediaId: "m1" })).toBe(true);
+describe("isHistoricalBackfill", () => {
+  const proposedAt = new Date("2026-07-04T15:00:00Z");
+
+  it("treats an undated session as a current watch (not a backfill)", () => {
+    expect(isHistoricalBackfill(null, proposedAt)).toBe(false);
   });
 
-  it("is a no-op when the watched media is not the scheduled pick", () => {
-    expect(decideAdvance({ scheduledMediaId: "m1", watchedMediaId: "m2" })).toBe(false);
+  it("treats a session dated the proposal's day as current", () => {
+    expect(isHistoricalBackfill("2026-07-04", proposedAt)).toBe(false);
   });
 
-  it("is a no-op when there is no scheduled pick", () => {
-    expect(decideAdvance({ scheduledMediaId: null, watchedMediaId: "m1" })).toBe(false);
+  it("treats a session dated after the proposal as current", () => {
+    expect(isHistoricalBackfill("2026-07-10", proposedAt)).toBe(false);
+  });
+
+  it("allows one day of grace before the proposal (member-local date vs UTC instant)", () => {
+    // A proposal made late evening local time lands on the NEXT UTC day, so a
+    // same-night watch can be dated one calendar day before proposed_at.
+    expect(isHistoricalBackfill("2026-07-03", proposedAt)).toBe(false);
+  });
+
+  it("flags a session dated two or more days before the proposal as a backfill", () => {
+    expect(isHistoricalBackfill("2026-07-02", proposedAt)).toBe(true);
+    expect(isHistoricalBackfill("2026-01-15", proposedAt)).toBe(true);
+  });
+
+  it("keeps the grace day correct when the proposal is just past UTC midnight", () => {
+    const lateEvening = new Date("2026-07-05T02:00:00Z"); // 10pm EDT on the 4th
+    expect(isHistoricalBackfill("2026-07-04", lateEvening)).toBe(false);
+    expect(isHistoricalBackfill("2026-07-03", lateEvening)).toBe(true);
+  });
+});
+
+describe("decideWatchClose", () => {
+  const proposedAt = new Date("2026-07-04T15:00:00Z");
+
+  it("does nothing when the media has no active proposal", () => {
+    expect(decideWatchClose({ proposal: null, dateWatched: null })).toBe("none");
+  });
+
+  it("closes a vote-list proposal on an undated (current) watch", () => {
+    expect(
+      decideWatchClose({ proposal: { status: "proposed", proposedAt }, dateWatched: null }),
+    ).toBe("close");
+  });
+
+  it("closes and promotes when the watched media is the scheduled pick", () => {
+    expect(
+      decideWatchClose({ proposal: { status: "scheduled", proposedAt }, dateWatched: null }),
+    ).toBe("close-and-promote");
+  });
+
+  it("closes a vote-list proposal on a same-day dated watch", () => {
+    expect(
+      decideWatchClose({
+        proposal: { status: "proposed", proposedAt },
+        dateWatched: "2026-07-04",
+      }),
+    ).toBe("close");
+  });
+
+  it("leaves a proposal alone when the session is a historical backfill", () => {
+    expect(
+      decideWatchClose({
+        proposal: { status: "proposed", proposedAt },
+        dateWatched: "2026-05-01",
+      }),
+    ).toBe("none");
+  });
+
+  it("leaves even the scheduled pick alone on a historical backfill", () => {
+    expect(
+      decideWatchClose({
+        proposal: { status: "scheduled", proposedAt },
+        dateWatched: "2026-05-01",
+      }),
+    ).toBe("none");
   });
 });
 

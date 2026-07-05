@@ -562,6 +562,80 @@ test.describe.serial("group queue API", () => {
     expect(stillScheduled.status).toBe("scheduled");
   });
 
+  test("logging a vote-list proposal closes it without touching the scheduled slot", async ({
+    request,
+  }) => {
+    // A is scheduled; B sits in the vote list.
+    const scheduledId = await seedProposal(db, {
+      mediaId: MEDIA_A,
+      status: "scheduled",
+      proposedAt: "2026-01-01T00:00:00Z",
+    });
+    const voteListId = await seedProposal(db, {
+      mediaId: MEDIA_B,
+      status: "proposed",
+      proposedAt: "2026-02-01T00:00:00Z",
+      voterIds: [E2E_ADMIN.id],
+    });
+
+    // Log a watch of B (NOT the scheduled pick), undated = current watch.
+    const res = await request.post("/api/sessions", {
+      data: { mediaId: MEDIA_B, attendeeIds: [E2E_ADMIN.id] },
+    });
+    expect(res.status()).toBe(201);
+
+    // B is closed: watched and linked to the session.
+    const closed = await db
+      .selectFrom("queue_proposals")
+      .select(["status", "watched_session_id"])
+      .where("id", "=", voteListId)
+      .executeTakeFirstOrThrow();
+    expect(closed.status).toBe("watched");
+    expect(closed.watched_session_id).not.toBeNull();
+
+    // The scheduled slot's occupant is untouched (no promotion ran).
+    const stillScheduled = await db
+      .selectFrom("queue_proposals")
+      .select("status")
+      .where("id", "=", scheduledId)
+      .executeTakeFirstOrThrow();
+    expect(stillScheduled.status).toBe("scheduled");
+
+    // The close was audit-logged as a non-scheduled closure.
+    const audit = await db
+      .selectFrom("audit_log")
+      .select("metadata")
+      .where("action", "=", "queue.advanced")
+      .where("entity_id", "=", voteListId)
+      .executeTakeFirstOrThrow();
+    expect((audit.metadata as { wasScheduled: boolean }).wasScheduled).toBe(false);
+  });
+
+  test("a historical backfill leaves the queued proposal alone", async ({ request }) => {
+    // B proposed on Feb 1; someone logs a watch from mid-January — a backfill
+    // of a watch that predates the proposal, not the group watch it's queued for.
+    const voteListId = await seedProposal(db, {
+      mediaId: MEDIA_B,
+      status: "proposed",
+      proposedAt: "2026-02-01T00:00:00Z",
+      voterIds: [E2E_ADMIN.id],
+    });
+
+    const res = await request.post("/api/sessions", {
+      data: { mediaId: MEDIA_B, attendeeIds: [E2E_ADMIN.id], dateWatched: "2026-01-15" },
+    });
+    expect(res.status()).toBe(201);
+
+    // The proposal survives — the group still plans to watch it.
+    const untouched = await db
+      .selectFrom("queue_proposals")
+      .select(["status", "watched_session_id"])
+      .where("id", "=", voteListId)
+      .executeTakeFirstOrThrow();
+    expect(untouched.status).toBe("proposed");
+    expect(untouched.watched_session_id).toBeNull();
+  });
+
   test("advancing with no remaining proposals empties the slot", async ({ request }) => {
     const scheduledId = await seedProposal(db, {
       mediaId: MEDIA_A,

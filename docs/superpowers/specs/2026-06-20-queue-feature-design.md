@@ -49,6 +49,7 @@ Captured from brainstorming. Pin these so implementation sessions don't relitiga
 | Override / force-push                     | **None.** Votes + automation only                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Not in the kit; a mod-only force-push would contradict full-trust (members can already schedule/remove). Escape hatch already exists: remove the scheduled proposal -> next promotes, or vote a title up.                                                                                                                                                                                                                                                                 |
 | Real-time                                 | **Live via Ably** (`group:queue` channel) + SWR optimistic on the actor's own vote                                                                                                                                                                                                                                                                                                                                                                                                        | Picking is a shared-moment activity; live pays off. Reuses the existing `presence:group`-style group-broadcast pattern.                                                                                                                                                                                                                                                                                                                                                   |
 | Advance trigger                           | **Approach A** — hook `advanceQueueOnWatch(trx, mediaId)` into the existing `POST /api/sessions` transaction                                                                                                                                                                                                                                                                                                                                                                              | Single source of truth for "this is done"; atomic with the log; mirrors the existing watchlist auto-removal in that route.                                                                                                                                                                                                                                                                                                                                                |
+| Watch-close scoping (revised 2026-07-04)  | **Any current watch closes the media's active proposal** (vote-list rows included), marking it `watched` + linking the session; promotion still fires only when the closed row was the scheduled pick. Historical backfills (session dated ≥2 days before the proposal; 1-day grace for local-date-vs-UTC-instant skew) and off-queue media are no-ops.                                                                                                                                   | The original scheduled-only rule left watched titles sitting in the vote list and later **promoted already-watched titles** into the slot (diagnosed live in dev, 2026-07-04). The one behavior lost — a member logging a queued title out from under the group's plan — is niche and recoverable (re-propose; the close is audit-logged and broadcast live).                                                                                                             |
 | Advance scoping                           | **Creation only.** Do NOT unwind the advance on session edit/delete                                                                                                                                                                                                                                                                                                                                                                                                                       | Reversing a promotion adds real branching complexity for a near-never event. Accidental log-then-delete leaves the queue one step ahead, fully recoverable by re-proposing; audit-logged so it's not mysterious.                                                                                                                                                                                                                                                          |
 | Duplicate proposals                       | **One active entry per media** (DB partial unique index). Re-proposing an active title surfaces/votes the existing one; re-proposing a watched title is allowed (re-watch).                                                                                                                                                                                                                                                                                                               | Keeps the list clean, prevents vote-splitting.                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Empty state                               | **Dashboard mirrors the sidebar CTA** ("Nothing scheduled yet, propose something")                                                                                                                                                                                                                                                                                                                                                                                                        | Section stays visible as an invitation rather than vanishing.                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -155,21 +156,38 @@ All under `src/app/api/queue/`. Standard `{ data, error, message }` response sha
 
 ### The advance-on-watch hook (Approach A)
 
-New helper `advanceQueueOnWatch(trx, mediaId)` in `src/lib/queue/advance.ts`, called **inside the
-existing `POST /api/sessions` transaction**, adjacent to the current watchlist auto-removal
-(`src/app/api/sessions/route.ts`, currently lines 265-270):
+> **Revised 2026-07-04 (close-on-any-log).** The original rule — only a watch of the _scheduled_
+> pick touched the queue — left watched titles rotting in the vote list (logging a vote-list
+> proposal did nothing), and the queue would later _promote an already-watched title_ into the slot.
+> Diagnosed live in the dev DB. New rule below: any current watch closes the media's active
+> proposal; only closing the scheduled pick also promotes. Pure decision: `decideWatchClose` +
+> `isHistoricalBackfill` in `ranking.ts` (replaced `decideAdvance`).
 
-1. Find the `scheduled` proposal. If its `media_id` matches the session's media, set
-   `status='watched'`, `watched_session_id = newSession.id`.
-2. Promote the next pick: top proposal by `COUNT(votes) DESC, proposed_at ASC` ->
-   `status='scheduled'`, `scheduled_at=now()`, `scheduled_date=null` (dateless).
-3. If no proposals remain, the slot is empty (drives the empty state).
-4. If the logged media is **not** the scheduled pick, the helper is a **no-op** (logging an
-   off-queue watch doesn't disturb the queue).
+Helper `advanceQueueOnWatch(trx, mediaId, sessionId, dateWatched)` in `src/lib/queue/advance.ts`,
+called **inside the existing `POST /api/sessions` transaction**, adjacent to the watchlist
+auto-removal:
 
-Because it runs in the transaction, the advance is atomic with the log: the log commits and the
-queue advances, or both roll back. The advance is audit-logged (`queue.advanced` with the watched +
-newly-scheduled proposal IDs) so an unexpected promotion has a trail.
+1. Find the media's single **active** proposal (`proposed` or `scheduled`; the active-per-media
+   unique index guarantees at most one), locked `FOR UPDATE`.
+2. **Backfill guard:** if the session is dated two or more calendar days before `proposed_at`, the
+   helper is a no-op — a backfilled historical watch must not kill a title the group still plans to
+   watch. (One day of grace: `date_watched` is a member-local calendar day while `proposed_at` is a
+   UTC instant, so a same-evening watch can sit one day "before" the proposal.) Undated sessions
+   count as current.
+3. Close the proposal: `status='watched'`, `watched_session_id = newSession.id`.
+4. Only if the closed row was the **scheduled pick**, promote the next pick: top proposal by
+   `COUNT(votes) DESC, proposed_at ASC` -> `status='scheduled'`, `scheduled_at=now()`,
+   `scheduled_date=null` (dateless). If no proposals remain, the slot is empty (drives the empty
+   state). Closing a vote-list row leaves the slot's occupant untouched.
+5. If the media has no active proposal, the helper is a **no-op** (logging an off-queue watch
+   doesn't disturb the queue).
+
+Because it runs in the transaction, the close is atomic with the log: the log commits and the queue
+advances, or both roll back. The close is audit-logged (`queue.advanced` with the watched proposal
+ID, `wasScheduled`, and any newly-scheduled proposal ID) so an unexpected change has a trail.
+`promoteTopProposal`'s UPDATE carries a `status='proposed'` predicate so a concurrent log that
+closes the about-to-be-promoted proposal (cross-media race) results in an empty slot rather than
+re-scheduling a watched row.
 
 **Not unwound** on session edit/delete (decisions log). The proposal stays `watched`; recovery is to
 re-propose, which works because watched rows don't hold the active-unique index.

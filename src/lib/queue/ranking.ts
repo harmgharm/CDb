@@ -52,21 +52,49 @@ export function decideFill<T extends RankableProposal>(options: {
   return pickNextScheduled(options.candidates);
 }
 
+const GRACE_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Whether logging a watch of `watchedMediaId` should advance the queue: only
- * when it matches the currently-scheduled pick. Logging an off-queue watch (or
- * any watch while nothing is scheduled) leaves the queue untouched.
+ * Whether a session's watch date marks it as a historical backfill relative to
+ * a proposal — a log of a watch that happened before the group queued the title
+ * (e.g. "oh right, I saw this in May"). Backfills must not close a live
+ * proposal the group still plans to watch.
  *
- * The production advance path (`advanceQueueOnWatch`) inlines this same check as
- * a `WHERE status = 'scheduled'` read + media_id comparison so it can lock the
- * row in one round-trip; this pure mirror keeps the decision documented and
- * unit-testable.
+ * `dateWatched` is the member-entered calendar day (`YYYY-MM-DD`, their local
+ * timezone); `proposedAt` is a UTC instant. A same-evening watch can therefore
+ * be dated one calendar day before the proposal's UTC day (a 10pm EDT proposal
+ * is already "tomorrow" in UTC), so one day of grace is allowed: only a watch
+ * dated two or more days before the proposal counts as a backfill. An undated
+ * session means "logged now" — never a backfill.
  */
-export function decideAdvance(options: {
-  scheduledMediaId: string | null;
-  watchedMediaId: string;
-}): boolean {
-  return options.scheduledMediaId !== null && options.scheduledMediaId === options.watchedMediaId;
+export function isHistoricalBackfill(dateWatched: string | null, proposedAt: Date): boolean {
+  if (dateWatched === null) {
+    return false;
+  }
+  const graceDay = new Date(proposedAt.getTime() - GRACE_MS).toISOString().slice(0, 10);
+  return dateWatched < graceDay;
+}
+
+export type WatchCloseAction = "none" | "close" | "close-and-promote";
+
+/**
+ * What logging a watch should do to the watched media's active proposal (there
+ * is at most one — the active-per-media unique index). Any current watch closes
+ * the proposal (marks it watched): the group saw the title, so it must not keep
+ * sitting in the vote list — or worse, get promoted later. Only closing the
+ * scheduled pick also promotes the next pick (a vote-list closure leaves the
+ * slot's occupant untouched). Historical backfills (see `isHistoricalBackfill`)
+ * and media with no active proposal leave the queue alone.
+ */
+export function decideWatchClose(options: {
+  proposal: { status: "proposed" | "scheduled"; proposedAt: Date } | null;
+  dateWatched: string | null;
+}): WatchCloseAction {
+  const { proposal, dateWatched } = options;
+  if (proposal === null || isHistoricalBackfill(dateWatched, proposal.proposedAt)) {
+    return "none";
+  }
+  return proposal.status === "scheduled" ? "close-and-promote" : "close";
 }
 
 export interface PromotionTally {

@@ -46,7 +46,12 @@ export async function promoteTopProposal(trx: DatabaseTransaction): Promise<stri
 
   const tally = capturePromotionTally(rankable);
 
-  await trx
+  // The status predicate guards a cross-media race: a concurrent session log
+  // can close (mark `watched`) the very proposal picked above between our read
+  // and this write. A bare id-match UPDATE would drag that watched row back to
+  // `scheduled`; with the predicate the update no-ops instead and the slot
+  // stays empty (the next propose/vote re-fills it via ensureScheduledFilled).
+  const result = await trx
     .updateTable("queue_proposals")
     .set({
       status: "scheduled",
@@ -56,7 +61,12 @@ export async function promoteTopProposal(trx: DatabaseTransaction): Promise<stri
       runner_up_votes: tally?.runnerUpVotes ?? null,
     })
     .where("id", "=", next.id)
-    .execute();
+    .where("status", "=", "proposed")
+    .executeTakeFirst();
+
+  if (Number(result.numUpdatedRows) === 0) {
+    return null;
+  }
 
   return next.id;
 }

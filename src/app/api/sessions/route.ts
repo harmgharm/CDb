@@ -151,7 +151,8 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
     metadata: { mediaId, attendeeCount: attendeeIds.length },
   });
 
-  // The queue advanced because this log was the scheduled pick (Approach A).
+  // This log closed the media's active queue proposal (and, when it was the
+  // scheduled pick, advanced the slot).
   if (advance.advanced) {
     await logAudit({
       userId: user.id,
@@ -160,6 +161,7 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
       entityId: advance.watchedProposalId ?? null,
       metadata: {
         watchedProposalId: advance.watchedProposalId,
+        wasScheduled: advance.wasScheduled,
         scheduledProposalId: advance.scheduledProposalId,
         sessionId: session.id,
       },
@@ -319,9 +321,14 @@ export async function POST(req: NextRequest) {
       .where("user_id", "in", attendeeIds)
       .execute();
 
-    // Advance the group queue if this media is the scheduled pick (Approach A).
-    // Atomic with the log: both commit or both roll back.
-    const advance = await advanceQueueOnWatch(trx, mediaId, newSession.id);
+    // Close the media's active queue proposal, advancing the slot when it was
+    // the scheduled pick (Approach A). Atomic with the log: both commit or both
+    // roll back.
+    const advance = await advanceQueueOnWatch(trx, {
+      mediaId,
+      sessionId: newSession.id,
+      dateWatched: dateWatched ?? null,
+    });
 
     return { newSession, advance };
   });

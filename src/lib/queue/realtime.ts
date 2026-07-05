@@ -39,7 +39,10 @@ export interface QueueVotedEvent {
 export interface QueueAdvancedEvent {
   /** The proposal just marked watched. */
   watchedId: string;
-  /** The proposal promoted into the scheduled slot, or null if none remained. */
+  /**
+   * The proposal promoted into the scheduled slot, or null when no promotion
+   * happened (a vote-list proposal was closed, or no proposals remained).
+   */
   scheduledId: string | null;
 }
 
