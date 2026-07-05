@@ -19,9 +19,10 @@ import type { SimilarSource } from "@/lib/validations/recommendations/similar.sc
 import type { JikanRecommendationEntry } from "@/types/jikan";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+import { hydrateAnimeItems } from "./anime-hydrate";
 import { getUserDismissedIds } from "./dismissed";
 import { addScoreJitter, randomPage, randomSample } from "./random";
-import { cacheRecommendations, getCachedRecommendations } from "./tmdb-recs";
+import { cacheRecommendations, getCachedRecommendations } from "./rec-source-cache";
 import type { RecommendationItem, WatchedIds } from "./types";
 import { sliceWithTypeDepth } from "./types";
 import {
@@ -69,7 +70,12 @@ export async function computeSimilarRecommendations(
   const merged = mergeAndScore({ allResults, watched, sourceIds, animeTitles });
   const jittered = addScoreJitter(merged);
   const pool = randomSample(jittered, Math.max(limit, 60));
-  return sliceWithTypeDepth(pool, limit);
+  const sliced = sliceWithTypeDepth(pool, limit);
+
+  // Cache-only hydration (zero live fetches): Find Similar is an interactive
+  // click, so we only fill anime genres/year/score already in the details
+  // cache — coverage grows as the weekly tmdb-section computes warm it.
+  return hydrateAnimeItems(sliced, 0);
 }
 
 /** Build a set of source IDs to exclude source titles from results */

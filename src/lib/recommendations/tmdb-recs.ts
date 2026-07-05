@@ -15,8 +15,10 @@ import type { MediaType } from "@/lib/db/types";
 import type { JikanRecommendationEntry } from "@/types/jikan";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
+import { hydrateAnimeItems } from "./anime-hydrate";
 import { getUserDismissedIds } from "./dismissed";
 import { addScoreJitter, randomSample } from "./random";
+import { cacheRecommendations, getCachedRecommendations } from "./rec-source-cache";
 import type { RecommendationItem } from "./types";
 import { sliceWithTypeDepth } from "./types";
 import {
@@ -26,8 +28,6 @@ import {
   isWatchedAnimeTitle,
   mergeWatchedIds,
 } from "./watched";
-
-const TMDB_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface RatedMediaSource {
   mediaId: string;
@@ -107,7 +107,11 @@ export async function computeTmdbRecommendations(
   const merged = mergeAndScore(allResults, watched, animeTitles);
   const jittered = addScoreJitter(merged);
   const pool = randomSample(jittered, Math.max(limit, 100));
-  return sliceWithTypeDepth(pool, limit);
+  const sliced = sliceWithTypeDepth(pool, limit);
+
+  // Jikan's recommendations endpoint returns bare entries; fill in genres,
+  // year, and score for the anime that made the final cut.
+  return hydrateAnimeItems(sliced);
 }
 
 async function fetchRecommendationsForSource(
@@ -201,71 +205,6 @@ async function fetchAnimeRecommendations(
   } catch {
     return [];
   }
-}
-
-// ── Cache helpers ────────────────────────────────────────────────────
-
-export async function getCachedRecommendations(
-  sourceType: string,
-  tmdbId: number | null,
-  malId: number | null,
-): Promise<unknown[] | null> {
-  let query = db
-    .selectFrom("tmdb_recommendation_cache")
-    .select("recommendations")
-    .where("source_type", "=", sourceType)
-    .where("expires_at", ">", new Date());
-
-  if (tmdbId !== null) {
-    query = query.where("source_tmdb_id", "=", tmdbId);
-  } else if (malId !== null) {
-    query = query.where("source_mal_id", "=", malId);
-  }
-
-  const row = await query.executeTakeFirst();
-  if (row === undefined) return null;
-
-  const recs =
-    typeof row.recommendations === "string"
-      ? (JSON.parse(row.recommendations) as unknown[])
-      : row.recommendations;
-
-  return recs;
-}
-
-export async function cacheRecommendations(options: {
-  sourceType: string;
-  tmdbId: number | null;
-  malId: number | null;
-  recommendations: unknown[];
-}): Promise<void> {
-  const { sourceType, tmdbId, malId, recommendations } = options;
-  const expiresAt = new Date(Date.now() + TMDB_CACHE_TTL_MS);
-
-  // Upsert: delete any existing entry, then insert
-  let deleteQuery = db
-    .deleteFrom("tmdb_recommendation_cache")
-    .where("source_type", "=", sourceType);
-
-  if (tmdbId !== null) {
-    deleteQuery = deleteQuery.where("source_tmdb_id", "=", tmdbId);
-  } else if (malId !== null) {
-    deleteQuery = deleteQuery.where("source_mal_id", "=", malId);
-  }
-
-  await deleteQuery.execute();
-
-  await db
-    .insertInto("tmdb_recommendation_cache")
-    .values({
-      source_type: sourceType,
-      source_tmdb_id: tmdbId,
-      source_mal_id: malId,
-      recommendations: JSON.stringify(recommendations),
-      fetched_at: sql`now()`,
-      expires_at: expiresAt,
-    })
-    .execute();
 }
 
 // ── Result parsers ───────────────────────────────────────────────────
