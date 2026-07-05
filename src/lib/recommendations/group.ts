@@ -51,8 +51,8 @@ export async function computeGroupRecommendations(limit = 60): Promise<Recommend
   const userPreferences = await computeAllUserPreferences(activeUsers);
   if (userPreferences.length < 2) return [];
 
-  // 3. Find genre intersection (genres that ALL users rate highly)
-  const sharedGenres = findSharedGenres(userPreferences);
+  // 3. Find genre intersection (all users, falling back to a group majority)
+  const { genres: sharedGenres, sharedByAll } = findSharedGenres(userPreferences);
 
   // 4. Get watched + watchlist data
   const [watched, animeTitles] = await Promise.all([
@@ -65,6 +65,7 @@ export async function computeGroupRecommendations(limit = 60): Promise<Recommend
   // 5. Score discover results and add watchlist items
   const results = await scoreAndCollectResults({
     sharedGenres,
+    sharedByAll,
     watched,
     animeTitles,
     watchlistPopularity,
@@ -127,6 +128,7 @@ async function computeSingleUserPreference(userId: string): Promise<UserGenrePre
 
 async function scoreAndCollectResults(options: {
   sharedGenres: string[];
+  sharedByAll: boolean;
   watched: WatchedIds;
   animeTitles: Set<string>;
   watchlistPopularity: WatchlistPopularItem[];
@@ -135,6 +137,7 @@ async function scoreAndCollectResults(options: {
 }): Promise<RecommendationItem[]> {
   const {
     sharedGenres,
+    sharedByAll,
     watched,
     animeTitles,
     watchlistPopularity,
@@ -145,24 +148,15 @@ async function scoreAndCollectResults(options: {
 
   // TMDB discover with shared genres
   if (sharedGenres.length > 0) {
-    const discoverResults = await fetchGroupDiscover(sharedGenres, watched, animeTitles);
+    const genreReason = `${sharedByAll ? "Everyone" : "Most of the group"} rates ${sharedGenres.join(", ")} highly`;
+    const discoverResults = await fetchGroupDiscover(
+      { sharedGenres, genreReason },
+      watched,
+      animeTitles,
+    );
+    const genreOverlap = sharedGenres.length / Math.max(1, getAllGenres(userPreferences).size);
     for (const item of discoverResults) {
-      const watchlistCount = getWatchlistCountForItem(watchlistPopularity, item);
-      const genreOverlap = sharedGenres.length / Math.max(1, getAllGenres(userPreferences).size);
-      const voteScore = (item.voteAverage ?? 0) / 10;
-      const watchlistScore = watchlistCount / activeUserCount;
-
-      item.score =
-        Math.round((0.3 * genreOverlap + 0.3 * voteScore + 0.4 * watchlistScore) * 1000) / 1000;
-
-      if (watchlistCount > 0) {
-        item.reasons.push({
-          tag: "Watchlist popular",
-          detail: `${String(watchlistCount)} member${watchlistCount === 1 ? "" : "s"} want${watchlistCount === 1 ? "s" : ""} to watch this`,
-        });
-      }
-      item.watchlistCount = watchlistCount;
-      results.push(item);
+      results.push(scoreDiscoverItem({ item, genreOverlap, watchlistPopularity, activeUserCount }));
     }
   }
 
@@ -177,30 +171,65 @@ async function scoreAndCollectResults(options: {
   return results;
 }
 
-function findSharedGenres(preferences: UserGenrePreference[]): string[] {
-  const firstUser = preferences[0];
-  if (firstUser === undefined) return [];
+function scoreDiscoverItem(options: {
+  item: RecommendationItem;
+  genreOverlap: number;
+  watchlistPopularity: WatchlistPopularItem[];
+  activeUserCount: number;
+}): RecommendationItem {
+  const { item, genreOverlap, watchlistPopularity, activeUserCount } = options;
+  const watchlistCount = getWatchlistCountForItem(watchlistPopularity, item);
+  const voteScore = (item.voteAverage ?? 0) / 10;
+  const watchlistScore = watchlistCount / activeUserCount;
 
-  const candidates = new Set(firstUser.topGenres.keys());
+  item.score =
+    Math.round((0.3 * genreOverlap + 0.3 * voteScore + 0.4 * watchlistScore) * 1000) / 1000;
 
-  // Intersect with each subsequent user
-  for (const pref of preferences.slice(1)) {
-    for (const genre of candidates) {
-      if (!pref.topGenres.has(genre)) {
-        candidates.delete(genre);
-      }
+  if (watchlistCount > 0) {
+    item.reasons.push({
+      tag: "Watchlist popular",
+      detail: `${String(watchlistCount)} member${watchlistCount === 1 ? "" : "s"} want${watchlistCount === 1 ? "s" : ""} to watch this`,
+    });
+  }
+  item.watchlistCount = watchlistCount;
+  return item;
+}
+
+export interface SharedGenresResult {
+  genres: string[];
+  /** True when every active user rates these highly; false for the majority fallback. */
+  sharedByAll: boolean;
+}
+
+/**
+ * Genres the group rates highly. Prefers the strict all-users intersection;
+ * when one member's sparse or divergent ratings empty it (which otherwise
+ * leaves the group section permanently empty), falls back to genres loved by
+ * at least half the group (minimum 2 users).
+ */
+export function findSharedGenres(preferences: UserGenrePreference[]): SharedGenresResult {
+  const strict = topGenresByMinimumFans(preferences, preferences.length);
+  if (strict.length > 0) return { genres: strict, sharedByAll: true };
+
+  const majority = Math.max(2, Math.ceil(preferences.length / 2));
+  return { genres: topGenresByMinimumFans(preferences, majority), sharedByAll: false };
+}
+
+/** Top 3 genres (by average rating among their fans) loved by >= minFans users. */
+function topGenresByMinimumFans(preferences: UserGenrePreference[], minFans: number): string[] {
+  const fanCounts = new Map<string, { fans: number; sum: number }>();
+  for (const pref of preferences) {
+    for (const [genre, avg] of pref.topGenres) {
+      const entry = fanCounts.get(genre) ?? { fans: 0, sum: 0 };
+      entry.fans += 1;
+      entry.sum += avg;
+      fanCounts.set(genre, entry);
     }
   }
 
-  // Sort by average rating across all users
-  return [...candidates]
-    .map((genre) => {
-      let sum = 0;
-      for (const pref of preferences) {
-        sum += pref.topGenres.get(genre) ?? 0;
-      }
-      return { genre, avg: sum / preferences.length };
-    })
+  return [...fanCounts.entries()]
+    .filter(([, entry]) => entry.fans >= minFans)
+    .map(([genre, entry]) => ({ genre, avg: entry.sum / entry.fans }))
     .toSorted((a, b) => b.avg - a.avg)
     .slice(0, 3)
     .map((g) => g.genre);
@@ -217,28 +246,28 @@ function getAllGenres(preferences: UserGenrePreference[]): Set<string> {
 }
 
 async function fetchGroupDiscover(
-  sharedGenres: string[],
+  shared: { sharedGenres: string[]; genreReason: string },
   watched: WatchedIds,
   animeTitles: Set<string>,
 ): Promise<RecommendationItem[]> {
   // Build genre ID lists for movie and TV
-  const movieGenreIds = sharedGenres
+  const movieGenreIds = shared.sharedGenres
     .map((g) => getMovieGenreId(g))
     .filter((id): id is number => id !== null);
 
-  const tvGenreIds = sharedGenres
+  const tvGenreIds = shared.sharedGenres
     .map((g) => getTvGenreId(g))
     .filter((id): id is number => id !== null);
 
   const movieResults = await discoverMovieItems({
     genreIds: movieGenreIds,
-    sharedGenres,
+    genreReason: shared.genreReason,
     watched,
     animeTitles,
   });
   const tvResults = await discoverTvItems({
     genreIds: tvGenreIds,
-    sharedGenres,
+    genreReason: shared.genreReason,
     watched,
     animeTitles,
   });
@@ -248,26 +277,32 @@ async function fetchGroupDiscover(
 
 async function discoverMovieItems(options: {
   genreIds: number[];
-  sharedGenres: string[];
+  genreReason: string;
   watched: WatchedIds;
   animeTitles: Set<string>;
 }): Promise<RecommendationItem[]> {
-  const { genreIds, sharedGenres, watched, animeTitles } = options;
+  const { genreIds, genreReason, watched, animeTitles } = options;
   if (genreIds.length === 0) return [];
 
   try {
-    const response = await discoverMovies({
-      with_genres: genreIds.join(","),
-      sort_by: "vote_average.desc",
-      "vote_count.gte": "200",
-      page: randomPage(3),
-    });
-
     const results: RecommendationItem[] = [];
-    for (const item of response.results) {
-      if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
-      if (isWatchedAnimeTitle(item.title, animeTitles)) continue;
-      results.push(movieToGroupItem(item, sharedGenres));
+    // Two pages: one page (~20 results) minus already-watched titles can't
+    // fill a 36-item section on its own.
+    const startPage = Number(randomPage(3));
+    for (let offset = 0; offset < 2; offset += 1) {
+      const response = await discoverMovies({
+        with_genres: genreIds.join(","),
+        sort_by: "vote_average.desc",
+        "vote_count.gte": "200",
+        page: String(startPage + offset),
+      });
+
+      for (const item of response.results) {
+        if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+        if (isWatchedAnimeTitle(item.title, animeTitles)) continue;
+        results.push(movieToGroupItem(item, genreReason));
+      }
+      if (response.results.length === 0) break;
     }
     return results;
   } catch {
@@ -277,26 +312,30 @@ async function discoverMovieItems(options: {
 
 async function discoverTvItems(options: {
   genreIds: number[];
-  sharedGenres: string[];
+  genreReason: string;
   watched: WatchedIds;
   animeTitles: Set<string>;
 }): Promise<RecommendationItem[]> {
-  const { genreIds, sharedGenres, watched, animeTitles } = options;
+  const { genreIds, genreReason, watched, animeTitles } = options;
   if (genreIds.length === 0) return [];
 
   try {
-    const response = await discoverTv({
-      with_genres: genreIds.join(","),
-      sort_by: "vote_average.desc",
-      "vote_count.gte": "200",
-      page: randomPage(3),
-    });
-
     const results: RecommendationItem[] = [];
-    for (const item of response.results) {
-      if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
-      if (isWatchedAnimeTitle(item.name, animeTitles)) continue;
-      results.push(tvToGroupItem(item, sharedGenres));
+    const startPage = Number(randomPage(3));
+    for (let offset = 0; offset < 2; offset += 1) {
+      const response = await discoverTv({
+        with_genres: genreIds.join(","),
+        sort_by: "vote_average.desc",
+        "vote_count.gte": "200",
+        page: String(startPage + offset),
+      });
+
+      for (const item of response.results) {
+        if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
+        if (isWatchedAnimeTitle(item.name, animeTitles)) continue;
+        results.push(tvToGroupItem(item, genreReason));
+      }
+      if (response.results.length === 0) break;
     }
     return results;
   } catch {
@@ -304,7 +343,7 @@ async function discoverTvItems(options: {
   }
 }
 
-function movieToGroupItem(item: TmdbMovieSearchResult, sharedGenres: string[]): RecommendationItem {
+function movieToGroupItem(item: TmdbMovieSearchResult, genreReason: string): RecommendationItem {
   return {
     mediaId: null,
     tmdbId: item.id,
@@ -321,13 +360,13 @@ function movieToGroupItem(item: TmdbMovieSearchResult, sharedGenres: string[]): 
     reasons: [
       {
         tag: "Group genre",
-        detail: `Everyone rates ${sharedGenres.join(", ")} highly`,
+        detail: genreReason,
       },
     ],
   };
 }
 
-function tvToGroupItem(item: TmdbTvSearchResult, sharedGenres: string[]): RecommendationItem {
+function tvToGroupItem(item: TmdbTvSearchResult, genreReason: string): RecommendationItem {
   return {
     mediaId: null,
     tmdbId: item.id,
@@ -344,7 +383,7 @@ function tvToGroupItem(item: TmdbTvSearchResult, sharedGenres: string[]): Recomm
     reasons: [
       {
         tag: "Group genre",
-        detail: `Everyone rates ${sharedGenres.join(", ")} highly`,
+        detail: genreReason,
       },
     ],
   };

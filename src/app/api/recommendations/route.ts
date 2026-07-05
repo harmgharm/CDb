@@ -24,11 +24,10 @@ import {
   isAlreadyWatched,
   MIN_RATINGS_FOR_PERSONALIZED,
 } from "@/lib/recommendations";
+import { shouldBackfill } from "@/lib/recommendations/backfill";
+import { getOrComputeRecommendationsWithMeta } from "@/lib/recommendations/cache";
 import { computeFilteredRecommendations } from "@/lib/recommendations/filtered";
 import { recommendationQuerySchema } from "@/lib/validations/recommendations";
-
-/** If dismissal filtering drops a section below this, auto-backfill with fresh computation */
-const BACKFILL_THRESHOLD = 15;
 
 async function fetchAllTypes(userId: string, refresh: boolean): Promise<RecommendationItem[]> {
   const ratingCount = await getUserRatingCount(userId);
@@ -87,11 +86,22 @@ export async function GET(req: NextRequest) {
       items = items.toSorted((a, b) => b.score - a.score);
     } else {
       // Single type requested (no content filters)
-      items = await getOrComputeRecommendations(user.id, type, refresh);
+      const result = await getOrComputeRecommendationsWithMeta(user.id, type, refresh);
+      items = result.items;
 
-      // Backfill: if dismissals thin a section below threshold, recompute once
+      // Backfill: if dismissals thin a stale cached section below threshold,
+      // recompute once. Fresh or recently computed results are served as-is —
+      // recomputing a section that can't produce more items on every request
+      // just burns API calls and re-rolls the randomness.
       const filteredCount = items.filter((item) => !isAlreadyWatched(dismissed, item)).length;
-      if (!refresh && filteredCount < BACKFILL_THRESHOLD) {
+      const backfill = shouldBackfill({
+        refresh,
+        filteredCount,
+        fromCache: result.fromCache,
+        computedAt: result.computedAt,
+        now: new Date(),
+      });
+      if (backfill) {
         items = await getOrComputeRecommendations(user.id, type, true);
       }
     }

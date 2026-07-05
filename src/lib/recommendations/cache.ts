@@ -26,6 +26,14 @@ const CACHE_TTLS: Record<RecommendationType, number> = {
   group: 12 * 60 * 60 * 1000, // 12 hours
 };
 
+export interface RecommendationsWithMeta {
+  items: RecommendationItem[];
+  /** True when served from cache; false when computed on this request. */
+  fromCache: boolean;
+  /** When the cached items were computed; null for a fresh compute. */
+  computedAt: Date | null;
+}
+
 /**
  * Get cached recommendations or compute fresh ones.
  * Returns cached results if not expired. Otherwise recomputes and caches.
@@ -35,12 +43,27 @@ export async function getOrComputeRecommendations(
   type: RecommendationType,
   forceRefresh = false,
 ): Promise<RecommendationItem[]> {
+  const { items } = await getOrComputeRecommendationsWithMeta(userId, type, forceRefresh);
+  return items;
+}
+
+/**
+ * Same as getOrComputeRecommendations, but reports whether the result came
+ * from cache and how old it is — the backfill decision needs both.
+ */
+export async function getOrComputeRecommendationsWithMeta(
+  userId: string,
+  type: RecommendationType,
+  forceRefresh = false,
+): Promise<RecommendationsWithMeta> {
   const isGroupType = type === "group";
 
   // 1. Check cache (unless force refresh)
   if (!forceRefresh) {
     const cached = await getCachedResults(isGroupType ? null : userId, type);
-    if (cached.length > 0) return cached;
+    if (cached.items.length > 0) {
+      return { items: cached.items, fromCache: true, computedAt: cached.computedAt };
+    }
   }
 
   // 2. Check if user has enough ratings for personalized recs
@@ -63,7 +86,7 @@ export async function getOrComputeRecommendations(
     await cacheResults(isGroupType ? null : userId, type, results);
   }
 
-  return results;
+  return { items: results, fromCache: false, computedAt: null };
 }
 
 /**
@@ -137,7 +160,7 @@ async function computeByType(
 async function getCachedResults(
   userId: string | null,
   type: RecommendationType,
-): Promise<RecommendationItem[]> {
+): Promise<{ items: RecommendationItem[]; computedAt: Date | null }> {
   let query = db
     .selectFrom("recommendation_cache")
     .selectAll()
@@ -150,7 +173,8 @@ async function getCachedResults(
 
   const rows = await query.execute();
 
-  return rows.map((row) => ({
+  const computedAt = rows[0]?.computed_at ?? null;
+  const items = rows.map((row) => ({
     mediaId: row.media_id,
     tmdbId: row.tmdb_id,
     malId: row.mal_id,
@@ -165,6 +189,8 @@ async function getCachedResults(
     recType: row.rec_type,
     reasons: parseReasons(row.reasons),
   }));
+
+  return { items, computedAt };
 }
 
 async function cacheResults(
