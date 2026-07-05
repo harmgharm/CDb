@@ -163,9 +163,9 @@ All under `src/app/api/queue/`. Standard `{ data, error, message }` response sha
 > proposal; only closing the scheduled pick also promotes. Pure decision: `decideWatchClose` +
 > `isHistoricalBackfill` in `ranking.ts` (replaced `decideAdvance`).
 
-Helper `advanceQueueOnWatch(trx, mediaId, sessionId, dateWatched)` in `src/lib/queue/advance.ts`,
-called **inside the existing `POST /api/sessions` transaction**, adjacent to the watchlist
-auto-removal:
+Helper `advanceQueueOnWatch(trx, { mediaId, sessionId, dateWatched })` in
+`src/lib/queue/advance.ts`, called **inside the existing `POST /api/sessions` transaction**,
+adjacent to the watchlist auto-removal:
 
 1. Find the media's single **active** proposal (`proposed` or `scheduled`; the active-per-media
    unique index guarantees at most one), locked `FOR UPDATE`.
@@ -360,7 +360,12 @@ slice. **Chosen approach: extract pure logic + E2E the wiring**, consistent with
   pure functions and test those exhaustively:
   - `rankProposals(proposals)` — votes DESC, then `proposed_at` ASC (oldest-proposal tie-break).
   - `pickNextScheduled(proposals)` — who promotes given a ranked set (and `null` when empty).
-  - `decideAdvance({ scheduledMediaId, watchedMediaId })` — the no-op-on-off-queue-media decision.
+  - `decideWatchClose({ proposal, dateWatched })` + `isHistoricalBackfill(dateWatched, proposedAt)`
+    — the close/promote/no-op decision incl. the backfill grace day (replaced `decideAdvance`,
+    2026-07-04 revision).
+  - The promote status-predicate race guard (`promoteTopProposal`'s `status='proposed'` UPDATE
+    predicate) is deterministically untestable in e2e and has no unit seam — covered by reasoning
+    - the single-scheduled unique-index backstop, not by a test.
   - propose dedup decision (active title -> surface existing) where it can be isolated from the
     write.
 - **E2E (Playwright, `.env.test` Neon branch):** the SQL/route integration that the unit layer can't
