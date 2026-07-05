@@ -58,12 +58,14 @@ export interface WatchedIds {
 /**
  * Slice items with type-depth guarantee.
  * Ensures up to `perType` items of each media type survive the limit,
- * so client-side type filtering finds enough results.
+ * so client-side type filtering finds enough results. The default matches the
+ * page's per-section display count (36) — lower and a single-type-heavy
+ * section can't fill its expanded grid.
  */
 export function sliceWithTypeDepth(
   items: RecommendationItem[],
   limit: number,
-  perType = 20,
+  perType = 36,
 ): RecommendationItem[] {
   const byType = new Map<string, RecommendationItem[]>();
 

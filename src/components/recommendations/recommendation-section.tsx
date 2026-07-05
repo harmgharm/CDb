@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import type { RecommendationItem } from "@/types/recommendation-responses";
 
 // Collapsed sections show one row of posters; "See all" expands to the rest.
-// Six fills a row at the lg breakpoint. The engine returns up to 20 per section
-// today, so an expanded last row sits two short of full; bump DISPLAY_LIMIT to a
-// multiple of six (e.g. 30) when the per-section engine count is raised.
+// Six fills a row at the lg breakpoint. Sections display up to 36 items
+// (page.tsx DISPLAY_LIMIT) — a count every breakpoint's row width (2/3/4/6)
+// divides, so a fully-supplied expanded section never ends on a ragged row.
 const COLLAPSED_COUNT = 6;
 
 interface RecommendationSectionProps {

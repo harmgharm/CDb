@@ -43,7 +43,8 @@ import type {
   RecommendationsResponse,
 } from "@/types/recommendation-responses";
 
-const DISPLAY_LIMIT = 20;
+// 36 fills whole rows at every grid breakpoint (2/3/4/6 per row all divide it).
+const DISPLAY_LIMIT = 36;
 const COLLAGE_POSTER_COUNT = 5;
 
 type MediaTypeValue = "movie" | "tv" | "anime";
