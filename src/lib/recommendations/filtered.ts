@@ -20,7 +20,7 @@ import type { MediaType } from "@/lib/db/types";
 import type { TmdbMovieSearchResult, TmdbTvSearchResult } from "@/types/tmdb";
 
 import { getUserDismissedIds } from "./dismissed";
-import { addScoreJitter, randomPage, randomSample } from "./random";
+import { addScoreJitter, randomPage, weightedSampleByScore } from "./random";
 import type { RecommendationItem, WatchedIds } from "./types";
 import {
   getUserWatchedAnimeTitles,
@@ -103,9 +103,10 @@ export async function computeFilteredRecommendations(
     }
   }
 
-  // Jitter + sample for variety
+  // Jitter + score-weighted sample: the pool now reaches deep pages, so bias
+  // the final pick toward higher-rated titles instead of sampling uniformly.
   const jittered = addScoreJitter(results);
-  return randomSample(jittered, limit);
+  return weightedSampleByScore(jittered, limit);
 }
 
 async function getUserTopGenre(userId: string): Promise<string | undefined> {
@@ -163,27 +164,42 @@ interface FetchPagesOptions {
   label: string;
 }
 
-/** Fetch 2 pages from TMDB discover for a single date range */
+/** Anchor-fetch window: the genre's headline pages. */
+const ANCHOR_PAGE_WINDOW = 5;
+/** Explorer-fetch cap: ~top 500 titles at 20/page. The rating floor keeps the
+ * deep tail watchable; narrow filters self-limit via their real total_pages. */
+const DEEP_PAGE_CAP = 25;
+
+/**
+ * Fetch 2 pages for a single date range: an anchor page from the top of the
+ * ordering, then an explorer page drawn from the catalog's real depth
+ * (min(total_pages, cap)) so broad filters don't recycle the same top titles.
+ */
 async function fetchMoviePages(options: FetchPagesOptions): Promise<RecommendationItem[]> {
   const { baseParams, dateRange, watched, animeTitles, seen, label } = options;
-  const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
+  const params: Record<string, string> = { ...baseParams };
   if (dateRange !== null) {
     params["primary_release_date.gte"] = dateRange.gte;
     params["primary_release_date.lte"] = dateRange.lte;
   }
   const results: RecommendationItem[] = [];
-  for (let offset = 0; offset < 2; offset += 1) {
-    const response = await discoverMovies({
-      ...params,
-      page: String(Number(params.page) + offset),
-    });
-    for (const item of response.results) {
+  const collect = (items: TmdbMovieSearchResult[]) => {
+    for (const item of items) {
       if (seen.has(item.id) || isAlreadyWatched(watched, { tmdbId: item.id })) continue;
       if (isWatchedAnimeTitle(item.title, animeTitles)) continue;
       seen.add(item.id);
       results.push(parseMovieToItem(item, label));
     }
-    if (response.results.length === 0) break;
+  };
+
+  const anchorPage = randomPage(ANCHOR_PAGE_WINDOW);
+  const anchor = await discoverMovies({ ...params, page: anchorPage });
+  collect(anchor.results);
+
+  const deepPage = randomPage(Math.min(Math.max(anchor.total_pages, 1), DEEP_PAGE_CAP));
+  if (deepPage !== anchorPage) {
+    const deep = await discoverMovies({ ...params, page: deepPage });
+    collect(deep.results);
   }
   return results;
 }
@@ -193,6 +209,7 @@ async function discoverFilteredMovies(options: DiscoverOptions): Promise<Recomme
   const baseParams: Record<string, string> = {
     sort_by: "vote_average.desc",
     "vote_count.gte": "100",
+    "vote_average.gte": "6.5",
   };
 
   const mappedGenres = genres.filter((g) => getMovieGenreId(g) !== null);
@@ -224,27 +241,32 @@ async function discoverFilteredMovies(options: DiscoverOptions): Promise<Recomme
   }
 }
 
-/** Fetch 2 pages from TMDB TV discover for a single date range */
+/** Anchor + explorer paging for TV — see fetchMoviePages. */
 async function fetchTvPages(options: FetchPagesOptions): Promise<RecommendationItem[]> {
   const { baseParams, dateRange, watched, animeTitles, seen, label } = options;
-  const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
+  const params: Record<string, string> = { ...baseParams };
   if (dateRange !== null) {
     params["first_air_date.gte"] = dateRange.gte;
     params["first_air_date.lte"] = dateRange.lte;
   }
   const results: RecommendationItem[] = [];
-  for (let offset = 0; offset < 2; offset += 1) {
-    const response = await discoverTv({
-      ...params,
-      page: String(Number(params.page) + offset),
-    });
-    for (const item of response.results) {
+  const collect = (items: TmdbTvSearchResult[]) => {
+    for (const item of items) {
       if (seen.has(item.id) || isAlreadyWatched(watched, { tmdbId: item.id })) continue;
       if (isWatchedAnimeTitle(item.name, animeTitles)) continue;
       seen.add(item.id);
       results.push(parseTvToItem(item, label));
     }
-    if (response.results.length === 0) break;
+  };
+
+  const anchorPage = randomPage(ANCHOR_PAGE_WINDOW);
+  const anchor = await discoverTv({ ...params, page: anchorPage });
+  collect(anchor.results);
+
+  const deepPage = randomPage(Math.min(Math.max(anchor.total_pages, 1), DEEP_PAGE_CAP));
+  if (deepPage !== anchorPage) {
+    const deep = await discoverTv({ ...params, page: deepPage });
+    collect(deep.results);
   }
   return results;
 }
@@ -254,6 +276,7 @@ async function discoverFilteredTv(options: DiscoverOptions): Promise<Recommendat
   const baseParams: Record<string, string> = {
     sort_by: "vote_average.desc",
     "vote_count.gte": "100",
+    "vote_average.gte": "6.5",
   };
 
   const mappedGenres = genres.filter((g) => getTvGenreId(g) !== null);
@@ -292,7 +315,7 @@ interface FetchAnimeOptions {
 
 async function fetchAnimeResults(options: FetchAnimeOptions): Promise<RecommendationItem[]> {
   const { baseParams, dateRange, watched, seen, label } = options;
-  const params: Record<string, string> = { ...baseParams, page: randomPage(3) };
+  const params: Record<string, string> = { ...baseParams, page: randomPage(5) };
   if (dateRange !== null) {
     params.start_date = dateRange.gte;
     params.end_date = dateRange.lte;

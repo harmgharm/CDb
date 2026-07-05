@@ -44,6 +44,18 @@ import { discoverAnime } from "@/lib/api/jikan";
 import { discoverMovies, discoverTv } from "@/lib/api/tmdb";
 import { computeFilteredRecommendations } from "@/lib/recommendations/filtered";
 
+function movieResult(id: number) {
+  return {
+    id,
+    title: `Movie ${String(id)}`,
+    poster_path: null,
+    overview: "",
+    release_date: "2015-06-01",
+    vote_average: 7.4,
+    genre_ids: [27],
+  };
+}
+
 describe("computeFilteredRecommendations vertical skipping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,6 +112,50 @@ describe("computeFilteredRecommendations vertical skipping", () => {
 
     const movieParams = vi.mocked(discoverMovies).mock.calls[0]?.[0];
     expect(movieParams?.with_genres).toBe("28");
+  });
+
+  it("applies a rating floor so deep exploration can't surface junk", async () => {
+    await computeFilteredRecommendations("user-1", { genre: ["Horror"], mediaType: ["movie"] });
+
+    const params = vi.mocked(discoverMovies).mock.calls[0]?.[0];
+    expect(params?.["vote_average.gte"]).toBe("6.5");
+    expect(params?.["vote_count.gte"]).toBe("100");
+  });
+
+  it("sends the second movie fetch deep into the genre's real catalog", async () => {
+    // Anchor fetch lands in the top-5-page window; the explorer fetch may go
+    // as deep as min(total_pages, 25). Constant randomness pins both picks.
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    vi.mocked(discoverMovies).mockResolvedValue({
+      page: 1,
+      total_pages: 500,
+      total_results: 10_000,
+      results: [movieResult(1)],
+    } as Awaited<ReturnType<typeof discoverMovies>>);
+
+    await computeFilteredRecommendations("user-1", { genre: ["Horror"], mediaType: ["movie"] });
+
+    const pages = vi.mocked(discoverMovies).mock.calls.map((call) => call[0].page);
+    expect(pages).toEqual(["5", "25"]);
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the explorer fetch inside small catalogs", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    vi.mocked(discoverMovies).mockResolvedValue({
+      page: 1,
+      total_pages: 3,
+      total_results: 45,
+      results: [movieResult(2)],
+    } as Awaited<ReturnType<typeof discoverMovies>>);
+
+    await computeFilteredRecommendations("user-1", { genre: ["Horror"], mediaType: ["movie"] });
+
+    const pages = vi.mocked(discoverMovies).mock.calls.map((call) => call[0].page);
+    // Anchor at page 5 may overshoot a 3-page catalog (empty page, handled);
+    // the explorer must stay within the real 3 pages.
+    expect(Number(pages[1])).toBeLessThanOrEqual(3);
+    vi.restoreAllMocks();
   });
 
   it("labels each vertical's results with only the genres that applied to it", async () => {
