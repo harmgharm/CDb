@@ -54,9 +54,20 @@ the lower rows are placeholders until then.
 9. **Play hub** — ✅ implemented (below). Was the **highest drift since the homepage** — no
    `PageHeader` shell header, no cross-game leaderboard, no live-now list; the game cards had a
    different internal anatomy than the kit's. All closed.
+10. **Game play surfaces (solo + multiplayer)** — next, to audit. Covers all 3 games' solo setup +
+    live `[id]` play pages as one unit (the kit itself only distinguishes solo vs. multiplayer, not
+    per-game-type, and the 3 games already share components/patterns). Kit: `GamePlay.jsx` (solo),
+    `GamePlayMP.jsx` (multiplayer). **Not** the Play hub landing page (done above) — this is the
+    per-game play/round UI reached after clicking into a game.
+11. **Sidebar / Shell** — audited on its own after Game play surfaces. Kit: `Shell.jsx`. Unlike the
+    other entries this is a shared shell rendered on every page (not a standalone route) — worth
+    isolating as its own pass since drift here affects every page at once, rather than folding it
+    into whichever page happens to be audited next.
+12. **Admin** — last in the work order (lowest-traffic, owner-only surface). Kit: `Admin.jsx`.
 
-**All 9 pages in the work order are now implemented.** Remaining work is cross-page (mobile pass,
-owner light-mode visual pass) — see each page's section for its one open acceptance box.
+**Added to the work order 2026-07-06** (games 10-12 above) — these three kit screens/surfaces were
+previously out of scope (the original 9-page list came from the spec's original page-drift-ranking
+pass and didn't include them). Not yet audited; no drift findings recorded until each is picked up.
 
 ---
 
