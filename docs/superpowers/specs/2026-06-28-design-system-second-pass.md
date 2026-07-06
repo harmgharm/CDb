@@ -51,9 +51,12 @@ the lower rows are placeholders until then.
 6. **Settings** — ✅ implemented (below). Lowest drift so far.
 7. **Auth (login / signup)** — ✅ implemented (below). Low drift, copy + spacing only.
 8. **Landing** — ✅ implemented (below). Low drift, sizing/alignment only.
-9. **Play hub** — audited (below), pending approval. **Highest drift since the homepage** — no
-   `PageHeader` shell header, no cross-game leaderboard, no live-now list; the game cards have a
-   different internal anatomy than the kit's.
+9. **Play hub** — ✅ implemented (below). Was the **highest drift since the homepage** — no
+   `PageHeader` shell header, no cross-game leaderboard, no live-now list; the game cards had a
+   different internal anatomy than the kit's. All closed.
+
+**All 9 pages in the work order are now implemented.** Remaining work is cross-page (mobile pass,
+owner light-mode visual pass) — see each page's section for its one open acceptance box.
 
 ---
 
@@ -1221,7 +1224,7 @@ feature-dev reviewer as correctly scoped, not a regression.
 
 ---
 
-## Page — Play hub 🔍 audited 2026-07-06 (awaiting approval)
+## Page — Play hub ✅ implemented 2026-07-06 (pending review)
 
 Audited against `CDb Design System/ui_kits/web/Play.jsx` + `kit.css`
 (`.cdb-games-grid`/`.cdb-game-*` grepped separately from `.cdb-leader-*` and `.cdb-live-*`, per the
@@ -1395,8 +1398,11 @@ Current files: `src/app/(main)/play/page.tsx` (8-line auth wrapper, unchanged),
       resolved) — "Solo · Multiplayer" meta copy ships as-is.
 - [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (608 tests, +9 new: 6 for
       `rankGroupLeaderboardEntries`, 3 for `formatLiveSession`).
-- [ ] Manual review + `feature-dev` code-review subagent, zero Critical/Important findings, before
-      commit.
+- [x] Manual review + `feature-dev` code-review subagent. One Important finding (a code comment
+      cited the uncommitted `HANDOFF.md` as the follow-up location for the stale-session issue below
+      — fixed to cite this spec doc instead, which is committed) and one minor style note (the
+      ad-hoc SQL interval filter was simplified to the existing `new Date(Date.now() - ms)` pattern
+      from `src/lib/notifications/cleanup.ts`). Both applied before commit.
 - [x] Headless verification (1440px, 320/390/768px, light + dark) — 0px horizontal overflow at every
       width, header/cards/leaderboard/live-now all render, empty states correct, a real multiplayer
       lobby created via the API renders correctly in "Live now" (cherry tint, pulse dot, "1 joined",
