@@ -1,50 +1,59 @@
 "use client";
 
 /**
- * GameHubContent — Landing page for /play showing available game types
+ * GameHubContent — Play hub landing page: game type cards, group leaderboard,
+ * and in-progress multiplayer sessions.
  */
 
-import { Gamepad2Icon } from "lucide-react";
+import { ArrowRightIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 import Link from "next/link";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HubLeaderboard } from "@/components/games/hub-leaderboard";
+import { HubLiveNow } from "@/components/games/hub-live-now";
+import { PlayHubHeader } from "@/components/games/play-hub-header";
+import { usePlayHub } from "@/hooks/use-play-hub";
 import { getAllGameConfigs } from "@/lib/games/client-config";
 
 export function GameHubContent() {
   const games = getAllGameConfigs();
+  const { leaderboard, liveSessions } = usePlayHub();
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto max-w-[1200px] space-y-8 px-4 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" as const }}
+        className="space-y-8"
       >
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <Gamepad2Icon className="text-muted-foreground mx-auto mb-3 size-12" />
-          <h1 className="text-3xl font-bold">Games</h1>
-          <p className="text-muted-foreground mt-2">Challenge yourself or compete with friends</p>
-        </div>
+        <PlayHubHeader />
 
-        {/* Game cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {games.map((game) => (
-            <Link key={game.basePath} href={game.basePath}>
-              <Card className="hover:border-primary/50 h-full transition-colors">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <game.icon className="text-muted-foreground size-6" />
-                    <CardTitle className="text-lg">{game.displayName}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm">{game.description}</p>
-                </CardContent>
-              </Card>
+            <Link
+              key={game.basePath}
+              href={game.basePath}
+              className="bg-card flex flex-col gap-2 rounded-xl border border-[var(--border)] p-[22px] pb-5 transition-colors hover:border-[color-mix(in_oklch,var(--cdb-marquee)_55%,transparent)]"
+            >
+              <div className="mb-1.5 flex size-12 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-elev-3)] text-[var(--fg)]">
+                <game.icon className="size-6" />
+              </div>
+              <h3 className="text-lg font-semibold">{game.displayName}</h3>
+              <p className="text-[13px] leading-[1.45] text-[var(--fg-muted)]">
+                {game.description}
+              </p>
+              <div className="mt-3.5 flex items-center justify-between text-[11px] tracking-[0.08em] text-[var(--fg-dim)] uppercase">
+                <span>Solo · Multiplayer</span>
+                <ArrowRightIcon className="size-3.5" />
+              </div>
             </Link>
           ))}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <HubLeaderboard entries={leaderboard} />
+          <HubLiveNow sessions={liveSessions} />
         </div>
       </motion.div>
     </div>

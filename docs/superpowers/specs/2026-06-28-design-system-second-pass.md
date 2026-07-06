@@ -51,7 +51,9 @@ the lower rows are placeholders until then.
 6. **Settings** — ✅ implemented (below). Lowest drift so far.
 7. **Auth (login / signup)** — ✅ implemented (below). Low drift, copy + spacing only.
 8. **Landing** — ✅ implemented (below). Low drift, sizing/alignment only.
-9. **Play hub** — next, to audit
+9. **Play hub** — audited (below), pending approval. **Highest drift since the homepage** — no
+   `PageHeader` shell header, no cross-game leaderboard, no live-now list; the game cards have a
+   different internal anatomy than the kit's.
 
 ---
 
@@ -1216,3 +1218,197 @@ feature-dev reviewer as correctly scoped, not a regression.
       hero), the `dark:bg-transparent` override is the idiomatic fix given tailwind-merge's per-slot
       dedup behavior, and no lint gotchas apply.
 - [ ] Light mode readable, no broken tokens (owner visual pass).
+
+---
+
+## Page — Play hub 🔍 audited 2026-07-06 (awaiting approval)
+
+Audited against `CDb Design System/ui_kits/web/Play.jsx` + `kit.css`
+(`.cdb-games-grid`/`.cdb-game-*` grepped separately from `.cdb-leader-*` and `.cdb-live-*`, per the
+handoff — no single `cdb-play-*` prefix). **Highest drift since the homepage.** Unlike
+Settings/Auth/Landing, this isn't a sizing/copy pass — two whole sections are missing and the
+header + card anatomy both differ structurally.
+
+Current files: `src/app/(main)/play/page.tsx` (8-line auth wrapper, unchanged),
+`src/components/games/game-hub.tsx` (52 lines, all current content),
+`src/lib/games/client-config.ts` (`getAllGameConfigs()`).
+
+### Kit section order (target)
+
+1. `PageHeader` shell header: left-aligned title "Games" + subtitle "Challenge yourself or compete
+   with friends.", no action (utility register — plain sans, not editorial serif... **correction,
+   see below**).
+2. `cdb-games-grid`: 3-column grid (always 3 across ≥ some breakpoint, 1 column on mobile), one
+   `cdb-game-card` per game — icon tile, title, description, meta row ("Solo · Multiplayer" +
+   trailing arrow).
+3. `cdb-two-col` row (1 col on mobile): **Game leaderboard** card (rank, avatar, name, wins ·
+   played, win%, top 5, "This month" scope label) + **Live now** card (per-lobby row: icon, title +
+   round/lobby state, participant names, cherry-tinted icon tile for in-progress, trailing arrow,
+   click to jump in; pill badge "N active" with a pulsing cherry dot in the card header).
+
+### Current order (live)
+
+1. Centered header: `Gamepad2Icon` above an `<h1>`, subtitle below, all center-aligned. Contained in
+   `max-w-4xl` (kit's `cdb-page-inner` is `max-w-[1200px]`, noticeably wider).
+2. Grid of plain shadcn `Card`/`CardHeader`/`CardTitle`/`CardContent` tiles,
+   `sm:grid-cols-2 lg:grid-cols-3` (already has the mobile `grid-cols-1` base — good, no
+   overflow-trap risk here). Each card: icon + title in the header row, description in the body. No
+   meta row, no "Solo · Multiplayer" line, no trailing arrow.
+3. **Nothing.** No leaderboard section, no live-now section. The page ends after the game grid.
+
+### Drift checklist
+
+- [ ] **Header doesn't match the kit's `PageHeader` shell shape.** Kit:
+      `flex items-end     justify-between`, title is `font-family: var(--font-display)` (the serif)
+      at `44px`, subtitle below at `14px` muted, no icon, action slot on the right (unused here,
+      `action={null}`). Live: centered `Gamepad2Icon` + `text-3xl font-bold` (sans, not display
+      font) + centered subtitle. **Correction to the handoff's framing:** the handoff calls this
+      header "utility register, not editorial" and warns not to over-editorialize it — but
+      `PageHeader`'s own CSS (`.cdb-page-title`) _is_ `var(--font-display)` at 44px. This is the
+      exact same treatment the homepage's `DashboardHeader` already implements in Tailwind
+      (`src/app/(main)/home/_components/dashboard-header.tsx:60`:
+      `font-display text-[44px]     leading-none font-normal tracking-[-0.015em]`, left-aligned,
+      `flex items-end justify-between` wrapper). "Utility vs. editorial" here is about _tone/copy_
+      (no italic accent word, no magazine framing), not about _typeface_ — the shell header is serif
+      at 44px on every kit screen that uses it (only Dashboard and Play). Fix: rebuild the header
+      left-aligned, serif 44px title, no icon (kit doesn't have one in `PageHeader`; the current
+      `Gamepad2Icon` above the title isn't in the kit at all), subtitle unchanged copy. No action
+      button (kit passes `action={null}`).
+- [ ] **No shared `PageHeader` component exists in the app yet** (confirmed via grep — every page
+      rolls its own header markup inline). Dashboard's `DashboardHeader` and Play's would be the
+      only two consumers of this shape. Judgment call below on whether to extract one now or keep
+      inline (matches the file-per-page convention every other finished page uses).
+- [ ] **Container is `max-w-4xl`; kit's `cdb-page-inner` is `max-w-[1200px]`.** Bump to match — the
+      3-col game grid and the 2-col leaderboard/live row both want the wider canvas the kit uses (a
+      1200px-wide page reads very differently from 896px for a 3-up grid).
+- [ ] **Game card anatomy differs from `cdb-game-card`.** Kit: dedicated icon tile (`48×48`,
+      `var(--radius-md)`, `var(--bg-elev-3)` bg, `var(--border)` border — i.e.
+      `cdb-game-icon-neutral`, confirming the handoff's cherry-reservation rule: these are neutral,
+      not tinted), title at `18px/600`, description at `13px` muted, and a **meta row**
+      (`margin-top: 14px`, `11px` uppercase `fg-dim`, `justify-content: space-between`) reading
+      "Solo · Multiplayer" with a trailing arrow icon. Live: shadcn `Card`/`CardHeader`/`CardTitle`
+      (bordered box, no dedicated icon tile styling, no meta row at all). Needs a rebuild of the
+      card internals, not a restyle — different structure, not just spacing/color. - Sub-item:
+      **"Solo · Multiplayer" is static copy in the kit, not per-game data** (kit's `games` array has
+      no mode field; the line is hardcoded the same for all 3 cards). Confirmed `ClientGameConfig`
+      (`src/lib/games/client-config.ts`) has no solo/multiplayer field either. Since all 3
+      registered games already support both modes (each game's engine + API supports solo and
+      multiplayer sessions per `GameMode = "solo" | "multiplayer"` in `src/lib/db/types.ts:25`),
+      this can be static copy on the live cards too — no new field needed, this isn't a data gap.
+- [ ] **No "Game leaderboard" card exists.** Needs: rank (1-indexed, gold/marquee-tinted for #1 per
+      `style={i === 0 ? {color: 'var(--cdb-marquee)'} : {}}`), avatar, display name, "N wins · M
+      played" meta line, win% (`round(wins/played * 100)`), top 5, "This month" scope label in the
+      card header (`cdb-card-link`, muted, hover → marquee). - **This needs a new cross-user,
+      cross-game-type aggregate — nothing existing produces it.** `src/lib/games/leaderboard.ts`'s
+      `getLeaderboard()` is scoped to one `gameType` + `category` at a time and ranks by
+      `best_score`, not win%. The per-user profile stats route
+      (`src/app/api/users/[id]/games/stats/route.ts`) sums `games_played`/`games_won` across
+      normal+hard categories for **one user**, which is the right win/played _shape_ to reuse
+      conceptually, but it needs to become a `GROUP BY user_id` across **all users and all 3 game
+      types** combined, ordered by win rate. New query, likely in `src/lib/games/leaderboard.ts` or
+      a new `src/lib/games/group-leaderboard.ts`. TDD per CLAUDE.md convention (pure formatter/sort
+      testable, DB part mocked). - **"This month" scope**: the kit's label implies a time-windowed
+      leaderboard, but `game_leaderboard` has no period dimension (it's all-time best-per-category,
+      updated in-place per `updateLeaderboard()` — no per-month rows). Judgment call below: either
+      treat "This month" as an all-time leaderboard with kit-matching label copy (kit uses
+      placeholder data throughout, per the pinned decision that we don't copy its fake
+      numbers/labels blindly), or add real month-scoping (bigger lift: needs a
+      `created_at`/`updated_at`-windowed query against `game_sessions`/`game_players` instead of the
+      pre-aggregated `game_leaderboard` table, since that table has no time dimension to filter
+      on). - **`countAll()` trap applies if this new query computes any rank via count-based math**:
+      follow the fixed pattern at `games/stats/route.ts:68` (type the query `countAll<string>()`,
+      then `Number(result.count)`), not the unwrapped `countAll<number>()` used elsewhere in
+      `leaderboard.ts`/`games/[id]/*` (those are plain existence/count checks, not rank math, so
+      they're fine as-is — don't "fix" them, they're not the bug pattern).
+- [ ] **No "Live now" section exists.** Needs: card header with a pill badge ("N active" + pulsing
+      cherry dot, `cdb-pill-live` / `cdb-pulse`), a list of in-progress multiplayer game rows (icon
+      tile, cherry-tinted per the reserved-for-live rule, title + round/lobby state text,
+      participant names, trailing arrow, click → jump into that game). - **No existing infra reads
+      "what's live right now across the group."** Checked `src/hooks/use-*` for a multiplayer
+      presence hook — only `use-online-users.ts` exists (global online/offline presence via Ably, no
+      per-game-lobby concept). Checked `src/app/api/games/route.ts` — only exports `POST` (create),
+      no `GET` (list). **This is simpler than it first looks, though**: `game_sessions`
+      (`status: "lobby" | "active" |       "finished"`, `mode: "solo" | "multiplayer"`,
+      `current_round`) plus `game_players` already have everything needed as a **direct DB query** —
+      `WHERE mode = 'multiplayer' AND status IN       ('lobby', 'active')` joined to `game_players`
+      for participant names — no new Ably presence channel required, this can be a polled/SWR'd API
+      route like every other data section on this page, not a real-time presence subscription.
+      Recommend against building new Ably presence infra for this unless real-time push (not just
+      SWR refresh) is a hard requirement — judgment call below. - **Resolved 2026-07-06**: kit's
+      active-row meta ("Sam, Jamie, Alex · 28% revealed") bakes in a reveal percentage that only
+      exists client-side (`poster-reveal-visual.tsx`'s `revealProgress`, driven by
+      `requestAnimationFrame` elapsed time since round start — never persisted server-side).
+      Computing it in a hub-level query would need per-game-type duration constants baked into the
+      aggregate and would only apply to poster-reveal (rating-guess/ year-guess have no
+      reveal-percent concept). **Owner confirmed: drop the % detail.** Active rows show
+      `"{Game name} · Round {currentRound + 1} of {roundCount}"` (server-truth from `game_sessions`,
+      same `+1` display convention as the in-game UI) with a simple "in progress" or
+      participant-names meta line — no fabricated/estimated percentage. Lobby rows keep
+      `"{Game name} · Lobby"` +
+      `"{count}/{roundCount is NOT the cap — use game_players.length}       joined"` wording (kit's
+      own example: "Harm waiting · 1 / 4 joined" — the "4" there is lobby capacity context, not
+      round count; confirm actual copy at implementation time against whatever cap, if any,
+      multiplayer lobbies enforce).
+- [ ] **Copy check**: "Challenge yourself or compete with friends." subtitle already matches the kit
+      verbatim — no change needed there.
+
+### Judgment calls — resolved with owner 2026-07-06
+
+1. **Shared `PageHeader` component: keep inline.** Owner confirmed — new `play-hub-header.tsx` (or
+   equivalent), matching Dashboard's own bespoke `DashboardHeader` pattern. No extraction, no
+   Dashboard refactor. Matches the established per-page-file convention every other finished page
+   used.
+2. **"This month" leaderboard scope: all-time, relabel honestly.** Ship the win-rate leaderboard as
+   all-time (matches what `game_leaderboard` actually stores), change the kit's "This month" scope
+   label to something accurate ("All time", or drop the scope text entirely — decide at
+   implementation time). No month-windowed query.
+3. **"Live now" data source: direct DB query + SWR.** Query `game_sessions` (`mode = 'multiplayer'`,
+   `status IN ('lobby', 'active')`) joined to `game_players`, polled like the rest of the page's
+   data. No new Ably presence channel/infra.
+4. ~~**Card click target for solo-vs-multiplayer**~~ — **resolved, no longer a judgment call.**
+   Verified `src/components/games/poster-reveal/play-page-content.tsx:159-195`: each `basePath` page
+   (`/play/poster-reveal` etc.) renders a `Tabs` with `Solo` / `Multiplayer` triggers ("Start Solo
+   Game" / "Create Multiplayer Lobby"). The kit's single-click-through-to-picker flow already
+   matches; "Solo · Multiplayer" meta copy is accurate as shipped, no copy adjustment needed.
+
+### Acceptance criteria
+
+- [ ] Header rebuilt to match `PageHeader`: left-aligned, `font-display text-[44px]`, subtitle
+      below, no icon, no action button, container widened to `max-w-[1200px]` (or the app's
+      equivalent token/class).
+- [ ] Game cards rebuilt to `cdb-game-card` anatomy: dedicated neutral icon tile, title,
+      description, meta row ("Solo · Multiplayer" + trailing arrow icon), still linking to each
+      game's `basePath`.
+- [ ] New cross-game, cross-user leaderboard query (TDD, pure part unit-tested per convention)
+      ranked by win rate, returns top 5 with rank/avatar/name/wins/played/win%; rendered in a
+      `cdb-leader-row`-equivalent list matching the kit's structure; gold/marquee tint on rank #1.
+      All-time (not month-windowed); scope label changed from the kit's "This month" to something
+      accurate ("All time" or no scope text).
+- [ ] New "Live now" data source: direct `game_sessions`/`game_players` DB query
+      (`mode =     'multiplayer'`, `status IN ('lobby', 'active')`) + SWR, no new Ably presence
+      infra. Surfaces in-progress multiplayer sessions with participant names and round/lobby state;
+      empty state handled gracefully (kit only mocks the populated state) — cherry tint reserved for
+      this list only, no bleed onto the static game cards.
+- [ ] Two-column layout (`cdb-two-col`) for leaderboard + live-now, collapsing to 1 column on
+      mobile/narrow widths (base `grid-cols-1`, per the standing overflow-trap rule).
+- [x] Verified game `basePath` routes already offer a solo/multiplayer choice (judgment call 4,
+      resolved) — "Solo · Multiplayer" meta copy ships as-is.
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (608 tests, +9 new: 6 for
+      `rankGroupLeaderboardEntries`, 3 for `formatLiveSession`).
+- [ ] Manual review + `feature-dev` code-review subagent, zero Critical/Important findings, before
+      commit.
+- [x] Headless verification (1440px, 320/390/768px, light + dark) — 0px horizontal overflow at every
+      width, header/cards/leaderboard/live-now all render, empty states correct, a real multiplayer
+      lobby created via the API renders correctly in "Live now" (cherry tint, pulse dot, "1 joined",
+      cleaned up after).
+- [ ] Light mode readable, no broken tokens (owner visual pass) — same standing item as every other
+      finished page. Headless check above is a proxy, not a substitute for the owner's real pass.
+
+**New finding during implementation, not in the original audit:** `game_sessions` has no
+cleanup/expiry mechanism — testing "Live now" against the dev DB surfaced 51 multiplayer
+lobby/active sessions from ~4 months ago (March 2026) that had never been marked `finished`, which
+would have rendered as "51 active" in production for any group whose members abandon a game without
+finishing it. **Owner-confirmed fix (2026-07-06):** added a defensive recency filter to
+`fetchLiveSessions()` (`created_at` within the last 3 hours) so this page ships correctly now, but
+the root cause — no mechanism ever marks an abandoned session non-live — is unresolved and tracked
+as a follow-up in `HANDOFF.md` ("Stale multiplayer session cleanup"), not silently dropped.
