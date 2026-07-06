@@ -89,6 +89,84 @@ export async function updateLeaderboard(result: GameResult): Promise<boolean> {
   return isNewBest;
 }
 
+interface GroupLeaderboardRawEntry {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  gamesWon: number;
+  gamesPlayed: number;
+}
+
+export interface GroupLeaderboardEntry {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  gamesWon: number;
+  gamesPlayed: number;
+  /** Rounded percentage (0-100). 0 for a user with no games played, not NaN. */
+  winRate: number;
+}
+
+/**
+ * Rank raw per-user win/played totals into a win-rate leaderboard. Pure so the
+ * ranking logic is unit-tested without a database. Users with zero games
+ * played are excluded (nothing to rank), ties broken by games played
+ * descending (more games played is more proven at the same win rate).
+ */
+export function rankGroupLeaderboardEntries(
+  entries: readonly GroupLeaderboardRawEntry[],
+  limit = 5,
+): GroupLeaderboardEntry[] {
+  return entries
+    .filter((entry) => entry.gamesPlayed > 0)
+    .map((entry) => ({
+      ...entry,
+      winRate: Math.round((entry.gamesWon / entry.gamesPlayed) * 100),
+    }))
+    .toSorted((a, b) => b.winRate - a.winRate || b.gamesPlayed - a.gamesPlayed)
+    .slice(0, limit);
+}
+
+/**
+ * Get the top group members by win rate across all game types and
+ * categories combined (all-time, not time-windowed). Powers the Play hub's
+ * "Game leaderboard" card.
+ */
+export async function fetchGroupLeaderboard(limit = 5): Promise<GroupLeaderboardEntry[]> {
+  const rows = await db
+    .selectFrom("game_leaderboard")
+    .innerJoin("users", "users.id", "game_leaderboard.user_id")
+    .select(({ fn }) => [
+      "game_leaderboard.user_id as userId",
+      "users.username",
+      "users.display_name as displayName",
+      "users.avatar_url as avatarUrl",
+      fn.sum<string>("game_leaderboard.games_won").as("gamesWon"),
+      fn.sum<string>("game_leaderboard.games_played").as("gamesPlayed"),
+    ])
+    .groupBy([
+      "game_leaderboard.user_id",
+      "users.username",
+      "users.display_name",
+      "users.avatar_url",
+    ])
+    .execute();
+
+  return rankGroupLeaderboardEntries(
+    rows.map((row) => ({
+      userId: row.userId,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      gamesWon: Number(row.gamesWon),
+      gamesPlayed: Number(row.gamesPlayed),
+    })),
+    limit,
+  );
+}
+
 /**
  * Get paginated leaderboard sorted by best score (ties broken by faster avg time).
  */

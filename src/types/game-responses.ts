@@ -237,3 +237,29 @@ export interface RematchCreatedEvent {
     displayName: string | null;
   };
 }
+
+// ── Play hub ─────────────────────────────────────────────────────
+
+export interface GroupLeaderboardEntryResponse {
+  rank: number;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  gamesWon: number;
+  gamesPlayed: number;
+  winRate: number;
+}
+
+export interface LiveSessionResponse {
+  id: string;
+  gameType: GameType;
+  title: string;
+  meta: string;
+  isLobby: boolean;
+}
+
+export interface PlayHubResponse {
+  leaderboard: GroupLeaderboardEntryResponse[];
+  liveSessions: LiveSessionResponse[];
+}
