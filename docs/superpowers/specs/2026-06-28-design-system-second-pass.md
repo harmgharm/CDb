@@ -2044,9 +2044,10 @@ Mobile:
 One finding from the owner's live pass: the masthead's bottom border and the issue line's rule sat
 too close together — the kit's `.cdb-page-inner` flex column separates them with a 32px gap that the
 app page lacked. Fixed with an `mt-8` wrapper around `IssueLine` (owner confirmed live). **The Users
-page has the same drift** (same header + `IssueLine` sibling structure, no gap) — left as-is there
-since that page is shipped/reviewed; worth folding into the owner's light-mode pass or the next
-Users touch.
+page had the same drift** (same header + `IssueLine` sibling structure, no gap) — fixed same-day at
+the owner's request with the identical `mt-8` wrapper in `users/page.tsx`'s `RosterShell` (its issue
+line sits between the masthead and the roster list, so only the top gap changes; the roster spacing
+below is untouched).
 
 ### Review outcome (2026-07-07)
 

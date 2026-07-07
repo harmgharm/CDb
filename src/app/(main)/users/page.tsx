@@ -257,10 +257,13 @@ function RosterShell({
         </p>
       </header>
 
-      <IssueLine
-        left={`Roster · ${formatIssueDate(new Date())}`}
-        right={onlineCount > 0 ? `${String(onlineCount)} online` : undefined}
-      />
+      {/* Kit's .cdb-page-inner separates masthead and issue line with a 32px flex gap */}
+      <div className="mt-8">
+        <IssueLine
+          left={`Roster · ${formatIssueDate(new Date())}`}
+          right={onlineCount > 0 ? `${String(onlineCount)} online` : undefined}
+        />
+      </div>
 
       {isLoading && (
         <div className="flex flex-col">
