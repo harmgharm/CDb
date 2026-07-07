@@ -54,11 +54,14 @@ the lower rows are placeholders until then.
 9. **Play hub** — ✅ implemented (below). Was the **highest drift since the homepage** — no
    `PageHeader` shell header, no cross-game leaderboard, no live-now list; the game cards had a
    different internal anatomy than the kit's. All closed.
-10. **Game play surfaces (solo + multiplayer)** — next, to audit. Covers all 3 games' solo setup +
-    live `[id]` play pages as one unit (the kit itself only distinguishes solo vs. multiplayer, not
-    per-game-type, and the 3 games already share components/patterns). Kit: `GamePlay.jsx` (solo),
-    `GamePlayMP.jsx` (multiplayer). **Not** the Play hub landing page (done above) — this is the
-    per-game play/round UI reached after clicking into a game.
+10. **Game play surfaces (solo + multiplayer)** — ✅ implemented (below). Covers all 3 games' solo
+    setup + live `[id]` play pages as one unit (the kit itself only distinguishes solo vs.
+    multiplayer, not per-game-type, and the 3 games already share components/patterns). Kit:
+    `GamePlay.jsx` (solo), `GamePlayMP.jsx` (multiplayer). **Not** the Play hub landing page (done
+    above) — this is the per-game play/round UI reached after clicking into a game. Was the
+    **highest-drift surface since the homepage/Play hub** — structure already matched the kit
+    closely, but zero `cdb-gp-*` design-system tokens were used anywhere; a full re-skin, not a
+    small fix. All closed.
 11. **Sidebar / Shell** — audited on its own after Game play surfaces. Kit: `Shell.jsx`. Unlike the
     other entries this is a shared shell rendered on every page (not a standalone route) — worth
     isolating as its own pass since drift here affects every page at once, rather than folding it
@@ -1429,3 +1432,192 @@ finishing it. **Owner-confirmed fix (2026-07-06):** added a defensive recency fi
 `fetchLiveSessions()` (`created_at` within the last 3 hours) so this page ships correctly now, but
 the root cause — no mechanism ever marks an abandoned session non-live — is unresolved and tracked
 as a follow-up in `HANDOFF.md` ("Stale multiplayer session cleanup"), not silently dropped.
+
+---
+
+## Page — Game play surfaces (solo + multiplayer) ✅ implemented (pending owner review)
+
+Audited and implemented 2026-07-06. Kit: `CDb Design System/ui_kits/web/GamePlay.jsx` (solo:
+`GameConfig` → `SoloGame` → `RoundResult` → `GameOver`) and `GamePlayMP.jsx` (multiplayer: `Lobby` →
+`LiveGame` → `MPResult`). Current: per-game
+`src/components/games/{poster-reveal,rating-guess,year-guess}/*` (`play-page-content.tsx`,
+`solo-game.tsx`, `multiplayer-game.tsx`, plus per-game visual/input/answer components) and shared
+chrome (`round-result.tsx`, `game-result.tsx`, `game-lobby.tsx`, `live-scoreboard.tsx`,
+`multiplayer-banners.tsx`, `multiplayer-result.tsx`, `multiplayer-page-content.tsx`,
+`round-breakdown-row.tsx`, `player-guess-indicator.tsx`, `invite-players-dialog.tsx`).
+
+### Headline finding
+
+**Structure already matches the kit closely — this is a token/re-skin gap, not a layout gap.** All 3
+games follow the kit's phase machine 1:1 (config screen → guessing → round result → game over; lobby
+→ live round + scoreboard → round scores → auto-advance → final standings). But **zero `cdb-gp-*`
+(or any `cdb-*`) classes are used anywhere in the ~20 game-play component files** — every component
+is plain shadcn primitives (`Card`, `Badge`, `Select`, `Tabs`, `Slider`, `Input`, `Button`) styled
+with default Tailwind color utilities (`text-blue-400`, `bg-emerald-500/15`,
+`bg-red-500`/`bg-yellow-500`/`bg-primary` for timers) rather than the warm-dark/marquee-amber
+tokens. The kit has a **dedicated 158-rule `cdb-gp-*` stylesheet** for this surface alone (poster
+frame/blur/timer, slider thumb, round-result icon circles, score-pop typography, lobby/live-game/
+standings) — none of it is referenced today. Scope-wise this is closer to the Play hub rebuild
+(previously "highest drift since the homepage") than to a low-drift page like Settings/Auth.
+**Owner-confirmed 2026-07-06: build as one unit across all 3 games** (not split into sub-passes),
+same as the audit — expect multiple commits split by layer given the scale, same as Play hub.
+
+### Kit section order (target)
+
+**Solo:** Config screen (icon + title + blurb header; two-column: New Game card ‖ Leaderboard
+preview card) → Guessing stage (scoreline → round info → per-kind visual+input → skip) → Round
+result (header icon/text → answer block → score pop + streak → next button) → Game over (stats grid
+→ round breakdown list → play again / back to games).
+
+**Multiplayer:** Lobby (live pill + title + sub → settings badges → player list card → start +
+copy-link/invite actions) → Live game (two-column: main stage ‖ sticky scoreboard; guessing stage or
+round-scores-with-auto-advance-countdown) → Final standings (winner banner → stat grid → standings
+list → play again / back to games).
+
+### Current order (live)
+
+Matches the kit's phase order exactly in all 3 games (confirmed via `play-page-content.tsx`,
+`solo-game.tsx`, `year-guess/solo-game.tsx`, `multiplayer-page-content.tsx` for the phase-machine
+shape). The gap is visual treatment, not structure or ordering.
+
+### Drift checklist
+
+- [ ] **No `cdb-gp-*` tokens anywhere.** Full re-skin across config screens (×3), solo visuals/
+      inputs (×3 games: `poster-reveal-visual.tsx`/`guess-input.tsx`,
+      `rating-guess-visual.tsx`/`rating-input.tsx`, `year-guess-visual.tsx`/`year-input.tsx`),
+      shared `round-result.tsx`/`game-result.tsx`, `game-lobby.tsx`, `live-scoreboard.tsx`,
+      `multiplayer-result.tsx`, `round-breakdown-row.tsx`. Key token targets from `kit.css`: -
+      Config: `cdb-gp-config-title` (44px `font-display`), `cdb-gp-mode-tabs`/`cdb-gp-mode-tab`
+      (segmented pill, active = `bg-elev-3` + `color: var(--cdb-marquee)`),
+      `cdb-gp-lb-rank.r1/r2/       r3` (gold/silver/bronze color-mix chips). - Guessing:
+      `cdb-gp-scoreline-num` (40px `font-display`), `cdb-gp-timer-fill` (marquee/warning/ cherry
+      ramp by progress), `cdb-gp-slider-value` (44px `font-display`), `cdb-gp-range` thumb
+      (marquee-amber circle w/ `--bg-elev-1` border). - Round result: `cdb-gp-rr-icon` (56px circle,
+      tone-tinted bg), `cdb-gp-vs-num` (46px `font-display` yours-vs-actual), `cdb-gp-score-plus`
+      (38px `font-display`, marquee-amber "+points"), `cdb-gp-diff-badge` (tone-tinted pill). - Game
+      over: `cdb-gp-over-title` (48px `font-display`), `cdb-gp-stat-grid` (4-up),
+      `cdb-gp-       breakdown-mark.ok/no` (success/cherry tinted circles). - Lobby:
+      `cdb-gp-lobby-title` (34px `font-display`), `cdb-gp-host` (star-tinted pill),
+      `cdb-gp-online-dot`. - Live: `cdb-gp-live` (main ‖ 260px sticky scoreboard grid),
+      `cdb-gp-sb-row.you` (marquee 10%-tint highlight), `cdb-gp-rs-row`/`cdb-gp-rs-mark.ok/no`,
+      `cdb-gp-standing-medal.m1/m2/m3`.
+- [ ] **Missing cherry-red "live" pulse pill.** Confirmed absent — grepped `live-scoreboard.tsx`,
+      `game-lobby.tsx`, `multiplayer-result.tsx`, `round-breakdown-row.tsx`,
+      `player-guess-indicator.tsx` for `pulse`/`rose`/`cherry`/"Live", zero matches. The kit uses
+      `cdb-pill-live` + `cdb-pulse` (cherry dot, `animation: cdb-pulse 1.8s infinite`) as the
+      signature live-multiplayer signal in both the Lobby header and the in-round header ("Live ·
+      Round N/total"). Add to `game-lobby.tsx` (lobby header) and the live-round header (currently
+      just plain text/no pill at all in any of the 3 games' `multiplayer-game.tsx`) — this is
+      exactly the surface the project's own cross-cutting rule reserves cherry for, so no judgment
+      call needed, just an add.
+- [ ] **Title Case → sentence case**, shared across all 3 games since the code is shared: "Game
+      Over" → "Game over" / "Round Breakdown" → "Round breakdown" / "Play Again" → "Play again" /
+      "Next Round" → "Next round" (`game-result.tsx`, `round-result.tsx`); "Start Game" → "Start
+      game" / "Copy Link" → "Copy link" / "Invite Friends" → "Invite friends" / "{name} Lobby" →
+      "{name} lobby" (`game-lobby.tsx`).
+- [ ] **Em-dash violation**: `multiplayer-banners.tsx:33` — `"Submitted: {rating} — +{score} pts"`.
+      Replace with `·` per the established separator convention (no em-dashes in user-facing copy).
+- [ ] **Emoji result-headers** (🎯👏🤏😬💨) in `rating-answer-display.tsx` (`getRatingResultHeader`,
+      ~L137-152) and `year-answer-display.tsx` (`getYearResultHeader`, ~L136-151). The kit's own
+      `ratingHeader`/`yearHeader` mock functions use the same emoji — but the project's
+      cross-cutting rule bans emoji outright, and `RoundResult`'s title-guess case already sets the
+      precedent of icon-only tone headers (`I.Check`/`I.X`). **Owner-confirmed 2026-07-06: map each
+      accuracy tier to a Lucide icon**, matching that existing precedent — replace the emoji field
+      with an icon component per tier (e.g. bullseye/close/not-bad/far-off/way-off →
+      `Target`/`ThumbsUp`/`Meh`-equivalent/`AlertTriangle`/`Wind`-or-similar; finalize exact icon
+      choices at implementation time) instead of a literal 1:1 port of the kit's emoji set.
+
+### Keep as-is (confirmed, not drift)
+
+- **Rating Guess's Time Limit selector** (5/7/10/12/15s, in the config screen alongside difficulty/
+  rounds) — a real feature beyond what the kit models (the kit assumes one universal timer per game
+  type with no config). Keep.
+- **Real Ably presence in the multiplayer lobby** (`game-lobby.tsx`'s online dot, host-disconnect
+  detection via `usePresenceListener`, join/leave toasts) — the kit fakes a static 4-player roster
+  client-side; this is exactly the "kit uses placeholder data, we wire real data" pattern from the
+  pinned decisions. Keep, don't regress to match the kit's mock.
+- **Multiplayer scoring is real, not simulated**: the kit's `LiveGame.submit()` fakes other players'
+  guesses with `Math.random()` and a fixed 5s auto-advance countdown; the app's real multiplayer
+  flow uses actual Ably-synced guesses per player and real round/game state from
+  `game_sessions`/`game_rounds`/`game_guesses`. Match the kit's **visual treatment and interaction
+  rhythm** (round-scores list, auto-advance countdown UI) — never its fake-data mechanism. No
+  changes needed to the underlying real-time logic itself, this is a styling-only pass over already
+  real functionality.
+
+### Judgment calls — resolved with owner 2026-07-06
+
+1. **Audit/build scope: one unit across all 3 games, not split into sub-passes.** Despite the larger
+   token gap than expected, keep the single-pass-per-page convention; just expect more commits split
+   by layer (shared chrome first, then per-game visuals) than a typical "low drift" page.
+2. **Emoji result-headers: map to Lucide icons**, not kept as an intentional exception. See drift
+   checklist item above.
+
+### Acceptance criteria
+
+- [x] All `cdb-gp-*`-equivalent styling applied across config, guessing, round-result, game-over,
+      lobby, and live-game surfaces for all 3 games (via Tailwind utilities/tokens, not by importing
+      the kit's literal CSS file) — pixel-faithful per the pinned fidelity decision.
+- [x] Cherry-red "live" pulse pill added to the lobby header and in-round live header (both
+      previously missing entirely) — reuses the `animate-up-next-pulse` recipe from the Play hub's
+      `HubLiveNow`.
+- [x] Title Case → sentence case fixed in `game-result.tsx`, `round-result.tsx`, `game-lobby.tsx`,
+      `multiplayer-result.tsx`, config screens ("New game", "Time limit"),
+      `invite-players-dialog.tsx`.
+- [x] Em-dash in `multiplayer-banners.tsx:33` replaced with `·`.
+- [x] Emoji result-headers in `rating-answer-display.tsx`/`year-answer-display.tsx` replaced with
+      Lucide icon-per-tier (`TargetIcon`/`CheckCircle2Icon`/`ThumbsUpIcon`/`AlertTriangleIcon`/
+      `WindIcon`), matching `RoundResult`'s existing icon-only precedent. Verified live in both solo
+      and real multiplayer rounds.
+- [x] Rating Guess's Time Limit selector and real Ably lobby presence preserved (not reverted toward
+      the kit's mock) — confirmed present and functioning in the live multiplayer verification
+      below.
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green throughout — 608 tests unchanged (pure
+      styling/copy pass over existing real functionality, no new pure logic needed).
+- [x] Headless verification at 1440/768/390/320px, light + dark, 0px horizontal overflow (after the
+      320px grid/Select fix below), both a solo game and a real 2-player multiplayer
+      lobby/live-round exercised end-to-end via Playwright (not just the empty/idle states) —
+      confirmed synced scores, round-scores list, and auto-advance countdown all render correctly
+      with real Ably data.
+- [x] Manual review + `feature-dev` code-review subagent pass, reconciled before commit — see below.
+- [ ] Light mode readable, no broken tokens (owner visual pass) — same standing item as every other
+      page. Not a code gap, just not yet done by the owner.
+
+**New finding during implementation, not in the original audit:** the config screen's "New game" /
+"Leaderboard" two-column grid didn't collapse to `grid-cols-1` below `lg`, and neither the shadcn
+`Card` usage nor the difficulty/rounds/time-limit `SelectTrigger`s had `min-w-0`/`w-full`, so both
+cards stayed pinned near their content width in a much narrower grid cell — 3-34px of horizontal
+overflow at 320px across all 3 games. Pre-existing structure (confirmed via `git log -p`, not
+introduced by the token/copy commits above). **Owner-confirmed fix (2026-07-06):** added a base
+`grid-cols-1` (the project's standard responsive-grid convention) + `min-w-0` on the grid/Card +
+`w-full` on the `SelectTrigger`s, landed as its own commit (`6a26886`) separate from the styling
+pass. 0px overflow at 320/390/768/1440px afterward.
+
+### Review outcome (2026-07-06)
+
+Manual review + a `feature-dev` code-review subagent pass, run in parallel and reconciled. One
+Important finding, confirmed and fixed:
+
+- **`SubmittedYearBanner` in `year-guess/multiplayer-game.tsx` was missed by the token/copy pass.**
+  It's a year-formatting analog to the shared `SubmittedBanner` in `multiplayer-banners.tsx` (needed
+  because it formats a whole year, not a decimal rating), so it lives as a separate local component
+  and wasn't touched when the shared banner was tokenized. Still had a raw `border-blue-500/30`/
+  `text-blue-400` color and an em-dash separator (`"Submitted: {year} — +{score} pts"`). Fixed to
+  match its sibling: `text-cdb-info` + `color-mix(...)` background, middot separator. Verified live
+  in a real 2-player multiplayer round (`725f6da`).
+
+Everything else checked clean: no accidental logic changes across any of the 20 touched files
+(confirmed independently by both the manual pass and the subagent); the `bg-current/16` icon-tint
+pattern is sound (verified live via screenshot — background and icon correctly inherit the same tone
+from one `text-cdb-*` class via CSS `currentColor`); the new `roundLabel` prop on the shared
+`ScoreHeader` is correctly threaded through all 3 games' multiplayer call sites and confirmed absent
+from all 3 solo games (which each keep their own separate local `ScoreHeader`, unaffected); the
+`LucideIcon` type change on `getRatingResultHeader`/`getYearResultHeader` has no stale string-emoji
+call sites remaining; and the 320px overflow fix was applied identically across all 3 games' config
+screens.
+
+**Noted but out of scope, not fixed:** a handful of `SelectItem` option labels
+(`"Normal — From your database"`, `"Custom settings — scores won't appear..."`, etc.) in all 3
+games' config screens use an em-dash and predate this pass entirely (verified via `git log -p`, not
+touched by any of these commits). Flagging rather than scope-creeping into copy this page's audit
+didn't originally call out — worth a dedicated copy sweep across the app at some point, since the
+same pattern likely exists on other already-shipped pages too.
