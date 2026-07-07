@@ -466,8 +466,14 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
             renderGuessLabel={renderYearGuessLabel}
             resultHeader={
               <div className="flex flex-col items-center gap-2">
-                <span className="text-4xl">{header.icon}</span>
-                <h2 className={`text-2xl font-bold ${header.colorClass}`}>{header.text}</h2>
+                <span
+                  className={`flex size-14 items-center justify-center rounded-full bg-current/16 ${header.colorClass}`}
+                >
+                  <header.icon className="size-7" />
+                </span>
+                <h2 className={`font-display text-[26px] font-semibold ${header.colorClass}`}>
+                  {header.text}
+                </h2>
               </div>
             }
             answerDisplay={

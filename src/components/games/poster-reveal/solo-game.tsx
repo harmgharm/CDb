@@ -235,8 +235,10 @@ export function SoloGame({ gameId, mediaOptions, onPlayAgain }: SoloGameProps) {
 function ScoreHeader({ totalScore }: Readonly<{ totalScore: number }>) {
   return (
     <div className="text-center">
-      <p className="text-muted-foreground text-xs tracking-wider uppercase">Score</p>
-      <p className="text-3xl font-bold tabular-nums">{String(totalScore)}</p>
+      <p className="text-[10px] font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+        Score
+      </p>
+      <p className="font-display text-[40px] leading-none">{String(totalScore)}</p>
     </div>
   );
 }

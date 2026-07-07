@@ -10,7 +10,16 @@
  * Passed as `answerDisplay` to the shared RoundResult component.
  */
 
-import { ArrowRightIcon, CalendarIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  ArrowRightIcon,
+  CalendarIcon,
+  CheckCircle2Icon,
+  type LucideIcon,
+  TargetIcon,
+  ThumbsUpIcon,
+  WindIcon,
+} from "lucide-react";
 import * as motion from "motion/react-client";
 import Image from "next/image";
 
@@ -65,7 +74,7 @@ export function YearAnswerDisplay({ resultData, posterUrl, title }: YearAnswerDi
           <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
             Actual
           </span>
-          <span className="text-4xl font-bold text-white tabular-nums">{String(correctYear)}</span>
+          <span className="text-4xl font-bold tabular-nums">{String(correctYear)}</span>
         </div>
       </motion.div>
 
@@ -76,11 +85,10 @@ export function YearAnswerDisplay({ resultData, posterUrl, title }: YearAnswerDi
 }
 
 function getGuessColor(difference: number): string {
-  if (difference === 0) return "text-emerald-400";
-  if (difference <= 2) return "text-emerald-400";
-  if (difference <= 5) return "text-blue-400";
-  if (difference <= 8) return "text-yellow-400";
-  return "text-red-400";
+  if (difference <= 2) return "text-cdb-success";
+  if (difference <= 5) return "text-cdb-info";
+  if (difference <= 8) return "text-cdb-warning";
+  return "text-cdb-cherry-hi";
 }
 
 function DifferenceBadge({ difference }: Readonly<{ difference: number }>) {
@@ -97,31 +105,34 @@ function DifferenceBadge({ difference }: Readonly<{ difference: number }>) {
 }
 
 function getDifferenceDisplay(difference: number): { label: string; colorClass: string } {
-  if (difference === 0) {
-    return { label: "Spot on!", colorClass: "bg-emerald-500/20 text-emerald-400" };
-  }
   const yearLabel = difference === 1 ? "year" : "years";
+  if (difference === 0) {
+    return {
+      label: "Spot on!",
+      colorClass: "bg-[color-mix(in_oklch,var(--cdb-success)_20%,transparent)] text-cdb-success",
+    };
+  }
   if (difference <= 2) {
     return {
       label: `Off by ${String(difference)} ${yearLabel}`,
-      colorClass: "bg-emerald-500/20 text-emerald-400",
+      colorClass: "bg-[color-mix(in_oklch,var(--cdb-success)_20%,transparent)] text-cdb-success",
     };
   }
   if (difference <= 5) {
     return {
       label: `Off by ${String(difference)} ${yearLabel}`,
-      colorClass: "bg-blue-500/20 text-blue-400",
+      colorClass: "bg-[color-mix(in_oklch,var(--cdb-info)_20%,transparent)] text-cdb-info",
     };
   }
   if (difference <= 8) {
     return {
       label: `Off by ${String(difference)} ${yearLabel}`,
-      colorClass: "bg-yellow-500/20 text-yellow-400",
+      colorClass: "bg-[color-mix(in_oklch,var(--cdb-warning)_20%,transparent)] text-cdb-warning",
     };
   }
   return {
     label: `Off by ${String(difference)} ${yearLabel}`,
-    colorClass: "bg-red-500/20 text-red-400",
+    colorClass: "bg-[color-mix(in_oklch,var(--cdb-cherry)_20%,transparent)] text-cdb-cherry-hi",
   };
 }
 
@@ -129,24 +140,24 @@ function getDifferenceDisplay(difference: number): { label: string; colorClass: 
  * Build a result header for the RoundResult component based on accuracy.
  */
 export function getYearResultHeader(difference: number): {
-  icon: string;
+  icon: LucideIcon;
   text: string;
   colorClass: string;
 } {
   if (difference === 0) {
-    return { icon: "🎯", text: "Spot On!", colorClass: "text-emerald-500" };
+    return { icon: TargetIcon, text: "Spot on!", colorClass: "text-cdb-success" };
   }
   if (difference <= 1) {
-    return { icon: "🎯", text: "Excellent!", colorClass: "text-emerald-500" };
+    return { icon: CheckCircle2Icon, text: "Excellent!", colorClass: "text-cdb-success" };
   }
   if (difference <= 3) {
-    return { icon: "👏", text: "Close!", colorClass: "text-blue-500" };
+    return { icon: ThumbsUpIcon, text: "Close!", colorClass: "text-cdb-info" };
   }
   if (difference <= 5) {
-    return { icon: "🤏", text: "Not Bad", colorClass: "text-yellow-500" };
+    return { icon: AlertTriangleIcon, text: "Not bad", colorClass: "text-cdb-warning" };
   }
   if (difference < 10) {
-    return { icon: "😬", text: "Far Off", colorClass: "text-orange-500" };
+    return { icon: AlertTriangleIcon, text: "Far off", colorClass: "text-cdb-warning" };
   }
-  return { icon: "💨", text: "Way Off!", colorClass: "text-red-500" };
+  return { icon: WindIcon, text: "Way off!", colorClass: "text-cdb-cherry-hi" };
 }

@@ -173,8 +173,14 @@ export function SoloGame({ gameId, onPlayAgain }: SoloGameProps) {
           hideScoreBreakdown
           resultHeader={
             <div className="flex flex-col items-center gap-2">
-              <span className="text-4xl">{header.icon}</span>
-              <h2 className={`text-2xl font-bold ${header.colorClass}`}>{header.text}</h2>
+              <span
+                className={`flex size-14 items-center justify-center rounded-full bg-current/16 ${header.colorClass}`}
+              >
+                <header.icon className="size-7" />
+              </span>
+              <h2 className={`font-display text-[26px] font-semibold ${header.colorClass}`}>
+                {header.text}
+              </h2>
             </div>
           }
           answerDisplay={
@@ -239,13 +245,15 @@ function ScoreHeader({
 }: Readonly<{ totalScore: number; baseScore?: number; streakBonus?: number }>) {
   return (
     <div className="text-center">
-      <p className="text-muted-foreground text-xs tracking-wider uppercase">Score</p>
-      <p className="text-3xl font-bold tabular-nums">{String(totalScore)}</p>
+      <p className="text-[10px] font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+        Score
+      </p>
+      <p className="font-display text-[40px] leading-none">{String(totalScore)}</p>
       {baseScore !== undefined && (
         <div className="text-muted-foreground flex items-center justify-center gap-3 text-sm">
           <span>Base: {String(baseScore)}</span>
           {streakBonus !== undefined && streakBonus > 0 && (
-            <span className="text-orange-400">Streak: +{String(streakBonus)}</span>
+            <span className="text-cdb-warning">Streak: +{String(streakBonus)}</span>
           )}
         </div>
       )}

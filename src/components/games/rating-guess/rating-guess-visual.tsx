@@ -149,16 +149,17 @@ function TimerBar({
 }
 
 function getTimerColor(percentage: number): string {
-  if (percentage > 90) return "bg-red-500";
-  if (percentage > 66) return "bg-yellow-500";
-  return "bg-primary";
+  if (percentage > 90) return "bg-cdb-cherry-hi";
+  if (percentage > 66) return "bg-cdb-warning";
+  return "bg-cdb-marquee";
 }
 
 function TimerPhase({ progress }: Readonly<{ progress: number }>) {
   if (progress >= 1)
-    return <span className="text-xs font-medium text-red-400">Time&apos;s up!</span>;
-  if (progress > 0.66) return <span className="text-xs font-medium text-yellow-400">Hurry!</span>;
-  return <span className="text-xs font-medium text-blue-400">Guess the rating...</span>;
+    return <span className="text-cdb-cherry-hi text-xs font-semibold">Time&apos;s up!</span>;
+  if (progress > 0.66)
+    return <span className="text-cdb-warning text-xs font-semibold">Hurry!</span>;
+  return <span className="text-cdb-info text-xs font-semibold">Guess the rating...</span>;
 }
 
 function formatRatingCount(count: number): string {

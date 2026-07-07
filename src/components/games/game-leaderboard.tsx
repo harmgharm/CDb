@@ -28,7 +28,7 @@ export function GameLeaderboard({ gameType = "poster_reveal" }: GameLeaderboardP
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <TrophyIcon className="size-5 text-yellow-500" />
+          <TrophyIcon className="text-cdb-star size-5" />
           Leaderboard
         </CardTitle>
       </CardHeader>
@@ -101,7 +101,7 @@ function LeaderboardEntries({
               duration: 0.2,
               ease: "easeOut" as const,
             }}
-            className={`flex items-center gap-3 px-4 py-3 ${isCurrentUser ? "bg-primary/5" : ""}`}
+            className={`flex items-center gap-3 px-4 py-3 ${isCurrentUser ? "bg-[color-mix(in_oklch,var(--cdb-marquee)_6%,transparent)]" : ""}`}
           >
             {/* Rank */}
             <RankBadge rank={entry.rank} />
@@ -140,7 +140,7 @@ function LeaderboardEntries({
 
 function RankBadge({ rank }: Readonly<{ rank: number }>) {
   const medalColors: Record<number, string> = {
-    1: "bg-yellow-500 text-yellow-950",
+    1: "bg-[color-mix(in_oklch,var(--cdb-star)_22%,transparent)] text-cdb-star",
     2: "bg-gray-300 text-gray-800",
     3: "bg-amber-600 text-amber-950",
   };

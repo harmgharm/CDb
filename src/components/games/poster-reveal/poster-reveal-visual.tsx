@@ -175,9 +175,9 @@ function TimerBar({
 }
 
 function getTimerColor(percentage: number): string {
-  if (percentage > 90) return "bg-red-500";
-  if (percentage > 66) return "bg-yellow-500";
-  return "bg-primary";
+  if (percentage > 90) return "bg-cdb-cherry-hi";
+  if (percentage > 66) return "bg-cdb-warning";
+  return "bg-cdb-marquee";
 }
 
 interface PhaseIndicatorProps {
@@ -193,18 +193,18 @@ function getPhase(elapsedMs: number, revealDuration: number, totalDuration: numb
 }
 
 const PHASE_CONFIG: Record<string, { label: string; color: string }> = {
-  revealing: { label: "Revealing...", color: "text-blue-400" },
-  grace: { label: "Guess now!", color: "text-yellow-400" },
-  expired: { label: "Time's up!", color: "text-red-400" },
+  revealing: { label: "Revealing...", color: "text-cdb-info" },
+  grace: { label: "Guess now!", color: "text-cdb-warning" },
+  expired: { label: "Time's up!", color: "text-cdb-cherry-hi" },
 };
 
 function PhaseIndicator({ elapsedMs, revealDuration, totalDuration }: PhaseIndicatorProps) {
   const phase = getPhase(elapsedMs, revealDuration, totalDuration);
   const entry = PHASE_CONFIG[phase] ?? PHASE_CONFIG.revealing;
   const label = entry?.label ?? "Revealing...";
-  const color = entry?.color ?? "text-blue-400";
+  const color = entry?.color ?? "text-cdb-info";
 
-  return <span className={`text-xs font-medium ${color}`}>{label}</span>;
+  return <span className={`text-xs font-semibold ${color}`}>{label}</span>;
 }
 
 /**

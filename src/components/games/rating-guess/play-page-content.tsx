@@ -95,20 +95,22 @@ export function PlayPageContent() {
         transition={{ duration: 0.4, ease: "easeOut" as const }}
       >
         {/* Header */}
-        <div className="mb-8 text-center">
-          <StarIcon className="text-primary mx-auto mb-3 size-12" />
-          <h1 className="text-3xl font-bold">Rating Guesser</h1>
-          <p className="text-muted-foreground mt-2">
+        <div className="mb-8 flex flex-col items-center gap-2.5 text-center">
+          <span className="text-cdb-marquee flex size-12 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--cdb-marquee)_14%,transparent)]">
+            <StarIcon className="size-6" />
+          </span>
+          <h1 className="font-display text-[44px] leading-none">Rating Guesser</h1>
+          <p className="text-muted-foreground max-w-lg text-sm">
             See a movie, show, or anime and guess its rating. The closer your guess, the more points
             you earn!
           </p>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-2">
           {/* Game setup */}
           <Card>
             <CardHeader>
-              <CardTitle>New Game</CardTitle>
+              <CardTitle>New game</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Difficulty */}
@@ -154,7 +156,7 @@ export function PlayPageContent() {
 
               {/* Time limit */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Time Limit</label>
+                <label className="text-sm font-medium">Time limit</label>
                 <Select value={timeLimit} onValueChange={setTimeLimit}>
                   <SelectTrigger>
                     <SelectValue />
@@ -175,11 +177,17 @@ export function PlayPageContent() {
               {/* Mode tabs */}
               <Tabs defaultValue="solo" className="w-full">
                 <TabsList className="w-full">
-                  <TabsTrigger value="solo" className="flex-1">
+                  <TabsTrigger
+                    value="solo"
+                    className="data-[state=active]:text-cdb-marquee-text dark:data-[state=active]:text-cdb-marquee-text flex-1 data-[state=active]:border-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-transparent"
+                  >
                     <Gamepad2Icon className="mr-1.5 size-4" />
                     Solo
                   </TabsTrigger>
-                  <TabsTrigger value="multiplayer" className="flex-1">
+                  <TabsTrigger
+                    value="multiplayer"
+                    className="data-[state=active]:text-cdb-marquee-text dark:data-[state=active]:text-cdb-marquee-text flex-1 data-[state=active]:border-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-transparent"
+                  >
                     <UsersIcon className="mr-1.5 size-4" />
                     Multiplayer
                   </TabsTrigger>
@@ -193,7 +201,7 @@ export function PlayPageContent() {
                     size="lg"
                     className="w-full"
                   >
-                    {isCreating ? "Starting..." : "Start Solo Game"}
+                    {isCreating ? "Starting..." : "Start solo game"}
                   </Button>
                 </TabsContent>
                 <TabsContent value="multiplayer" className="mt-4 space-y-3">
@@ -209,7 +217,7 @@ export function PlayPageContent() {
                     size="lg"
                     className="w-full"
                   >
-                    {isCreating ? "Creating..." : "Create Multiplayer Lobby"}
+                    {isCreating ? "Creating..." : "Create multiplayer lobby"}
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -237,7 +245,7 @@ function RankedIndicator({ ranked }: Readonly<{ ranked: boolean }>) {
     >
       {ranked ? (
         <>
-          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+          <Badge className="text-cdb-marquee-text border-[color-mix(in_oklch,var(--cdb-marquee)_32%,transparent)] bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)] hover:bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)]">
             <ShieldCheckIcon className="mr-1 size-3" />
             Ranked
           </Badge>
