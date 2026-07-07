@@ -25,7 +25,7 @@ export function GameLeaderboard({ gameType = "poster_reveal" }: GameLeaderboardP
   const [category, setCategory] = useState<LeaderboardCategory>("normal_ranked");
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrophyIcon className="text-cdb-star size-5" />

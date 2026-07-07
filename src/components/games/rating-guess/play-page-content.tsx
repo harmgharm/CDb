@@ -106,9 +106,9 @@ export function PlayPageContent() {
           </p>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
           {/* Game setup */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>New game</CardTitle>
             </CardHeader>
@@ -122,7 +122,7 @@ export function PlayPageContent() {
                     setDifficulty(value as GameDifficulty);
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -141,7 +141,7 @@ export function PlayPageContent() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Rounds</label>
                 <Select value={roundCount} onValueChange={setRoundCount}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -158,7 +158,7 @@ export function PlayPageContent() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Time limit</label>
                 <Select value={timeLimit} onValueChange={setTimeLimit}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
