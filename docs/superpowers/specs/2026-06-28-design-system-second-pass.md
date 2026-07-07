@@ -62,10 +62,13 @@ the lower rows are placeholders until then.
     **highest-drift surface since the homepage/Play hub** — structure already matched the kit
     closely, but zero `cdb-gp-*` design-system tokens were used anywhere; a full re-skin, not a
     small fix. All closed.
-11. **Sidebar / Shell** — audited on its own after Game play surfaces. Kit: `Shell.jsx`. Unlike the
-    other entries this is a shared shell rendered on every page (not a standalone route) — worth
-    isolating as its own pass since drift here affects every page at once, rather than folding it
-    into whichever page happens to be audited next.
+11. **Sidebar / Shell** — ✅ implemented 2026-07-07 (below). Kit: `Shell.jsx`. Lowest-drift audit so
+    far — section order already matched the kit, `UpNextCard` already exceeded it with real data.
+    Closed: brand icon tile, active-item amber tint + left rail, "admin" nav tag, `UpNextCard` card
+    chrome + rail + serif title, online users list rebuild (hybrid list+overflow), tagline copy.
+    Footer dropdown and sidebar width both kept as-is per owner call. One Critical review finding
+    (rail invisible due to button `overflow-hidden`) fixed — see "Review outcome" in the page
+    section.
 12. **Admin** — last in the work order (lowest-traffic, owner-only surface). Kit: `Admin.jsx`.
 
 **Added to the work order 2026-07-06** (games 10-12 above) — these three kit screens/surfaces were
@@ -1432,6 +1435,277 @@ finishing it. **Owner-confirmed fix (2026-07-06):** added a defensive recency fi
 `fetchLiveSessions()` (`created_at` within the last 3 hours) so this page ships correctly now, but
 the root cause — no mechanism ever marks an abandoned session non-live — is unresolved and tracked
 as a follow-up in `HANDOFF.md` ("Stale multiplayer session cleanup"), not silently dropped.
+
+---
+
+## Page — Sidebar / Shell ✅ implemented 2026-07-07 (pending owner review)
+
+Audited against `CDb Design System/ui_kits/web/Shell.jsx` + `kit.css` (`.cdb-sidebar*`,
+`.cdb-sb-upnext*`, `.cdb-nav-*`, `.cdb-online-*`, `.cdb-user-chip*`, `.cdb-page-header*`). Unlike
+every prior entry, this is the **shared shell rendered on every authenticated page**, not a
+standalone route — drift here affects every page at once.
+
+Current files: `src/components/app-sidebar.tsx` (208 lines),
+`src/components/sidebar/up-next-card.tsx` (64 lines), `src/components/online-users.tsx` (77 lines,
+rendered inside the sidebar's `SidebarContent`), `src/components/ui/sidebar.tsx` (shadcn primitive,
+not modified).
+
+**Lowest drift of any page so far in structure/order** — the section order already matches the kit
+exactly (brand → up-next card → nav → online → user footer), and `UpNextCard` already exceeds the
+kit (real queue/watchlist/in-progress data vs. the kit's hardcoded `MEDIA[2]`). The drift here is
+concentrated in a few specific anatomy gaps, not a rebuild.
+
+### Kit section order (target)
+
+1. `cdb-sidebar-head`: 32×32 amber icon tile (`I.Clapper`) + wordmark (`CDb` with italic amber `b`)
+   - "Movie nights, tracked" tagline, links to Home.
+2. `cdb-sb-upnext`: mini poster + eyebrow (pulsing amber dot + "Up next · {date}") + title +
+   "Proposed by {name}", links to Home.
+3. `cdb-sidebar-group-label` "Navigation" + `cdb-sidebar-nav`: Home/Database/For
+   You/Play/Users/Admin (admin gated), active item gets a background tint + left-edge amber rail
+   (`.cdb-nav-item.active::before`) + amber icon/text; Admin row carries a small mono "admin" tag,
+   amber-tinted when active.
+4. `cdb-sidebar-group-label` "Online" + `cdb-sidebar-online`: one `cdb-online-row` per online user —
+   status dot + avatar(20px) + name, vertical list.
+5. `cdb-sidebar-footer` → `cdb-user-chip`: avatar(28px) + name + email-style subtext, plain link to
+   Settings.
+
+### Current order (live)
+
+1. `SidebarHeader`: `Wordmark` + static tagline link to `/home`. **No icon tile at all.**
+2. `SidebarContent` → `UpNextCard` (queue/watchlist/in-progress sourced, real data, richer than kit)
+   → `SidebarGroup` "Navigation" (same 6 items, admin-gated, active state via shadcn `isActive`) →
+   `OnlineUsersSection` (overlapping avatar stack + tooltips, not a list).
+3. `SidebarFooter`: avatar + name + email inside a `DropdownMenu` (Profile / Settings / theme toggle
+   / Log out), not a plain link.
+
+### Drift checklist
+
+- [x] **No brand icon tile.** Kit's `cdb-sidebar-mark` (32×32, `bg-cdb-marquee`, `cdb-ink-950`
+      clapper icon, `radius-sm`) is entirely absent from `SidebarHeader` — just the wordmark +
+      tagline today. Needs a small icon tile added next to the `Wordmark`, matching the kit's
+      amber-square treatment. `ClapperboardIcon` (lucide) is the closest match to the kit's
+      `I.Clapper`. **Added.**
+- [x] **Active nav item has no amber tint at all, and no left-rail.** Confirmed via
+      `src/components/ui/sidebar.tsx` + `globals.css` tokens: `SidebarMenuButton`'s active state is
+      `data-[active=true]:bg-sidebar-accent` (→ `--bg-elev-2`) + `text-sidebar-accent-foreground` (→
+      plain `--fg`, not amber). Kit's `.cdb-nav-item.active` is `background: var(--bg-elev-3)` (one
+      step darker/richer than what we use), `color: var(--cdb-marquee)` (amber text),
+      `svg { color:     var(--cdb-marquee) }` (amber icon), plus a `::before` 2px amber left-rail
+      (`left: -10px`). This is a bigger gap than "missing decorative rail" — the active item
+      currently isn't amber-tinted at all, just a neutral background/text shift. Fix: scoped
+      `className` override on `SidebarMenuButton` consumer (per the "don't touch shared primitives"
+      pinned decision) —
+      `data-[active=true]:text-cdb-marquee-text data-[active=true]:bg-[var(--bg-elev-3)]     [&[data-active=true]>svg]:text-cdb-marquee-text`
+      plus a `before:` pseudo-element for the rail
+      (`before:absolute before:left-0 before:inset-y-2 before:w-0.5 before:rounded-full     before:bg-cdb-marquee`,
+      shown only `data-[active=true]:before:block` or via a conditional class). Confirm via grep
+      this override is scoped to `app-sidebar.tsx`'s nav items only, not a `SidebarMenuButton`-wide
+      change. **Added — with one correction found during review, see "Review outcome" below: the
+      rail lives on `SidebarMenuItem` (via a separate `NAV_ITEM_RAIL_CLASS` using
+      `has-data-[active=true]:before:*`), not on `SidebarMenuButton` itself, because the button's
+      own `overflow-hidden` would otherwise clip a rail bleeding outside its box.**
+- [x] **No "admin" mono tag on the Admin nav item.** Kit shows `cdb-nav-admin-tag` (9px mono
+      uppercase, `fg-dim`, amber-tinted when active) next to the label. Live just gates the whole
+      item by role with no tag at all. Minor addition once the item renders — small `<span>` after
+      the label. **Added.**
+- [x] **`UpNextCard` has no card chrome at all — reads as blending into the background, not a
+      distinct card.** Kit's `.cdb-sb-upnext` gives it: (1) an always-on
+      `linear-gradient(180deg,     var(--bg-elev-2), var(--bg-elev-3))` background +
+      `1px solid var(--border)` + `radius-md`, so it reads as a card at rest, not just on hover; (2)
+      a `::after` left-rail — 2px solid amber bar, full height, `opacity: 0.85` — the same left-rail
+      language as the active nav item, marking this as the "featured" element in the sidebar. Live
+      `up-next-card.tsx` has **none of this** — it's a flush `Link` with only a
+      `hover:bg-sidebar-accent` transition and no resting-state background, border, or rail at all.
+      This is likely the single biggest visual-fidelity gap in the sidebar pass (bigger than the
+      missing brand icon tile) since the kit clearly intends this to be a standout card, not a
+      nav-adjacent row. **Added** — this card's own wrapper isn't clipped, so its `before:` rail
+      didn't hit the same overflow-clipping bug as the nav rail.
+- [x] **`UpNextCard` title uses the wrong font family.** Kit's `.cdb-sb-upnext-title` is
+      `font-family: var(--font-display)` (the editorial serif) at 15px. Live uses
+      `text-sm     font-medium` — that's the sans (Geist) default, no `font-display` class applied.
+      Needs `font-display` added to the title `span`. **Added** (also changed the eyebrow text color
+      from muted gray to `text-cdb-marquee-text`, matching the kit's `.cdb-sb-upnext-eyebrow` amber
+      color — a drift item not caught in the original audit, found while implementing).
+- [x] **Online users: vertical list vs. avatar stack — resolved below (judgment call 1).** Built.
+- [x] **Footer: dropdown vs. plain link — resolved below (judgment call 2, keep dropdown).** No
+      change needed — footer was left as-is per the resolution.
+- [x] **Sidebar width: 240px (kit) vs 256px (shadcn `--sidebar-width` default) — resolved below
+      (judgment call 3, leave default).** No change made, per resolution.
+- [x] **Copy**: tagline — live currently says "A cinema database for friends."; kit says "Movie
+      nights, tracked." **Owner confirmed 2026-07-07: adopt the kit's copy verbatim.**
+- [ ] **`PageHeader` shell** (`cdb-page-header`/`cdb-page-title`/`cdb-page-sub`) is also defined in
+      `Shell.jsx` alongside `Sidebar` — but every page already rolls its own bespoke header
+      component (confirmed via the Play hub audit: "no shared `PageHeader` component exists... every
+      page rolls its own header markup inline," judgment call resolved to keep it that way). **Out
+      of scope for this pass** — no new page-header work here, this section is sidebar-only. Noting
+      only so the "Shell.jsx also defines PageHeader" fact doesn't get missed/rediscovered later.
+
+### Judgment calls — proposed, awaiting confirmation
+
+1. **Online users: hybrid, list-first.** Owner's guidance: match the kit's vertical list by default,
+   but avoid crowding the nav when many users are online — exact row cap "might need adjusting
+   depending how many rows fit comfortably." Proposal: render kit-style `cdb-online-row` rows (dot +
+   avatar + name) up to a cap (start at **8**, tune after a real headless look at how much vertical
+   space the sidebar has alongside nav + up-next card at typical viewport heights), then collapse
+   the remainder into a trailing "+N more" row in the same list style (not a switch to the
+   avatar-stack pattern — keeps one visual language). The group is small in practice (6 known
+   members: tester, harm, tose, schleado, grewy, ant per `HANDOFF.md`), so the overflow row will
+   rarely if ever trigger today; this is about not regressing if the group grows. Existing
+   `MAX_VISIBLE` overflow-counting logic in `online-users.tsx` is reusable, just needs a different
+   per-row render (list row, not stacked avatar).
+2. **Footer: keep the `DropdownMenu`.** Owner confirmed — the kit's plain Settings-link chip doesn't
+   have anywhere to put the theme toggle or logout, and the dropdown is the natural home for both.
+   Ship as: same chip _visual_ styling (avatar + name + subtext matching `cdb-user-chip`
+   proportions) with the dropdown interaction preserved, not simplified to a link.
+3. **Sidebar width: leave the shadcn 256px default.** Owner confirmed — 16px off the kit's 240px is
+   marginal and `--sidebar-width` is a shared primitive value already used for collapse/rail math
+   app-wide; not worth a scoped override for this.
+
+### Acceptance criteria
+
+- [x] Brand icon tile added to `SidebarHeader` (32×32 amber square, clapper icon) next to the
+      `Wordmark`.
+- [x] Admin nav item gets the small mono "admin" tag (amber-tinted when active), gating unchanged.
+- [x] Active nav item gets kit-matching amber tint (text + icon `text-cdb-marquee-text`, `bg-elev-3`
+      background) and a 2px amber left-rail, via a scoped override on the `SidebarMenuButton`
+      consumer in `app-sidebar.tsx` (not the shared primitive). Rail ended up living on
+      `SidebarMenuItem` instead, bled `-8px` not the kit's `-10px` (still inside `SidebarContent`'s
+      clip boundary) — see "Review outcome" below for the two-round fix.
+- [x] `UpNextCard` gets kit-matching card chrome: always-on `bg-elev-2`→`bg-elev-3` gradient
+      background, `border`, `radius-md`, and a 2px amber left-rail (`::after`-equivalent), not just
+      a hover-state background.
+- [x] `UpNextCard` title uses `font-display` (editorial serif), matching `.cdb-sb-upnext-title`.
+- [x] Online users rebuilt as a kit-style vertical list (dot + avatar + name) with an overflow cap
+      (starting at 8, tuned by headless measurement), replacing the avatar-stack pattern.
+- [x] Footer chip visually matches `cdb-user-chip` proportions while keeping the `DropdownMenu`
+      interaction (Profile / Settings / theme toggle / Log out unchanged). **Corrected during owner
+      review** — the original build left the footer with no resting-state card background/border
+      (same bug class `UpNextCard` had), and its avatar at 32px vs. the kit's 28px; both fixed, see
+      "Review outcome" below.
+- [x] Tagline copy: adopt kit's "Movie nights, tracked." verbatim.
+- [x] Sidebar width left at the shadcn 256px default — no override.
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (608 tests, unchanged — pure UI pass,
+      no new pure logic needed a test).
+- [x] Manual review + `feature-dev` code-review subagent, given the every-page blast radius. One
+      Critical finding, fixed — see "Review outcome" below.
+- [x] Headless verification at 1440/768/390/320px, light + dark, **on Home, Database, and a
+      game-play surface** (`/play/poster-reveal`) — 0px overflow at every width/page except a
+      **pre-existing, unrelated** 36px overflow on Home at 320px (confirmed present on `main` before
+      this change too — part of the already-tracked "Homepage mobile overflow" deferred item, not a
+      regression from this pass). Confirmed the collapsible icon-rail behavior
+      (`collapsible="icon"`, app-only, not in the kit) still works, and specifically re-verified the
+      new active-nav-item left rail renders (not clipped) in both expanded and icon-collapsed modes
+      after the review fix.
+- [ ] Light mode readable, no broken tokens (owner visual pass) — same standing item as every other
+      finished page.
+
+### Review outcome
+
+`feature-dev` code-review subagent caught one **Critical** finding; the owner's own visual pass then
+caught a **second**, related bug the subagent fix didn't fully resolve, plus two smaller sizing
+misses. All fixed before this section was marked done:
+
+- **Active-nav-item left rail, round 1 (subagent-caught): invisible on `SidebarMenuButton` itself.**
+  The initial implementation put the amber `before:` rail directly on `SidebarMenuButton` (bleeding
+  to `-left-2.5`, mirroring the kit's un-clipped `.cdb-nav-item::before`). But `SidebarMenuButton`'s
+  own base class includes `overflow-hidden`, clipping the pseudo-element at the button's own box
+  edge. **Fix:** moved the rail to `SidebarMenuItem` (a plain `<li>`, no clipping) via a new
+  `NAV_ITEM_RAIL_CLASS` using `has-data-[active=true]:before:*`, keeping `NAV_ACTIVE_CLASS` (amber
+  text/icon/background tint) on the button.
+- **Active-nav-item left rail, round 2 (owner-caught): still invisible after the round-1 fix,
+  because a higher ancestor also clips.** The round-1 verification checked
+  `getComputedStyle(li, "::before")` and saw correct
+  `display`/`background-color`/`position`/`left`/`width` values, and concluded the rail "paints" —
+  but computed style on a pseudo-element reports its own box properties regardless of whether an
+  ancestor visually clips it. That check didn't catch that `SidebarContent` (a few levels up the
+  tree, needed for scrolling a long nav list) has `overflow-auto` unconditionally — which still
+  clips content bleeding past its box exactly like `overflow-hidden` does. The `-left-2.5` (-10px)
+  bleed past `SidebarMenuItem` was invisible in the actual rendered page despite the pseudo-element
+  "existing" with the right computed styles. **Only a real screenshot surfaced this** — the owner
+  reported "not seeing the rail" during their own pass, which prompted re-checking with a
+  `page.locator(...).screenshot()` instead of trusting `getComputedStyle` alone. **Lesson for future
+  `before:`/`::after` rail or bleed-outside-the-box fixes**: `getComputedStyle` on a pseudo-element
+  only proves the rule matched and the pseudo-element itself has the right box properties — it says
+  nothing about whether an ancestor's `overflow` (auto **or** hidden) clips it before it reaches the
+  viewport. Always confirm with a real screenshot of the rendered region, not just computed style,
+  when the fix depends on escaping an ancestor's box. **Fix:** walked the full ancestor chain's
+  `overflow`/`overflowX` via `getComputedStyle` per-ancestor (not just the pseudo-element) and found
+  `SidebarGroup`'s own `p-2` padding sits _inside_ `SidebarContent`'s clip boundary — so bleeding
+  only `-left-2` (-8px, into that already-visible padding gutter) instead of the kit's literal
+  `-10px` keeps the rail inside the actual clip boundary. Re-verified with
+  `page.locator('li:has([data-active=true])').screenshot()` — rail now visibly renders as a thin
+  amber line on the active item's left edge.
+- **Footer chip had no card chrome at rest — same bug class as `UpNextCard`'s original gap, missed
+  in the original audit and initial build.** The audit/build both focused on the footer's
+  _interaction_ (dropdown vs. plain link, resolved to keep the dropdown) and didn't separately check
+  its resting _visual_ chrome. Kit's `.cdb-user-chip` has an always-on
+  `background: var(--bg-elev-2)` + `1px solid var(--border)` + `radius-sm`; the live
+  `SidebarMenuButton` only had `data-[state=open]:bg-sidebar-accent` (dropdown-open state only) — no
+  resting background/border at all, so it blended into the sidebar background exactly like
+  `UpNextCard` did before this pass. Owner caught this in their visual pass. **Fix:** added
+  `border-border bg-[var(--bg-elev-2)] border` to the footer `SidebarMenuButton`'s className,
+  alongside the existing dropdown-open state classes.
+- **Footer avatar was 32px (`size-8`), kit specifies 28px.** Minor miss, not part of the original
+  audit checklist (avatar sizing wasn't itemized there). Owner asked to confirm/adjust; kit's
+  `Shell.jsx` passes `size={28}` for the footer's `Avatar` (vs. `size={20}` for online-row avatars,
+  confirmed separately, see below) — fixed to `size-7` (28px).
+- **Online-users row text/avatar size: checked against the kit, already correct, no change made.**
+  Owner asked whether the online list's avatar and name text read smaller than the kit. Re-checked
+  `kit.css`'s `.cdb-online-row` (`font-size: 12px`, applies to the whole row including the name
+  `<span>`) and `Shell.jsx`'s `<Avatar user={u} size={20} />` — both already matched exactly
+  (`text-xs` = 12px, `size-5` = 20px). No change made; flagging here only so a future pass doesn't
+  re-litigate this from a visual impression alone without re-checking the kit's actual numbers
+  first.
+- **"Navigation" group label didn't match "Online"'s label styling — both should share one
+  treatment.** Kit uses a single class (`.cdb-sidebar-group-label`: `10px`, `font-weight: 600`,
+  `letter-spacing: 0.12em`, `color: var(--fg-dim)`, uppercase) for _both_ group labels. The "Online"
+  label (a plain `<p>` in `online-users.tsx`) was already built to this spec, but "Navigation" (a
+  shadcn `SidebarGroupLabel`) was left with the primitive's own default styling
+  (`text-xs font-medium`, no letter-spacing, no uppercase, lighter `text-sidebar-foreground/70`
+  color) — a drift missed in the original audit and initial build since the two labels use different
+  underlying components and weren't compared side-by-side until the owner's visual pass. **Fix:**
+  added a scoped `className` override to the "Navigation" `SidebarGroupLabel` matching the exact
+  class string already used on "Online"'s `<p>`. Verified via `getComputedStyle` that both labels
+  now compute identically (`font-size: 10px`, `font-weight: 600`, `letter-spacing: 1.2px`, same
+  color, `text-transform: uppercase`).
+- **`UpNextCard`'s "Proposed by {name}" text was 11px, kit's `.cdb-sb-upnext-meta` is 10px.** Small
+  miss from the initial build (this line wasn't itemized separately in the original drift checklist,
+  which focused on the eyebrow/title). Fixed to `text-[10px]`.
+- **`UpNextCard`'s pulse dot was pinned to the poster's top-right corner (pre-existing, predates
+  this pass); kit puts it inline inside the eyebrow row, before the "Up next · {date}" text.**
+  Confirmed via `Shell.jsx`: `<span className="cdb-pulse cdb-pulse-amber" /> Up next · Wed Jun 17`
+  sits inside `.cdb-sb-upnext-eyebrow`, not attached to the poster at all — this was a structural
+  difference the original audit didn't catch since it focused on the card's chrome/typography, not
+  the pulse dot's position specifically. **Fix:** moved the dot from an absolutely-positioned badge
+  on the poster (`absolute -top-1 -right-1 size-2`) to an inline `size-1.5` (6px, matching
+  `.cdb-pulse`'s literal `width: 6px; height: 6px` exactly) span inside the eyebrow's `inline-flex`
+  row, before the eyebrow text. Also fixed while touching this: the body's three lines
+  (eyebrow/title/meta) were vertically centered (`justify-center`) against the poster's height
+  instead of top-aligned like the kit (`.cdb-sb-upnext-body` is a plain top-to-bottom flex column,
+  no centering) — changed to `justify-start`, and added the kit's exact `gap: 2px` between lines
+  (`gap-0.5`).
+- **Title's line-height wasn't set, so the kit's tighter 3-line spacing didn't come through even
+  after the `gap-0.5` fix above.** Kit's `.cdb-sb-upnext-title` sets `line-height: 1.05` explicitly;
+  the live title span had no `leading-*` class, inheriting a taller default for a 15px serif font,
+  which visually read as more inter-line spacing than the kit despite the flex `gap` being correct.
+  Fixed by adding `leading-[1.05]` to the title span.
+- **Poster was 48px wide (`w-12`), kit specifies `width: 40px` on `.cdb-sb-upnext-poster`.** Also
+  fixed the card's own `gap` from `gap-3` (12px) to `gap-2.5` (10px), matching `.cdb-sb-upnext`'s
+  literal `gap: 10px`. Both measured directly via `getBoundingClientRect()`/`getComputedStyle` post-
+  fix (40×60px poster, matching `aspect-ratio: 2/3` at 40px width; `10px` gap, `8px` padding) rather
+  than eyeballed.
+
+All of the above (pulse-dot position, top-alignment, line-height, poster/gap sizing) were caught
+across several rounds of the owner's own visual pass, each a small, specific, correctly-scoped
+callout — not machine-verifiable from a screenshot diff alone, since they're all
+sub-pixel/structural details invisible without a side-by-side comparison against the live kit
+screen. Re-verifying this outcome section's lesson from the earlier rail bug: several of these
+(line-height, poster width) are exactly the kind of thing `getComputedStyle`/measurement checks
+catch reliably once you know to look for them, but the audit process didn't originally surface them
+because the original per-page audit compares kit _markup_/_CSS_ against live _code_, not a running
+side-by-side render — worth remembering for future pages that a text-only audit can still miss
+things a live visual comparison catches.
 
 ---
 
