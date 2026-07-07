@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ClapperboardIcon,
   DatabaseIcon,
   Gamepad2Icon,
   HomeIcon,
@@ -52,6 +53,28 @@ const NAV_ITEMS = [
   { title: "Users", href: "/users", icon: UsersIcon },
 ] as const;
 
+/** Kit's `.cdb-nav-item.active`: amber text/icon + elev-3 background. Scoped to this file's nav
+ *  buttons only. The left rail lives on `NAV_ITEM_RAIL_CLASS` (on `SidebarMenuItem`) instead of
+ *  here — `SidebarMenuButton` clips overflow, so a `before:` bleeding outside its own box (to sit
+ *  in the sidebar gutter, like the kit's un-clipped `.cdb-nav-item`) would be invisible on the
+ *  button itself. */
+const NAV_ACTIVE_CLASS =
+  "data-[active=true]:bg-[var(--bg-elev-3)] data-[active=true]:text-cdb-marquee-text " +
+  "[&[data-active=true]>svg]:text-cdb-marquee-text " +
+  "[&[data-active=true]_.cdb-nav-admin-tag]:text-cdb-marquee-text";
+
+/** `SidebarMenuItem` (a plain `<li>`, not overflow-clipped) hosts the amber left rail via
+ *  `has-data-[active=true]`, since it targets the active button's `data-active` from the child.
+ *  `-left-2` (not the kit's literal `-10px`) is deliberate: `SidebarContent` (a few ancestors up)
+ *  has `overflow-auto` for scrolling a long nav list, which clips anything bleeding past its own
+ *  box. `SidebarGroup`'s `p-2` padding sits *inside* that clip boundary, so `-left-2` (-8px) lands
+ *  in that already-visible padding gutter instead of being clipped like the kit's `-10px` bleed
+ *  would be. */
+const NAV_ITEM_RAIL_CLASS =
+  "has-data-[active=true]:before:absolute has-data-[active=true]:before:-left-2 " +
+  "has-data-[active=true]:before:inset-y-2 has-data-[active=true]:before:w-0.5 " +
+  "has-data-[active=true]:before:rounded-full has-data-[active=true]:before:bg-cdb-marquee";
+
 function getInitials(displayName: string | null, username: string): string {
   const name = displayName ?? username;
   return name
@@ -90,25 +113,33 @@ export function AppSidebar() {
       <SidebarHeader>
         <Link
           href="/home"
-          className="hover:bg-sidebar-accent flex flex-col gap-0.5 rounded-md px-2 py-1.5 transition-colors group-data-[collapsible=icon]:hidden"
+          className="hover:bg-sidebar-accent flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors group-data-[collapsible=icon]:hidden"
         >
-          <Wordmark size="sm" />
-          <span className="text-muted-foreground text-xs">A cinema database for friends.</span>
+          <span className="bg-cdb-marquee flex size-8 shrink-0 items-center justify-center rounded-md text-[var(--cdb-ink-950)]">
+            <ClapperboardIcon className="size-4" />
+          </span>
+          <span className="flex flex-col gap-0.5">
+            <Wordmark size="sm" />
+            <span className="text-muted-foreground text-xs">Movie nights, tracked.</span>
+          </span>
         </Link>
       </SidebarHeader>
 
       <SidebarContent>
         <UpNextCard />
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+            Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map((item) => (
-                <SidebarMenuItem key={item.href}>
+                <SidebarMenuItem key={item.href} className={NAV_ITEM_RAIL_CLASS}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname.startsWith(item.href)}
                     tooltip={item.title}
+                    className={NAV_ACTIVE_CLASS}
                   >
                     <Link href={item.href}>
                       <item.icon />
@@ -118,15 +149,19 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
               {user?.role === "admin" && (
-                <SidebarMenuItem>
+                <SidebarMenuItem className={NAV_ITEM_RAIL_CLASS}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname.startsWith("/admin")}
                     tooltip="Admin"
+                    className={NAV_ACTIVE_CLASS}
                   >
                     <Link href="/admin">
                       <ShieldIcon />
                       <span>Admin</span>
+                      <span className="cdb-nav-admin-tag ml-auto font-mono text-[9px] tracking-[0.1em] text-[var(--fg-dim)] uppercase">
+                        admin
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -145,9 +180,9 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton
                     size="lg"
-                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    className="border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground border bg-[var(--bg-elev-2)]"
                   >
-                    <Avatar className="size-8">
+                    <Avatar className="size-7">
                       <AvatarImage
                         src={user.avatarUrl ?? undefined}
                         alt={user.displayName ?? user.username}

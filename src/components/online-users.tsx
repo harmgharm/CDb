@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOnlineUsers } from "@/hooks/use-online-users";
 
 function getInitials(displayName: string | null, username: string): string {
@@ -15,7 +14,7 @@ function getInitials(displayName: string | null, username: string): string {
     .slice(0, 2);
 }
 
-const MAX_VISIBLE = 5;
+const MAX_VISIBLE = 8;
 
 export function OnlineUsersSection() {
   const { user } = useAuth();
@@ -38,39 +37,32 @@ function OnlineUsersList() {
 
   return (
     <div className="px-3 py-2">
-      <p className="text-muted-foreground mb-2 text-[10px] font-semibold tracking-wider uppercase">
+      <p className="text-[10px] font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
         Online
       </p>
-      <TooltipProvider delayDuration={200}>
-        <div className="flex items-center -space-x-1.5">
-          {visible.map((user) => (
-            <Tooltip key={user.userId}>
-              <TooltipTrigger asChild>
-                <div className="relative">
-                  <Avatar className="border-sidebar size-7 border-2">
-                    <AvatarImage
-                      src={user.avatarUrl ?? undefined}
-                      alt={user.displayName ?? user.username}
-                    />
-                    <AvatarFallback className="text-[10px]">
-                      {getInitials(user.displayName, user.username)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="bg-cdb-success border-sidebar absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                {user.displayName ?? user.username}
-              </TooltipContent>
-            </Tooltip>
-          ))}
-          {overflow > 0 && (
-            <div className="bg-muted text-muted-foreground border-sidebar flex size-7 items-center justify-center rounded-full border-2 text-[10px] font-medium">
-              +{overflow}
-            </div>
-          )}
-        </div>
-      </TooltipProvider>
+      <div className="flex flex-col gap-0.5 py-0.5">
+        {visible.map((user) => (
+          <div
+            key={user.userId}
+            className="flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-[var(--fg-muted)]"
+          >
+            <span className="bg-cdb-tv size-1.5 shrink-0 rounded-full shadow-[0_0_0_3px_color-mix(in_oklch,var(--cdb-tv)_25%,transparent)]" />
+            <Avatar className="size-5">
+              <AvatarImage
+                src={user.avatarUrl ?? undefined}
+                alt={user.displayName ?? user.username}
+              />
+              <AvatarFallback className="text-[9px]">
+                {getInitials(user.displayName, user.username)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate">{user.displayName ?? user.username}</span>
+          </div>
+        ))}
+        {overflow > 0 && (
+          <div className="px-2.5 py-1.5 text-xs text-[var(--fg-dim)]">+{overflow} more</div>
+        )}
+      </div>
     </div>
   );
 }
