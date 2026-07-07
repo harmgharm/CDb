@@ -1615,9 +1615,12 @@ from all 3 solo games (which each keep their own separate local `ScoreHeader`, u
 call sites remaining; and the 320px overflow fix was applied identically across all 3 games' config
 screens.
 
-**Noted but out of scope, not fixed:** a handful of `SelectItem` option labels
+**Noted then fixed same day (2026-07-07):** a handful of `SelectItem` option labels
 (`"Normal — From your database"`, `"Custom settings — scores won't appear..."`, etc.) in all 3
-games' config screens use an em-dash and predate this pass entirely (verified via `git log -p`, not
-touched by any of these commits). Flagging rather than scope-creeping into copy this page's audit
-didn't originally call out — worth a dedicated copy sweep across the app at some point, since the
-same pattern likely exists on other already-shipped pages too.
+games' config screens used an em-dash and predated this pass entirely (verified via `git log -p`,
+not touched by the token/copy commits above). Initially flagged as out-of-scope rather than
+scope-creeping into copy this page's audit didn't originally call out, then fixed as a quick
+same-session follow-up since it was the same 3 files already touched (`bdb199d`) — `·` middot
+throughout, same pattern as everywhere else in this pass. A broader app-wide em-dash sweep beyond
+this page is still worth doing at some point (other already-shipped pages may have the same issue),
+but no longer applies to Game play surfaces.
