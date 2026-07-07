@@ -551,9 +551,9 @@ function SubmittedYearBanner({
   score,
 }: Readonly<{ guessedYear: number; score: number }>) {
   return (
-    <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-6 py-3 text-center">
-      <p className="font-medium text-blue-400">
-        Submitted: {String(guessedYear)} — +{String(score)} pts
+    <div className="rounded-lg border border-[color-mix(in_oklch,var(--cdb-info)_30%,transparent)] bg-[color-mix(in_oklch,var(--cdb-info)_10%,transparent)] px-6 py-3 text-center">
+      <p className="text-cdb-info font-medium">
+        Submitted: {String(guessedYear)} · +{String(score)} pts
       </p>
       <p className="text-muted-foreground mt-1 text-xs">Waiting for other players...</p>
     </div>
