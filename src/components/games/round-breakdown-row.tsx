@@ -119,12 +119,12 @@ function PlayerRoundResult({
   return (
     <div className="flex items-center gap-2 text-sm">
       {guess.isCorrect && !isSkipped ? (
-        <CheckCircleIcon className="size-3.5 shrink-0 text-green-500" />
+        <CheckCircleIcon className="text-cdb-success size-3.5 shrink-0" />
       ) : (
-        <XCircleIcon className="size-3.5 shrink-0 text-red-500" />
+        <XCircleIcon className="text-cdb-cherry-hi size-3.5 shrink-0" />
       )}
       <span className="min-w-0 flex-1 truncate">{name}</span>
-      {isFirstCorrect && <span className="text-[10px] font-medium text-yellow-500">1st</span>}
+      {isFirstCorrect && <span className="text-cdb-star text-[10px] font-semibold">1st</span>}
       {isRatingGuess ? (
         <RatingGuessDetail guess={guess} correctRating={correctRating} />
       ) : (
@@ -180,7 +180,7 @@ function PosterRevealDetail({ guess }: Readonly<{ guess: GameGuessResponse }>) {
 }
 
 function getDifferenceColor(difference: number): string {
-  if (difference < 1) return "text-green-500";
-  if (difference < 2) return "text-yellow-500";
-  return "text-red-500";
+  if (difference < 1) return "text-cdb-success";
+  if (difference < 2) return "text-cdb-warning";
+  return "text-cdb-cherry-hi";
 }

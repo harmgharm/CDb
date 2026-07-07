@@ -171,9 +171,13 @@ export function GameLobby({
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       {/* Header */}
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">{gameDisplayName} Lobby</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Waiting for players to join...</p>
+      <div className="flex flex-col items-center gap-2 text-center">
+        <span className="text-cdb-cherry-hi inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--cdb-cherry)_12%,transparent)] px-2.5 py-0.5 text-xs">
+          <span className="bg-cdb-cherry-hi animate-up-next-pulse size-1.5 rounded-full" />
+          Multiplayer
+        </span>
+        <h1 className="font-display text-[34px] leading-none">{gameDisplayName} lobby</h1>
+        <p className="text-muted-foreground text-sm">Waiting for players to join...</p>
       </div>
 
       {/* Settings summary */}
@@ -187,7 +191,7 @@ export function GameLobby({
         )}
         <Badge variant="secondary">{String(players.length)}/10 players</Badge>
         {game.isRanked ? (
-          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+          <Badge className="text-cdb-marquee-text border-[color-mix(in_oklch,var(--cdb-marquee)_32%,transparent)] bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)] hover:bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)]">
             <ShieldCheckIcon className="mr-1 size-3" />
             Ranked
           </Badge>
@@ -222,7 +226,7 @@ export function GameLobby({
                     </AvatarFallback>
                   </Avatar>
                   {onlineUserIds.has(player.userId) && (
-                    <div className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-white bg-emerald-500 dark:border-gray-900" />
+                    <div className="bg-cdb-success absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-white dark:border-gray-900" />
                   )}
                 </div>
                 <div className="flex-1">
@@ -235,10 +239,10 @@ export function GameLobby({
                   <p className="text-muted-foreground text-xs">@{player.username}</p>
                 </div>
                 {player.isHost && (
-                  <Badge variant="outline" className="gap-1">
+                  <span className="text-cdb-star inline-flex items-center gap-1 rounded-full border border-[color-mix(in_oklch,var(--cdb-star)_30%,transparent)] px-2.5 py-0.5 text-xs">
                     <Crown className="size-3" />
                     Host
-                  </Badge>
+                  </span>
                 )}
               </div>
             ))}
@@ -282,12 +286,12 @@ export function GameLobby({
             ) : (
               <LinkIcon className="mr-1.5 size-4" />
             )}
-            {copied ? "Copied!" : "Copy Link"}
+            {copied ? "Copied!" : "Copy link"}
           </Button>
           {isHost && (
             <Button variant="outline" className="flex-1" onClick={onOpenInviteDialog}>
               <ClipboardIcon className="mr-1.5 size-4" />
-              Invite Friends
+              Invite friends
             </Button>
           )}
         </div>
@@ -301,7 +305,7 @@ export function GameLobby({
 const START_BUTTON_LABELS: Record<string, string> = {
   starting: "Starting...",
   needPlayers: "Need at least 2 players",
-  ready: "Start Game",
+  ready: "Start game",
 };
 
 function StartButtonLabel({

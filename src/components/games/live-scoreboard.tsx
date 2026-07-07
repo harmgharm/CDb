@@ -30,7 +30,7 @@ function getInitials(displayName: string | null, username: string): string {
 }
 
 const RANK_COLORS: Record<number, string> = {
-  1: "text-yellow-500",
+  1: "text-cdb-star",
   2: "text-gray-400",
   3: "text-amber-600",
 };
@@ -58,7 +58,7 @@ export function LiveScoreboard({ players, onlineUserIds }: LiveScoreboardProps) 
             <div
               key={player.userId}
               className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${
-                isCurrentUser ? "bg-primary/10" : ""
+                isCurrentUser ? "bg-[color-mix(in_oklch,var(--cdb-marquee)_10%,transparent)]" : ""
               } ${isOnline ? "" : "opacity-50"}`}
             >
               {/* Rank */}

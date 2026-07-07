@@ -64,12 +64,22 @@ export function RoundResult({
       {/* Correct / Wrong indicator */}
       {resultHeader ?? (
         <div className="flex flex-col items-center gap-2">
-          {result.isCorrect ? (
-            <CheckCircleIcon className="size-12 text-green-500" />
-          ) : (
-            <XCircleIcon className="size-12 text-red-500" />
-          )}
-          <h2 className="text-2xl font-bold">{result.isCorrect ? "Correct!" : "Wrong!"}</h2>
+          <span
+            className={`flex size-14 items-center justify-center rounded-full ${
+              result.isCorrect
+                ? "text-cdb-success bg-[color-mix(in_oklch,var(--cdb-success)_16%,transparent)]"
+                : "text-cdb-cherry-hi bg-[color-mix(in_oklch,var(--cdb-cherry)_16%,transparent)]"
+            }`}
+          >
+            {result.isCorrect ? (
+              <CheckCircleIcon className="size-7" />
+            ) : (
+              <XCircleIcon className="size-7" />
+            )}
+          </span>
+          <h2 className="font-display text-[26px] font-semibold">
+            {result.isCorrect ? "Correct!" : "Wrong!"}
+          </h2>
         </div>
       )}
 
@@ -86,11 +96,13 @@ export function RoundResult({
           transition={{ delay: 0.2, duration: 0.3, ease: "easeOut" as const }}
           className="flex flex-col items-center gap-1"
         >
-          <p className="text-3xl font-bold tabular-nums">+{String(result.scoreAwarded)}</p>
+          <p className="text-cdb-marquee font-display text-[38px] leading-none">
+            +{String(result.scoreAwarded)}
+          </p>
           <div className="text-muted-foreground flex items-center gap-3 text-sm">
             <span>Base: {String(result.roundScore)}</span>
             {result.streakBonus > 0 && (
-              <span className="text-orange-400">Streak: +{String(result.streakBonus)}</span>
+              <span className="text-cdb-warning">Streak: +{String(result.streakBonus)}</span>
             )}
           </div>
         </motion.div>
@@ -98,9 +110,9 @@ export function RoundResult({
 
       {/* Streak display */}
       {result.currentStreak >= 2 && (
-        <div className="flex items-center gap-1 text-orange-400">
-          <FlameIcon className="size-5" />
-          <span className="text-sm font-medium">{String(result.currentStreak)} streak!</span>
+        <div className="text-cdb-warning flex items-center gap-1">
+          <FlameIcon className="size-4" />
+          <span className="text-sm font-semibold">{String(result.currentStreak)} streak!</span>
         </div>
       )}
 
@@ -121,7 +133,7 @@ export function RoundResult({
         />
       ) : (
         <Button onClick={onNextRound} disabled={isAdvancing} size="lg" className="mt-2">
-          {isLastRound ? "View Results" : "Next Round"}
+          {isLastRound ? "View results" : "Next round"}
         </Button>
       )}
     </motion.div>
@@ -227,16 +239,19 @@ function RoundScoresDisplay({
       transition={{ delay: 0.3, duration: 0.3, ease: "easeOut" as const }}
       className="w-full max-w-sm"
     >
-      <p className="text-muted-foreground mb-2 text-center text-xs font-medium tracking-wider uppercase">
-        Round Scores
+      <p className="mb-2 text-center text-xs font-semibold tracking-[0.12em] text-[var(--fg-dim)] uppercase">
+        Round scores
       </p>
       <div className="space-y-1.5">
         {sorted.map((score) => (
-          <div key={score.userId} className="flex items-center gap-2 text-sm">
+          <div
+            key={score.userId}
+            className="flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-elev-2)] px-3 py-2 text-sm"
+          >
             {score.isCorrect ? (
-              <CheckCircleIcon className="size-3.5 shrink-0 text-green-500" />
+              <CheckCircleIcon className="text-cdb-success size-3.5 shrink-0" />
             ) : (
-              <XCircleIcon className="size-3.5 shrink-0 text-red-500" />
+              <XCircleIcon className="text-cdb-cherry-hi size-3.5 shrink-0" />
             )}
             <span className="min-w-0 flex-1 truncate">{score.username}</span>
             {renderGuessLabel !== undefined && (
@@ -245,7 +260,7 @@ function RoundScoresDisplay({
               </span>
             )}
             {showFirstCorrect && score.isFirstCorrect && (
-              <span className="text-[10px] font-medium text-yellow-500">1st</span>
+              <span className="text-cdb-star text-[10px] font-semibold">1st</span>
             )}
             <span className="font-medium tabular-nums">+{String(score.scoreAwarded)}</span>
             {score.timeFromStartMs !== null && score.isCorrect && (

@@ -500,11 +500,10 @@ export function MultiplayerGame({ gameId, onlineUserIds }: MultiplayerGameProps)
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
       <div className="flex flex-col items-center gap-6">
-        <ScoreHeader totalScore={game.totalScore} />
-
-        <p className="text-muted-foreground text-sm">
-          Round {String(game.currentRound + 1)} of {String(game.roundCount)}
-        </p>
+        <ScoreHeader
+          totalScore={game.totalScore}
+          roundLabel={`Round ${String(game.currentRound + 1)}/${String(game.roundCount)}`}
+        />
 
         <YearGuessVisual
           key={game.currentRound}

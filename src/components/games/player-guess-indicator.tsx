@@ -63,12 +63,12 @@ export function PlayerGuessIndicators({ indicators }: PlayerGuessIndicatorsProps
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 100, scale: 0.8 }}
             transition={{ duration: 0.3, ease: "easeOut" as const }}
-            className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 shadow-lg backdrop-blur-sm"
+            className="flex items-center gap-2 rounded-lg border border-[color-mix(in_oklch,var(--cdb-info)_30%,transparent)] bg-[color-mix(in_oklch,var(--cdb-info)_10%,transparent)] px-3 py-2 shadow-lg backdrop-blur-sm"
           >
-            <SendIcon className="size-4 text-blue-400" />
+            <SendIcon className="text-cdb-info size-4" />
             <span className="text-sm font-medium">{entry.event.username} submitted</span>
             {entry.event.isFirstCorrect && (
-              <span className="text-xs font-bold text-yellow-500">FIRST!</span>
+              <span className="text-cdb-star text-xs font-bold">First!</span>
             )}
           </motion.div>
         ))}

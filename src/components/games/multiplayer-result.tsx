@@ -52,7 +52,11 @@ function getInitials(displayName: string | null, username: string): string {
 }
 
 const MEDAL_STYLES: Record<number, { bg: string; text: string; label: string }> = {
-  1: { bg: "bg-yellow-500/20", text: "text-yellow-500", label: "1st" },
+  1: {
+    bg: "bg-[color-mix(in_oklch,var(--cdb-star)_22%,transparent)]",
+    text: "text-cdb-star",
+    label: "1st",
+  },
   2: { bg: "bg-gray-400/20", text: "text-gray-400", label: "2nd" },
   3: { bg: "bg-amber-600/20", text: "text-amber-600", label: "3rd" },
 };
@@ -105,9 +109,9 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
       className="mx-auto flex max-w-2xl flex-col items-center gap-8 px-4 py-8"
     >
       <div className="flex flex-col items-center gap-2">
-        <h1 className="text-3xl font-bold">Game Over</h1>
+        <h1 className="font-display text-[40px] leading-none">Game over</h1>
         {game.isRanked ? (
-          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+          <Badge className="text-cdb-marquee-text border-[color-mix(in_oklch,var(--cdb-marquee)_32%,transparent)] bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)] hover:bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)]">
             <ShieldCheckIcon className="mr-1 size-3" />
             Ranked
           </Badge>
@@ -131,7 +135,7 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
 
       {/* Full standings */}
       <div className="w-full">
-        <h2 className="mb-3 text-lg font-semibold">Final Standings</h2>
+        <h2 className="mb-3 text-base font-semibold">Final standings</h2>
         <div className="space-y-2">
           {standings.map((player, index) => {
             const rank = index + 1;
@@ -149,7 +153,9 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
                   ease: "easeOut" as const,
                 }}
                 className={`bg-card flex items-center gap-3 rounded-lg border p-3 ${
-                  isCurrentUser ? "border-primary/50 ring-primary/20 ring-1" : ""
+                  isCurrentUser
+                    ? "border-[color-mix(in_oklch,var(--cdb-marquee)_40%,transparent)]"
+                    : ""
                 }`}
               >
                 {/* Rank badge */}
@@ -222,7 +228,7 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
         </Button>
         <Link href="/play">
           <Button variant="outline" size="lg">
-            Back to Games
+            Back to games
           </Button>
         </Link>
       </div>
@@ -234,9 +240,9 @@ function PlayAgainLabel({
   isCreating,
   hasRematch,
 }: Readonly<{ isCreating: boolean; hasRematch: boolean }>) {
-  if (isCreating) return "Creating Lobby...";
-  if (hasRematch) return "Join Rematch";
-  return "Play Again";
+  if (isCreating) return "Creating lobby...";
+  if (hasRematch) return "Join rematch";
+  return "Play again";
 }
 
 function WinnerBanner({
@@ -250,7 +256,7 @@ function WinnerBanner({
       transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" as const }}
       className="flex flex-col items-center gap-2"
     >
-      <TrophyIcon className="size-10 text-yellow-500" />
+      <TrophyIcon className="text-cdb-star size-9" />
       <p className="text-lg font-semibold">
         {isCurrentUser ? "You win!" : `${winner.displayName ?? winner.username} wins!`}
       </p>
@@ -269,27 +275,27 @@ function UserStatCards({
   const cards = [
     {
       icon: TrophyIcon,
-      label: "Your Rank",
+      label: "Your rank",
       value: `#${String(rank)}`,
-      color: "text-yellow-500",
+      color: "text-cdb-star",
     },
     {
       icon: TargetIcon,
       label: "Correct",
       value: `${String(stats.roundsWon)}/${String(roundCount)}`,
-      color: "text-green-500",
+      color: "text-cdb-success",
     },
     {
       icon: FlameIcon,
       label: "Score",
       value: String(stats.totalScore),
-      color: "text-orange-500",
+      color: "text-cdb-warning",
     },
     {
       icon: ClockIcon,
       label: "Streak",
       value: String(stats.currentStreak),
-      color: "text-blue-500",
+      color: "text-cdb-info",
     },
   ];
 
@@ -339,7 +345,7 @@ function RoundBreakdown({
 
   return (
     <div className="w-full">
-      <h2 className="mb-3 text-lg font-semibold">Round Breakdown</h2>
+      <h2 className="mb-3 text-base font-semibold">Round breakdown</h2>
       <div className="space-y-2">
         {game.rounds.map((round, index) => (
           <RoundBreakdownRow

@@ -91,7 +91,7 @@ export function InvitePlayersDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invite Players</DialogTitle>
+          <DialogTitle>Invite players</DialogTitle>
           <DialogDescription>Select friends to send a game invite notification.</DialogDescription>
         </DialogHeader>
 

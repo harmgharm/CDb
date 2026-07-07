@@ -64,25 +64,25 @@ export function GameResult({
       icon: TrophyIcon,
       label: "Score",
       value: String(game.totalScore),
-      color: "text-yellow-500",
+      color: "text-cdb-star",
     },
     {
       icon: TargetIcon,
       label: "Correct",
       value: `${String(correctCount)}/${String(game.roundCount)}`,
-      color: "text-green-500",
+      color: "text-cdb-success",
     },
     {
       icon: FlameIcon,
-      label: "Best Streak",
+      label: "Best streak",
       value: String(bestStreak),
-      color: "text-orange-500",
+      color: "text-cdb-warning",
     },
     {
       icon: ClockIcon,
-      label: "Avg. Time",
+      label: "Avg. time",
       value: correctTimeCount > 0 ? `${avgTimeSec}s` : "—",
-      color: "text-blue-500",
+      color: "text-cdb-info",
     },
   ];
 
@@ -94,10 +94,10 @@ export function GameResult({
       className="flex flex-col items-center gap-8"
     >
       <div className="flex flex-col items-center gap-2">
-        <h1 className="text-3xl font-bold">Game Over</h1>
+        <h1 className="font-display text-[40px] leading-none">Game over</h1>
         {/* Ranked / Unranked badge */}
         {game.isRanked ? (
-          <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+          <Badge className="text-cdb-marquee-text border-[color-mix(in_oklch,var(--cdb-marquee)_32%,transparent)] bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)] hover:bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)]">
             <ShieldCheckIcon className="mr-1 size-3" />
             Ranked
           </Badge>
@@ -115,11 +115,11 @@ export function GameResult({
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.4, ease: "easeOut" as const }}
-          className="flex items-center gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-4 py-2"
+          className="flex items-center gap-2 rounded-lg border border-[color-mix(in_oklch,var(--cdb-star)_25%,transparent)] bg-[color-mix(in_oklch,var(--cdb-star)_10%,transparent)] px-4 py-2"
         >
-          <SparklesIcon className="size-5 text-yellow-500" />
-          <span className="text-sm font-semibold text-yellow-500">New Personal Best!</span>
-          <SparklesIcon className="size-5 text-yellow-500" />
+          <SparklesIcon className="text-cdb-star size-5" />
+          <span className="text-cdb-star text-sm font-semibold">New personal best!</span>
+          <SparklesIcon className="text-cdb-star size-5" />
         </motion.div>
       )}
 
@@ -149,7 +149,7 @@ export function GameResult({
 
       {/* Round breakdown */}
       <div className="w-full max-w-lg">
-        <h2 className="mb-3 text-lg font-semibold">Round Breakdown</h2>
+        <h2 className="mb-3 text-base font-semibold">Round breakdown</h2>
         <div className="space-y-2">
           {game.rounds.map((round, index) => {
             const guess = round.guesses[0];
@@ -165,7 +165,7 @@ export function GameResult({
                 }}
                 className="bg-card flex items-center gap-3 rounded-lg border p-3"
               >
-                <span className="text-muted-foreground w-8 text-center text-sm font-medium">
+                <span className="w-8 text-center font-mono text-xs text-[var(--fg-dim)]">
                   #{String(index + 1)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -185,7 +185,7 @@ export function GameResult({
                     <span className="text-muted-foreground text-sm">Skipped</span>
                   ) : (
                     <>
-                      <span className="text-sm font-medium tabular-nums">
+                      <span className="text-sm font-semibold tabular-nums">
                         {guess.isCorrect ? `+${String(guess.scoreAwarded)}` : "0"}
                       </span>
                       <RoundIcon isCorrect={guess.isCorrect} />
@@ -201,7 +201,7 @@ export function GameResult({
       {/* Actions */}
       <div className="flex gap-3">
         <Button onClick={onPlayAgain} size="lg">
-          Play Again
+          Play again
         </Button>
       </div>
     </motion.div>
@@ -211,11 +211,13 @@ export function GameResult({
 function RoundIcon({ isCorrect }: Readonly<{ isCorrect: boolean }>) {
   return (
     <div
-      className={`size-5 rounded-full ${isCorrect ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"}`}
+      className={`flex size-[22px] items-center justify-center rounded-full text-xs ${
+        isCorrect
+          ? "text-cdb-success bg-[color-mix(in_oklch,var(--cdb-success)_20%,transparent)]"
+          : "text-cdb-cherry-hi bg-[color-mix(in_oklch,var(--cdb-cherry)_18%,transparent)]"
+      }`}
     >
-      <span className="flex size-full items-center justify-center text-xs">
-        {isCorrect ? "✓" : "✗"}
-      </span>
+      {isCorrect ? "✓" : "✗"}
     </div>
   );
 }
