@@ -126,8 +126,8 @@ export function PlayPageContent() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="normal">Normal — Your group&apos;s ratings</SelectItem>
-                    <SelectItem value="hard">Hard — Public ratings (TMDB &amp; MAL)</SelectItem>
+                    <SelectItem value="normal">Normal · Your group&apos;s ratings</SelectItem>
+                    <SelectItem value="hard">Hard · Public ratings (TMDB &amp; MAL)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-muted-foreground text-xs">
@@ -258,7 +258,7 @@ function RankedIndicator({ ranked }: Readonly<{ ranked: boolean }>) {
             Unranked
           </Badge>
           <span className="text-muted-foreground text-xs">
-            Custom settings — scores won&apos;t appear on the leaderboard
+            Custom settings · scores won&apos;t appear on the leaderboard
           </span>
         </>
       )}
