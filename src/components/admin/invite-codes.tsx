@@ -45,7 +45,10 @@ import {
   useInviteCodes,
   useUpdateInviteCode,
 } from "@/hooks/use-admin";
+import { type CodeStatus, getCodeStatus } from "@/lib/admin/invite-code-status";
 import type { InviteCodeItem } from "@/types/admin-responses";
+
+import { ADMIN_TABLE_CLASS, ADMIN_TABLE_WRAP_CLASS } from "./table-chrome";
 
 const DURATION_OPTIONS = [
   { value: "7", label: "7 days" },
@@ -65,31 +68,24 @@ function formatDate(dateString: string): string {
   });
 }
 
-type CodeStatus = "used" | "expired" | "active";
-
-function getCodeStatus(code: InviteCodeItem): CodeStatus {
-  if (code.used_by_user_id !== null) return "used";
-  if (new Date(code.expires_at) < new Date()) return "expired";
-  return "active";
-}
-
+// Kit's status → semantic-token map; cherry stays reserved for the dead state.
 const STATUS_CONFIG: Record<
   CodeStatus,
   { label: string; className: string; icon: React.ReactNode }
 > = {
   active: {
     label: "Active",
-    className: "bg-green-500/10 text-green-500 border-green-500/20",
+    className: "bg-cdb-success/15 text-cdb-success",
     icon: <ClockIcon className="size-3" />,
   },
   used: {
     label: "Used",
-    className: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    className: "bg-cdb-info/15 text-cdb-info",
     icon: <CheckCircleIcon className="size-3" />,
   },
   expired: {
     label: "Expired",
-    className: "bg-red-500/10 text-red-500 border-red-500/20",
+    className: "bg-cdb-cherry-hi/15 text-cdb-cherry-hi",
     icon: <XCircleIcon className="size-3" />,
   },
 };
@@ -98,7 +94,10 @@ function StatusBadge({ code }: Readonly<{ code: InviteCodeItem }>) {
   const status = getCodeStatus(code);
   const config = STATUS_CONFIG[status];
   return (
-    <Badge variant="outline" className={`gap-1 ${config.className}`}>
+    <Badge
+      variant="outline"
+      className={`gap-1 rounded-full border-transparent ${config.className}`}
+    >
       {config.icon}
       {config.label}
     </Badge>
@@ -359,8 +358,8 @@ function InviteCodesContent({
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className={ADMIN_TABLE_WRAP_CLASS}>
+      <Table className={ADMIN_TABLE_CLASS}>
         <TableHeader>
           <TableRow>
             <TableHead>Code</TableHead>
@@ -377,7 +376,7 @@ function InviteCodesContent({
             <motion.tr
               key={code.id}
               className={`hover:bg-muted/50 border-b transition-colors ${
-                index === 0 && justGenerated ? "bg-green-500/5" : ""
+                index === 0 && justGenerated ? "bg-cdb-success/5" : ""
               }`}
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
@@ -385,7 +384,7 @@ function InviteCodesContent({
             >
               <TableCell>
                 <div className="flex items-center gap-1.5">
-                  <code className="bg-muted rounded px-1.5 py-0.5 text-xs font-medium">
+                  <code className="rounded border bg-[var(--bg-elev-2)] px-2 py-[3px] font-mono text-xs tracking-[0.04em]">
                     {code.code}
                   </code>
                   {getCodeStatus(code) === "active" && <CopyButton code={code.code} />}
@@ -400,10 +399,10 @@ function InviteCodesContent({
               <TableCell className="text-muted-foreground text-sm">
                 {code.used_by_username ?? "\u2014"}
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
+              <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em]">
                 {formatDate(code.expires_at)}
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
+              <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em]">
                 {formatDate(code.created_at)}
               </TableCell>
               <TableCell>
@@ -448,7 +447,7 @@ export function InviteCodes() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-[13px]">
           Generate invite codes for new members with a custom validity period.
         </p>
         <div className="flex items-center gap-2">
@@ -472,7 +471,7 @@ export function InviteCodes() {
             }}
           >
             <PlusIcon className="mr-1.5 size-4" />
-            {isGenerating ? "Generating..." : "Generate Code"}
+            {isGenerating ? "Generating..." : "Generate code"}
           </Button>
         </div>
       </div>

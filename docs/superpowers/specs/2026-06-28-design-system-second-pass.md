@@ -69,7 +69,11 @@ the lower rows are placeholders until then.
     Footer dropdown and sidebar width both kept as-is per owner call. One Critical review finding
     (rail invisible due to button `overflow-hidden`) fixed — see "Review outcome" in the page
     section.
-12. **Admin** — last in the work order (lowest-traffic, owner-only surface). Kit: `Admin.jsx`.
+12. **Admin** — ✅ implemented 2026-07-07 (below). Last work-order item. Kit: `Admin.jsx`. Medium
+    drift, chrome-heavy: pane structure already matched ~1:1; closed the masthead/issue-line (real
+    member + active-code counts), gold tabs, kit table chrome, semantic badge tokens, and
+    "Users"→"Members" copy sweep. Zero Critical/Important review findings. Uncommitted, pending
+    owner review.
 
 **Added to the work order 2026-07-06** (games 10-12 above) — these three kit screens/surfaces were
 previously out of scope (the original 9-page list came from the spec's original page-drift-ranking
@@ -1898,3 +1902,171 @@ same-session follow-up since it was the same 3 files already touched (`bdb199d`)
 throughout, same pattern as everywhere else in this pass. A broader app-wide em-dash sweep beyond
 this page is still worth doing at some point (other already-shipped pages may have the same issue),
 but no longer applies to Game play surfaces.
+
+---
+
+## Page — Admin ✅ implemented 2026-07-07 (pending owner review)
+
+Audited against `Admin.jsx` + `kit.css` (`cdb-admin-*`, plus the reused `cdb-us-header` /
+`cdb-us-issue-line` masthead pattern and `cdb-up-tabs` segmented tabs). Live files:
+`src/app/(main)/admin/page.tsx`,
+`src/components/admin/{audit-log-table,user-management,invite-codes}.tsx`.
+
+**Overall: medium drift, chrome-heavy.** The three panes' structure (filter/action bars, table
+columns, row anatomy, dialogs, actions) already matches the kit almost 1:1, and functionality
+exceeds it (confirm dialogs, temp-password flow, toasts, tooltips, motion rows). The gap is chrome
+and copy: a plain sans `h1` instead of the kit's editorial masthead + issue line, default shadcn
+tabs instead of the gold-active segmented tabs, default shadcn table styling instead of the kit's
+uppercase-header/elev-1 table chrome, raw Tailwind palette badge colors instead of the semantic
+tokens, and "Users" naming that violates the "never users" copy rule. No new DB queries needed.
+
+### Kit section order (target)
+
+1. Editorial masthead (explicitly reuses the Users/Database pattern per the kit's own comment):
+   eyebrow `Back office · admin only` → serif title "The _back office_" → italic lede "Who's in, who
+   got invited, and a paper trail of everything that's happened in the group."
+2. Issue line: `Access · admin` · rule · `5 members · 2 active codes` (kit mock numbers — we wire
+   real counts)
+3. Segmented tab bar (`cdb-up-tabs` reuse): **Audit log / Members / Invite codes** (13px icons)
+4. Active pane, each = bar (desc/filters left, mono count or actions right) + table inside
+   `cdb-admin-table-wrap` chrome; audit pane adds pagination below
+
+### Current order (live)
+
+1. Plain sans `h1` "Admin" + muted sub — no eyebrow, serif, lede, or issue line
+2. (no issue line)
+3. shadcn `TabsList` default chip: "Audit Log" / "Users" / "Invite Codes"
+4. Panes — structure matches (audit: filter bar + table + pagination; invites: bar + table;
+   **Members has no bar at all**, kit has desc + count)
+
+### Drift checklist
+
+Header:
+
+- [x] **Masthead**: replace `h1`+`p` with the kit's editorial masthead — same markup as
+      `users/page.tsx`'s header (eyebrow → serif clamp title with amber italic accent → italic
+      lede). Play-hub caveat applies: the kit gives even this utility-register page an editorial
+      masthead; don't "fix" it to plain sans.
+- [x] **Issue line**: `IssueLine` with left `Access · admin`, right `N members · M active codes` —
+      real counts by lifting `useAdminUsers` + `useInviteCodes` to page level (SWR dedupes with the
+      panes' own hooks; admin-only page, tiny payloads; no new DB query).
+
+Tabs:
+
+- [x] Gold-active soft-chip tabs — reuse the `PROFILE_TAB_CLASS` pattern from `users/[id]/page.tsx`
+      (kit's `cdb-up-tab.active`).
+- [x] Copy: "Audit Log" → **"Audit log"**, "Users" → **"Members"**, "Invite Codes" → **"Invite
+      codes"** (kit labels; "never users" copy rule).
+
+Table chrome (all three panes, via className on the consumers — no touching
+`src/components/ui/table.tsx`):
+
+- [x] Kit `cdb-admin-table-wrap`: border + `radius-lg` + `bg-[var(--bg-elev-1)]`; thead cells
+      11px/600/uppercase/0.08em-tracking/`fg-dim`; body cells 12×16px padding. Live: default shadcn
+      `rounded-md border`, normal-case headers, transparent background.
+- [x] Semantic badge colors: `green/blue/red/yellow/orange-500` classes → `--cdb-success` /
+      `--cdb-info` / `--cdb-cherry-hi` / `--cdb-warning` tokens (all exist in `globals.css`) with
+      the kit's 14% color-mix backgrounds. Cherry lands only on destructive verbs (`deleted`,
+      `login_failed`) — consistent with the cherry-reservation rule.
+
+Audit pane:
+
+- [x] Entry count → mono 12px (`cdb-admin-count`); currently sans `text-sm`.
+- [x] Timestamp cell → mono + middot separator (kit: `Jun 11 · 8:42 PM`); year handling is judgment
+      call 1 below.
+- [x] Column headers: "User" → "Member", "Metadata" → "Detail".
+- [x] Metadata value separator `", "` → `" · "` (middot copy rule).
+- [x] ID truncation: real ellipsis `…` not `"..."`; kit shows 6 chars (live 8 — either fine, keep
+      the tooltip with the full ID).
+
+Members pane:
+
+- [x] **Add the missing bar** above the table: desc "Manage roles, reset passwords, and remove
+      members." left, mono `N members` right (kit `cdb-admin-bar` + `cdb-admin-desc` +
+      `cdb-admin-count`).
+- [x] Empty state "No users found." → members wording.
+- [x] "You" indicator → rounded-full pill (kit `cdb-admin-you`; live Badge is rounded-md).
+
+Invite pane:
+
+- [x] Button copy "Generate Code" → "Generate code" (sentence-case body copy).
+- [x] Code chip: mono + border + `bg-elev-2` (kit `cdb-admin-code code`; live is `bg-muted`, no
+      border, `font-medium` sans-ish).
+- [x] `justGenerated` row highlight `bg-green-500/5` → success-token color-mix.
+
+Mobile:
+
+- [x] Tables scroll internally at ≤900px (shadcn `Table` ships an `overflow-x-auto` container —
+      verify, don't assume) and 0px page overflow at 320/390/768/1440.
+
+### Keep as-is (exceeds the kit or established deviations)
+
+- shadcn `Select`s instead of the kit's styled native selects (established primitive-swap pattern).
+- Role-select shield icons per role (app extra; kit is a plain select).
+- Confirm dialogs, temp-password dialog + copy button, toasts, tooltips, motion row staggers — all
+  app extras over the kit's static mock.
+- 180-day duration option (kit lacks it).
+- `—` placeholders in empty table cells (the kit itself does this; the em-dash rule is about prose).
+- Admin gating redirect + loading skeletons (kit N/A).
+- Page container `max-w-7xl` (1280px) vs kit `cdb-page-inner` 1200px — 80px apart on a page of wide
+  tables; other pages' `max-w-5xl` would be too tight for 7 columns.
+
+### Judgment calls (RESOLVED with the owner 2026-07-07)
+
+1. **Audit timestamp year — year only when older.** Current-year entries match the kit exactly
+   (`Jun 11 · 8:42 PM`); older entries add the year (`Jun 11, 2025 · 8:42 PM`). Pure formatter, TDD.
+2. **Pagination — keep the shared `MediaPagination` as-is.** Structurally identical to the kit
+   already; app-wide consistency wins. Intentional deviation from `cdb-admin-pagination`'s mono page
+   info / "Prev"/"Next" labels.
+3. **Verification account — temporarily bump `tester` to admin** on the dev DB for the headless
+   pass, restore to moderator afterwards.
+
+### Acceptance criteria
+
+- [x] Masthead + issue line render with real counts; gold-active segmented tabs; all three tables in
+      kit chrome with semantic badge colors; Members bar present
+- [x] No "users" wording anywhere on the page (tabs, columns, empty states, tooltips, dialogs,
+      toasts — the "Users" the headless check first flagged turned out to be the sidebar nav item
+      from the already-shipped Sidebar pass, not this page)
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` green (**612** — 4 new `format-audit-timestamp`
+      tests on top of the 608 baseline)
+- [x] Headless verification with an admin account (`tester` temporarily bumped to admin on the dev
+      DB, restored to moderator after): 26/26 checks — masthead/issue-line/tabs presence, computed
+      uppercase 11px table headers, mono counts/timestamps, pill badge radius, 0px overflow at
+      320/390/768/1440, light + dark, no console errors (one 401 investigated: pre-login
+      `/api/auth/me` check, pre-existing app-wide behavior, not this page)
+- [x] Manual + feature-dev review reconciled (see Review outcome below); commit pending owner
+      go-ahead
+- [ ] Light mode readable, no broken tokens (owner visual pass)
+
+### Owner visual pass fix (2026-07-07)
+
+One finding from the owner's live pass: the masthead's bottom border and the issue line's rule sat
+too close together — the kit's `.cdb-page-inner` flex column separates them with a 32px gap that the
+app page lacked. Fixed with an `mt-8` wrapper around `IssueLine` (owner confirmed live). **The Users
+page has the same drift** (same header + `IssueLine` sibling structure, no gap) — left as-is there
+since that page is shipped/reviewed; worth folding into the owner's light-mode pass or the next
+Users touch.
+
+### Review outcome (2026-07-07)
+
+`feature-dev` code-reviewer: **zero Critical/Important findings.** Confirmed the SWR dedup claim
+(page-level `useAdminUsers`/`useInviteCodes` share keys with the panes' own calls), the `IssueLine`
+contract (no regression risk to other consumers), the admin-only scope of `table-chrome.ts`'s
+arbitrary variants, and that `getCodeStatus`'s extraction to `src/lib/admin/invite-code-status.ts`
+is behavior-preserving. One sub-threshold (~40 confidence) flag — a **pre-existing em-dash** in
+`TemporaryPasswordDialog`'s copy — was real and fixed same-session (sentence split, no em-dash),
+same precedent as the games config-screen fix (`bdb199d`).
+
+Found during my own live verification (things the text-only audit missed, echoing the Sidebar lesson
+that kit-vs-code reading alone doesn't catch everything):
+
+- **Entity column rendered raw `Game_session`** — the kit does `entity.replace("_", " ")`; live cell
+  only had CSS `capitalize`. Fixed with `replaceAll("_", " ")`. Only visible once real
+  `game_session` rows appeared in the live table.
+- **Hidden "user" wording** in a tooltip ("Delete user"), confirm-dialog titles ("Change User Role",
+  "Delete User"), and toasts ("Deleted user X") — not visible in a static render, caught while
+  tracing the wording check. All moved to member/group phrasing.
+- **Page-level admin hooks fired for non-admins** during the brief pre-redirect render (the original
+  page only fetched after the role gate). Fixed by extracting `AdminContent` so the hooks only mount
+  post-gate.

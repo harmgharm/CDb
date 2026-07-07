@@ -24,7 +24,10 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuditLog } from "@/hooks/use-admin";
+import { formatAuditTimestamp } from "@/lib/admin/format-audit-timestamp";
 import type { AuditLogEntry, AuditLogResponse } from "@/types/admin-responses";
+
+import { ADMIN_TABLE_CLASS, ADMIN_TABLE_WRAP_CLASS } from "./table-chrome";
 
 const ACTION_OPTIONS = [
   { value: "all", label: "All Actions" },
@@ -56,36 +59,27 @@ const ENTITY_TYPE_OPTIONS = [
   { value: "invite_code", label: "Invite Code" },
 ];
 
-function formatTimestamp(dateString: string): string {
-  return new Date(dateString).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 function formatAction(action: string): string {
   return action.replaceAll(".", " ").replaceAll(/\b\w/g, (char) => char.toUpperCase());
 }
 
+// Kit's verb → semantic-token map; cherry stays reserved for destructive verbs.
 const ACTION_COLORS: Record<string, string> = {
-  created: "bg-green-500/10 text-green-500 border-green-500/20",
-  updated: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  deleted: "bg-red-500/10 text-red-500 border-red-500/20",
-  used: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+  created: "bg-cdb-success/15 text-cdb-success",
+  updated: "bg-cdb-info/15 text-cdb-info",
+  deleted: "bg-cdb-cherry-hi/15 text-cdb-cherry-hi",
+  used: "bg-cdb-warning/15 text-cdb-warning",
   // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- key name, not a password
-  password_reset: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  login_failed: "bg-red-500/10 text-red-500 border-red-500/20",
-  login_succeeded: "bg-green-500/10 text-green-500 border-green-500/20",
+  password_reset: "bg-cdb-warning/15 text-cdb-warning",
+  login_failed: "bg-cdb-cherry-hi/15 text-cdb-cherry-hi",
+  login_succeeded: "bg-cdb-success/15 text-cdb-success",
 };
 
 function ActionBadge({ action }: Readonly<{ action: string }>) {
   const verb = action.split(".")[1] ?? "unknown";
-  const colorClass = ACTION_COLORS[verb] ?? "";
+  const colorClass = ACTION_COLORS[verb] ?? "text-muted-foreground bg-[var(--bg-elev-2)]";
   return (
-    <Badge variant="outline" className={colorClass}>
+    <Badge variant="outline" className={`rounded-full border-transparent ${colorClass}`}>
       {formatAction(action)}
     </Badge>
   );
@@ -94,7 +88,7 @@ function ActionBadge({ action }: Readonly<{ action: string }>) {
 function formatMetadata(metadata: Record<string, unknown>): string {
   return Object.entries(metadata)
     .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(", ");
+    .join(" · ");
 }
 
 function MetadataCell({ metadata }: Readonly<{ metadata: Record<string, unknown> | null }>) {
@@ -126,21 +120,21 @@ function AuditLogRow({ entry, index }: Readonly<{ entry: AuditLogEntry; index: n
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.2 }}
     >
-      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-        {formatTimestamp(entry.created_at)}
+      <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em] whitespace-nowrap">
+        {formatAuditTimestamp(entry.created_at)}
       </TableCell>
       <TableCell className="font-medium">{entry.display_name ?? entry.username}</TableCell>
       <TableCell>
         <ActionBadge action={entry.action} />
       </TableCell>
-      <TableCell className="capitalize">{entry.entity_type}</TableCell>
-      <TableCell className="font-mono text-xs">
+      <TableCell className="capitalize">{entry.entity_type.replaceAll("_", " ")}</TableCell>
+      <TableCell className="font-mono text-xs text-[var(--fg-dim)]">
         {entry.entity_id === null ? (
           <span className="text-muted-foreground">—</span>
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="cursor-default">{entry.entity_id.slice(0, 8)}...</span>
+              <span className="cursor-default">{entry.entity_id.slice(0, 8)}…</span>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p className="font-mono text-xs">{entry.entity_id}</p>
@@ -187,16 +181,16 @@ function AuditLogContent({ data, isLoading, onPageChange }: AuditLogContentProps
   return (
     <>
       <TooltipProvider>
-        <div className="rounded-md border">
-          <Table>
+        <div className={ADMIN_TABLE_WRAP_CLASS}>
+          <Table className={ADMIN_TABLE_CLASS}>
             <TableHeader>
               <TableRow>
                 <TableHead>Timestamp</TableHead>
-                <TableHead>User</TableHead>
+                <TableHead>Member</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Entity</TableHead>
                 <TableHead>ID</TableHead>
-                <TableHead>Metadata</TableHead>
+                <TableHead>Detail</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -263,7 +257,7 @@ export function AuditLogTable() {
           </SelectContent>
         </Select>
         {data !== undefined && (
-          <span className="text-muted-foreground ml-auto text-sm">
+          <span className="text-muted-foreground ml-auto font-mono text-xs tracking-[0.02em]">
             {String(data.total)} {data.total === 1 ? "entry" : "entries"}
           </span>
         )}
