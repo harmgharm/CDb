@@ -1440,6 +1440,17 @@ finishing it. **Owner-confirmed fix (2026-07-06):** added a defensive recency fi
 the root cause — no mechanism ever marks an abandoned session non-live — is unresolved and tracked
 as a follow-up in `HANDOFF.md` ("Stale multiplayer session cleanup"), not silently dropped.
 
+**Root cause fixed 2026-07-08** (separate session from the design-system rollout — see
+`HANDOFF.md`'s "Current status" for the full writeup, not duplicated here since this was backend
+hygiene, not a kit-fidelity page). Migration 0032 added a new `abandoned` status (kept distinct from
+`finished` so leaderboard/stats queries keep meaning "real completed game" with no extra filtering);
+`cleanupAbandonedGameSessions()` (`src/lib/games/cleanup.ts`) marks sessions abandoned on a tiered
+inactivity threshold (45 min for an unstarted lobby, 2.5 hrs of no round/guess activity for an
+active game) and runs lazily off Play hub traffic, same pattern as `cleanupOldNotifications`. The
+defensive 3-hour recency filter above is now removed from `fetchLiveSessions()` — no longer needed
+since stale sessions are actually marked rather than just filtered at read time. Backfilled and
+verified clean on both dev (88 stale sessions) and prod (76).
+
 ---
 
 ## Page — Sidebar / Shell ✅ implemented 2026-07-07 (pending owner review)
