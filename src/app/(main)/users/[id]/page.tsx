@@ -46,7 +46,14 @@ const PROFILE_TAB_CLASS = [
   "data-[state=active]:text-cdb-marquee-text dark:data-[state=active]:text-cdb-marquee-text",
   "data-[state=active]:border-transparent dark:data-[state=active]:border-transparent",
   "data-[state=active]:shadow-none",
+  "h-8 gap-2 rounded-sm px-3.5 text-xs",
 ].join(" ");
+
+// Kit's .cdb-up-tabs bar: 40px tall, 1px border, 8px radius, 2px gap (same
+// chrome as the admin page's ADMIN_TABS_LIST_CLASS). The height must use the
+// primitive's own variant prefix so tailwind-merge replaces its h-9.
+const PROFILE_TABS_LIST_CLASS =
+  "group-data-[orientation=horizontal]/tabs:h-10 gap-0.5 self-start rounded-md border";
 
 function getInitials(displayName: string | null, username: string): string {
   const name = displayName ?? username;
@@ -336,21 +343,21 @@ function ProfileView({
           {/* Kit's cdb-up-tabs hugs its content, left-aligned. The list is w-fit
               but the Tabs root is a flex column that stretches it — self-start
               (the kit's align-self: flex-start) stops the stretch. */}
-          <TabsList className="self-start">
+          <TabsList className={PROFILE_TABS_LIST_CLASS}>
             <TabsTrigger value="overview" className={PROFILE_TAB_CLASS}>
-              <LayoutDashboardIcon className="size-4" />
+              <LayoutDashboardIcon className="size-[13px]" />
               <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
             <TabsTrigger value="stats" className={PROFILE_TAB_CLASS}>
-              <BarChart3Icon className="size-4" />
+              <BarChart3Icon className="size-[13px]" />
               <span className="hidden sm:inline">Stats</span>
             </TabsTrigger>
             <TabsTrigger value="games" className={PROFILE_TAB_CLASS}>
-              <Gamepad2Icon className="size-4" />
+              <Gamepad2Icon className="size-[13px]" />
               <span className="hidden sm:inline">Games</span>
             </TabsTrigger>
             <TabsTrigger value="watchlist" className={PROFILE_TAB_CLASS}>
-              <BookmarkIcon className="size-4" />
+              <BookmarkIcon className="size-[13px]" />
               <span className="hidden sm:inline">Watchlist</span>
             </TabsTrigger>
           </TabsList>
