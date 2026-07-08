@@ -252,7 +252,7 @@ function EmptyState({ onPropose }: Readonly<{ onPropose: () => void }>) {
 
 function QueueSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
       <Skeleton className="h-48 rounded-lg" />
       <Skeleton className="h-48 rounded-lg" />
     </div>

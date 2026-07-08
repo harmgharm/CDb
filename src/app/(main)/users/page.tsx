@@ -150,8 +150,9 @@ function RosterRowSkeleton() {
         <Skeleton className="h-7 w-40" />
         <Skeleton className="h-4 w-52" />
         <Skeleton className="h-3 w-32" />
+        <Skeleton className="h-3 w-44 sm:hidden" />
       </div>
-      <div className="flex gap-6 sm:gap-8">
+      <div className="hidden gap-6 sm:flex sm:gap-8">
         <Skeleton className="h-9 w-10" />
         <Skeleton className="h-9 w-12" />
         <Skeleton className="h-9 w-10" />
