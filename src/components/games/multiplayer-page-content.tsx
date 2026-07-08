@@ -300,6 +300,23 @@ function MultiplayerPageInner({
     );
   }
 
-  // Finished (only remaining status after lobby/active checks above)
+  // Abandoned — nobody finished it, so there's no result to show
+  if (game.status === "abandoned") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20">
+        <p className="text-muted-foreground">This game was abandoned before anyone finished it.</p>
+        <button
+          onClick={() => {
+            router.push(gameConfig?.basePath ?? "/play");
+          }}
+          className="text-primary text-sm underline"
+        >
+          Back to {gameConfig?.displayName ?? "Games"}
+        </button>
+      </div>
+    );
+  }
+
+  // Finished (only remaining status after lobby/active/abandoned checks above)
   return <MultiplayerResult game={game} />;
 }
