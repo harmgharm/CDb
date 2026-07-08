@@ -2394,24 +2394,33 @@ pass — flagging what exists for an owner judgment call, not a verified-clean c
       `/recommendations`' Find Similar tool).
   - **Same `p-0.5`-with-no-responsive-bump pattern found nowhere else app-wide** (grepped `p-0.5` on
     icon-only buttons across `src/components`) — confirmed isolated, no sweep needed.
-- [ ] **Admin's `invite-codes.tsx` action icons are `size-7` (28px) at every width** (copy-code,
-      revoke, delete — 3 call sites). Admin is desktop-first/lowest-traffic per the work order, but
-      is not literally unreachable from a phone. **Owner call: leave as-is** — not actioned this
-      pass (see resolved judgment call 3 below).
-- **Shared `Button` primitive already defines 3 sub-44px size variants** (`xs` = 24px height,
-  `icon-xs` = 24px, `icon-sm` = 32px). Real-world usage is narrow: `icon-xs`/`icon-sm` are **defined
-  but never called anywhere in the app** (grepped `size="icon-xs"` / `size="icon-sm"`, 0 hits both)
-  — no actual exposure. `xs` has exactly 2 call sites, both in `notification-panel.tsx`'s "Mark all
-  read"/"Clear all" — secondary actions inside an already-small notification-bell popover, a
-  deliberately dense chrome-heavy control, not a primary flow. **Recommend: leave as-is**, not a
-  real-world touch problem given the near-zero usage, but flagging since the variants exist and
-  could proliferate if reached for again.
+- [x] **Admin's `invite-codes.tsx` action icons are `size-7` (28px) at every width — TRIED,
+      REVERTED, left as-is (final decision).** (copy-code, revoke, delete — 3 call sites). This went
+      through three rounds before landing: (1) originally scoped out as "leave as-is" (Admin is
+      desktop-first/lowest-traffic, not a clear bug); (2) owner revisited and asked to bump to the
+      full 44px Apple HIG guideline; (3) tried two approaches live — first a scoped `size-11`
+      override on just these 3 call sites, then (per owner direction, since scoped overrides
+      contradict the project's own "don't resize shared components for one page's fix" pinned
+      decision when the real ask is a primitive-wide change) bumping the shared `Button` `icon` size
+      variant itself (`size-9`/36px → `size-11`/44px, plus proportionally rescaling `icon-xs`
+      24→36px, `icon-sm` 32→40px, `icon-lg` 40→48px to keep a real progression). Verified live:
+      44×44px confirmed via `getComputedStyle` on Database's view-toggle buttons, 0px overflow
+      app-wide, typecheck/lint/618 tests green. **But the owner's own live visual pass found the
+      primitive-wide version reads wrong**: many of the 11 `size="icon"` call sites app-wide sit
+      inline next to other UI elements sized against the old 36px assumption (e.g. dense list/table
+      rows with an action icon beside plain text or a badge) — at 44px the icon now reads oversized
+      relative to its neighbors, an inconsistency not worth chasing down across every consumer just
+      to fix Admin's 3 icons. **Final call: reverted both the primitive change and the scoped
+      override — Admin's icons stay at `size-7` (28px), unchanged from before this pass.**
+      `git checkout` confirmed both `button.tsx` and `invite-codes.tsx` back to their pre-pass
+      state; typecheck/lint/618 tests reconfirmed green after revert.
+- **Shared `Button` primitive's other sub-44px size variants (`xs` = 24px height, `icon-xs` = 24px,
+  `icon-sm` = 32px) were left untouched, consistent with the above** — `icon-xs`/`icon-sm` remain
+  unused app-wide (0 call sites, reconfirmed), `xs` remains scoped to `notification-panel.tsx`'s
+  "Mark all read"/"Clear all" (dense popover, not a primary flow). No further action.
 - **No other systemic small-tap-target pattern found.** The one dedicated grep pass for raw
   `onClick`-bearing elements sized `size-6`/`size-7`/`size-8` outside Admin/games chrome came back
-  empty; `size="icon"` (36px, still below 44px but closer, and shadcn's own default) has 11 call
-  sites app-wide — a broader "make icon buttons 44px" change would be a global primitive resize, not
-  a scoped fix, and isn't proposed here without owner sign-off (see "Pinned decisions": shared
-  primitives don't get resized for one page's fix).
+  empty.
 
 ### Keep as-is / explicitly out of scope
 
@@ -2442,11 +2451,16 @@ pass — flagging what exists for an owner judgment call, not a verified-clean c
    roster fix: collapse "N games · M rounds won" under the name as a second small-text line at
    narrow widths, freeing the row so the name gets its space back. All 3 games share the one
    component, so this lands everywhere at once.
-3. **Touch-target scope — fix the one clear bug only.** Apply the `notification-item.tsx`
-   responsive-padding pattern (bigger tap area on touch, tighter on desktop hover) to
-   `selected-source-chip.tsx`'s remove button. Admin's `size-7` icons and the unused
-   `icon-xs`/`icon-sm` Button variants stay documented-but-not-actioned — no dedicated
-   touch-ergonomics pass requested.
+3. **Touch-target scope — fix the one clear bug only (original call), then revisited and reverted
+   (final call).** Original resolution: apply the `notification-item.tsx` responsive-padding pattern
+   to `selected-source-chip.tsx`'s remove button only; leave Admin's `size-7` icons and the unused
+   `icon-xs`/`icon-sm` Button variants documented-but-not-actioned. The owner then asked to bump
+   Admin's icons to 44px after all — tried live (see the Admin finding above for the full
+   two-attempt writeup), but the owner's own visual pass found the app-wide primitive version made
+   icon buttons read oversized next to other same-row elements sized against the old 36px
+   assumption. **Final: reverted to the original "leave as-is" outcome** — same end state as the
+   first resolution, just arrived at after actually trying the alternative live rather than
+   reasoning about it in the abstract.
 
 ### Review outcome (`feature-dev` code-review pass, 2026-07-08)
 
