@@ -121,13 +121,16 @@ function LeaderboardEntries({
                 {entry.displayName ?? entry.username}
                 {isCurrentUser && <span className="text-muted-foreground ml-1 text-xs">(you)</span>}
               </p>
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground hidden text-xs sm:block">
                 {String(entry.gamesPlayed)} games · {String(entry.roundsWon)} rounds won
+              </p>
+              <p className="text-muted-foreground text-xs tabular-nums sm:hidden">
+                {String(entry.gamesPlayed)} games · {String(entry.bestScore)} best
               </p>
             </div>
 
             {/* Best Score */}
-            <div className="text-right">
+            <div className="hidden text-right sm:block">
               <p className="text-sm font-bold tabular-nums">{String(entry.bestScore)}</p>
               <p className="text-muted-foreground text-xs tabular-nums">best score</p>
             </div>
@@ -163,11 +166,12 @@ function LeaderboardSkeleton() {
         <div key={index} className="flex items-center gap-3 px-4">
           <Skeleton className="size-7 rounded-full" />
           <Skeleton className="size-8 rounded-full" />
-          <div className="flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-3 w-32" />
+            <Skeleton className="hidden h-3 w-32 sm:block" />
+            <Skeleton className="h-3 w-28 sm:hidden" />
           </div>
-          <Skeleton className="h-4 w-12" />
+          <Skeleton className="hidden h-4 w-12 sm:block" />
         </div>
       ))}
     </div>

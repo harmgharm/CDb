@@ -168,7 +168,7 @@ export function ConversationalFilters({
 }: ConversationalFiltersProps) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-y border-[var(--border-strong)] py-4">
-      <p className="font-display text-muted-foreground flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-[20px] leading-none italic">
+      <p className="font-display text-muted-foreground flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-[20px] leading-none italic sm:min-w-[280px]">
         <span>{lead},</span>
         {segments.map((segment, index) => (
           <Fragment key={segment.key}>

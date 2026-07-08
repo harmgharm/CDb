@@ -2283,3 +2283,235 @@ being closed out. This pass finishes and verifies that, rather than starting fro
 - [ ] Owner does a real-device or real-browser-DevTools visual pass on at least the 3 fixed bugs
       (per the standing Playwright/Geist-in-headless limitation — headless can confirm no-overflow
       but not real pixel fidelity)
+
+## Page — Light mode + full 13-route recheck + touch ergonomics ✅ implemented 2026-07-08 (pending owner review)
+
+Closes the 3 items the mobile-responsiveness pass explicitly left open (see its "Not yet done, still
+worth a follow-up pass" note): light mode was never checked, the full 13-route recheck only covered
+the 4 touched routes plus a 2-route spot-check, and touch ergonomics was never evaluated at all.
+This section is the audit only — **no code changed yet**, per the standing process ("bring the audit
+to the user for approval before touching code").
+
+### Method
+
+- Logged in as `tester`, headless Playwright sweep across **all 13 routes** (14 combinations
+  counting the auth-gated `/database/[id]` and `/users/[id]` detail routes discovered live) × **2
+  themes** (`localStorage` `theme` key, matching `next-themes`' `attribute="class"` mechanism) × **4
+  widths** (320/375/390/768px) = 112 page loads. Landing and Login needed a second pass in a fresh
+  (logged-out) browser context — the first pass stayed logged in throughout, so both redirected to
+  `/home`/`/admin`'s real target rather than rendering their logged-out surface.
+- Measured `document.documentElement.scrollWidth` vs `clientWidth` (0 = no horizontal overflow),
+  captured full-page screenshots for visual light-mode inspection, and watched for console errors.
+- Static grep pass for touch-ergonomics risk: every `size="xs"` / `size="icon-xs"` /
+  `size="icon-sm"` Button variant usage, every raw `size-6`/`size-7`/`size-8` icon-only clickable,
+  every `p-0.5`-class tap target, and every hardcoded
+  `bg-black`/`bg-white`/`text-white`/`text-black` (to catch anything that would silently break under
+  the light theme).
+- Per the standing Playwright/Geist limitation (see project memory), this method proves
+  structural/overflow correctness and catches genuinely broken renders (blank sections, truncated
+  text, wrong colors) — it does NOT prove sub-pixel fidelity. That still needs the owner's own
+  visual pass, same as every prior page.
+
+### Results — full 13-route recheck
+
+**0px horizontal overflow on all 112 combinations, both themes, all 4 widths, zero console errors,
+zero nav failures.** This fully closes the mobile-pass's deferred "full 13-route recheck" acceptance
+box — every route, not just the 4 previously spot-checked, and now including light mode for the
+first time. `next-themes`' `.dark` class toggled correctly on every load (no stuck-theme
+regressions).
+
+### Results — light mode visual pass
+
+**Overall: clean.** Reviewed full-page screenshots for every route at 390px (phone) and spot-checked
+768/320px on several. Contrast, warm-cream backgrounds, amber accents, and badge/token colors all
+read correctly with no dark-mode-only artifacts on any editorial or utility surface. Specifically
+checked and confirmed **intentionally-dark, theme-independent surfaces still look correct**: the
+Landing hero (`bg-[#060403]` + white text over a poster collage + scrim — permanently dark by
+design, not theme-driven) and the recommendation card's poster overlay gradient (`black/70` scrim
+under white badge text) — both correct as-is, not bugs, not in scope to "fix" to light tokens.
+
+**One thing found during this pass that is NOT a light-mode bug** (documented so it isn't
+re-discovered and misdiagnosed next time): a full-page screenshot of Landing showed a large blank
+void between the hero and the recent-activity ticker, in **both** themes. Root-caused to
+`FeatureGrid` and `TopRatedRow`'s `motion.div`/`motion.h2` using `whileInView` +
+`viewport={{ once: true }}` — Playwright's `fullPage` screenshot doesn't scroll incrementally, so
+the `IntersectionObserver` never fires and the sections stay at their initial `opacity: 0`. Verified
+with a real incremental scroll simulation: all cards reach `opacity: 1` correctly. **Not a bug, not
+in scope** — flagging only so a future headless pass doesn't waste time on it.
+
+### Findings — real bugs (new this pass) — FIXED
+
+- [x] **Bug A — Database page `ConversationalFilters` row breaks at 768px only (both themes).** The
+      filter "sentence"
+      (`The full archive, everything, movies, tv, anime, sorted by recently added`) collapses into a
+      ~85px-wide vertical word-stack instead of reading as a line, because the sibling
+      search+actions block (`sm:w-auto sm:flex-shrink-0` in
+      `src/components/editorial/conversational-filters.tsx:201`) claims most of the row's width once
+      the `sm:` breakpoint (640px) is crossed, and the sentence's `<p>` (`min-w-0 flex-1`) has no
+      floor, so it shrinks to whatever's left instead of wrapping to its own line. Confirmed
+      **768px-specific**: fine at 320/375/390 (row wraps to 2 full-width lines below `sm:`) and fine
+      on desktop widths above ~900px (both blocks fit on one row with room to spare). Confirmed
+      **not** a light-mode bug — identical breakage in dark mode. Confirmed **not** a general
+      component bug — For You reuses the same primitive without a search control and never breaks,
+      at any width, because there's no competing fixed-width sibling. **This was already flagged
+      once and left unfixed**: project memory (`phase11-mobile-decisions.md`, Phase 11) lists
+      "database filter control-row overflow (`conversational-filters.tsx:201`, `flex-shrink-0`)" as
+      known-open touch-target-audit follow-up; this pass is the first to actually screenshot it and
+      confirm the failure mode precisely (a squeeze/wrap defect, not a scroll-overflow one — which
+      is why the mobile-pass's scrollWidth-only measurement at 768px never caught it).
+- [x] **Bug B — Per-game `GameLeaderboard` name truncates to 1–2 characters at 320px.** All 3 games'
+      config screens (`src/components/games/game-leaderboard.tsx`, shared by
+      poster-reveal/rating-guess/year-guess `play-page-content.tsx`) show leaderboard rows as
+      `flex items-center gap-3`: rank badge (28px, `shrink-0`) + avatar (32px, `shrink-0`) + name
+      block (`min-w-0 flex-1`, correctly flexible) + score block (`text-right`, no explicit
+      `shrink-0` but effectively fixed-width from "###" + "best score" text). At 320px the name
+      block is squeezed to almost nothing and names render as `h..`/`t..`/`t..` (first char +
+      ellipsis) — confirmed on Poster Reveal's leaderboard live screenshot; Rating Guess/Year Guess
+      have the same structure and are lower-severity only because the test account's group has
+      shorter names there by chance, not because the layout differs. **Same bug family as the
+      `/users` roster fix from the mobile-responsiveness pass** (fixed-width siblings starving a
+      `flex-1` name column at narrow widths) — that fix's pattern (stack secondary info under the
+      name, or let the score block wrap below on narrow widths) is the likely template here too, but
+      this is a **judgment call for the owner**, not decided yet (see below). **Not present** on the
+      Play hub's own `HubLeaderboard` (different component,
+      `src/components/games/hub-leaderboard.tsx`) — verified full names render correctly there at
+      320px ("tester", "tose", "harm", "grewy", "gingie"), so this is scoped to the 3 per-game
+      config-screen leaderboards only, not a systemic leaderboard bug.
+
+### Findings — touch ergonomics (new territory, not previously audited at all)
+
+The kit was never designed for touch input (README disclaimer), and headless Playwright cannot
+measure real tap-target usability, so this section is a **static/structural review**, not a measured
+pass — flagging what exists for an owner judgment call, not a verified-clean checklist.
+
+- [x] **`selected-source-chip.tsx`'s remove button is ~20px effective tap target at every width —
+      FIXED.** (`size-3` icon + `p-0.5` padding, no responsive bump). Renders on `/recommendations`'
+      Find Similar tool (mobile-reachable). Was below the 44×44px guideline (WCAG 2.5.5 / Apple HIG)
+      at every width, not just phone — this one had no desktop/mobile distinction at all. Fixed by
+      copying the exact `notification-item.tsx:82` pattern (`p-2` base, `sm:p-0.5` tighter on
+      desktop) — verified live: 28×28px tap target below `sm:` (up from ~16px), unchanged compact
+      look above `sm:`, chip layout unaffected (screenshotted with a real "Toys" selection on
+      `/recommendations`' Find Similar tool).
+  - **Same `p-0.5`-with-no-responsive-bump pattern found nowhere else app-wide** (grepped `p-0.5` on
+    icon-only buttons across `src/components`) — confirmed isolated, no sweep needed.
+- [ ] **Admin's `invite-codes.tsx` action icons are `size-7` (28px) at every width** (copy-code,
+      revoke, delete — 3 call sites). Admin is desktop-first/lowest-traffic per the work order, but
+      is not literally unreachable from a phone. **Owner call: leave as-is** — not actioned this
+      pass (see resolved judgment call 3 below).
+- **Shared `Button` primitive already defines 3 sub-44px size variants** (`xs` = 24px height,
+  `icon-xs` = 24px, `icon-sm` = 32px). Real-world usage is narrow: `icon-xs`/`icon-sm` are **defined
+  but never called anywhere in the app** (grepped `size="icon-xs"` / `size="icon-sm"`, 0 hits both)
+  — no actual exposure. `xs` has exactly 2 call sites, both in `notification-panel.tsx`'s "Mark all
+  read"/"Clear all" — secondary actions inside an already-small notification-bell popover, a
+  deliberately dense chrome-heavy control, not a primary flow. **Recommend: leave as-is**, not a
+  real-world touch problem given the near-zero usage, but flagging since the variants exist and
+  could proliferate if reached for again.
+- **No other systemic small-tap-target pattern found.** The one dedicated grep pass for raw
+  `onClick`-bearing elements sized `size-6`/`size-7`/`size-8` outside Admin/games chrome came back
+  empty; `size="icon"` (36px, still below 44px but closer, and shadcn's own default) has 11 call
+  sites app-wide — a broader "make icon buttons 44px" change would be a global primitive resize, not
+  a scoped fix, and isn't proposed here without owner sign-off (see "Pinned decisions": shared
+  primitives don't get resized for one page's fix).
+
+### Keep as-is / explicitly out of scope
+
+- **Landing's `whileInView` "blank void" artifact — not a real bug**, a `fullPage`-screenshot-only
+  timing artifact (see above). No fix needed.
+- **The `MediaPoster` component has no `onError` fallback for a broken/expired `posterUrl`** —
+  noticed when one poster ("Rabbit Test") rendered as a blank void mid-sweep. Investigated: the
+  source TMDB URL returns 200 and is a valid image, `next/image`'s `remotePatterns` allows the host,
+  and a same-route recheck reproduced the same single blank poster consistently — likely a local dev
+  image-optimization endpoint hiccup, not a code defect. Not filed as a bug; noted only because
+  `MediaPoster` (`src/components/media/media-poster.tsx`) does handle `posterUrl === null` but has
+  no `<Image onError>` handler for a non-null-but-failing URL, which is a latent resilience gap
+  worth keeping in mind if this ever recurs for real.
+- **Auth art panel / hero-section / recommendation-card poster overlays** — confirmed intentional,
+  permanently-dark surfaces, correctly excluded from light-mode tokens (see "Results — light mode
+  visual pass" above).
+
+### Judgment calls (RESOLVED with the owner 2026-07-08)
+
+1. **Bug A (Database filters at 768px) — min-width floor on the sentence.** Give the sentence `<p>`
+   a `min-width` so it wraps to its own full-width line only in the narrow band where it's actually
+   broken today (~640–900px), rather than always stacking below 900px regardless of whether there'd
+   be room to share a line. Surgical, matches the "wrap over squeeze" intent already visible in the
+   component's own `flex-wrap`. (Considered and rejected: always-stack-under-900px — simpler rule,
+   reuses the sidebar's existing breakpoint, but would stack in cases like ~850px that might have
+   had room to share a line; owner preferred the more surgical fix once the tradeoff was clarified.)
+2. **Bug B (GameLeaderboard truncation) — stack stats under the name.** Same pattern as the `/users`
+   roster fix: collapse "N games · M rounds won" under the name as a second small-text line at
+   narrow widths, freeing the row so the name gets its space back. All 3 games share the one
+   component, so this lands everywhere at once.
+3. **Touch-target scope — fix the one clear bug only.** Apply the `notification-item.tsx`
+   responsive-padding pattern (bigger tap area on touch, tighter on desktop hover) to
+   `selected-source-chip.tsx`'s remove button. Admin's `size-7` icons and the unused
+   `icon-xs`/`icon-sm` Button variants stay documented-but-not-actioned — no dedicated
+   touch-ergonomics pass requested.
+
+### Review outcome (`feature-dev` code-review pass, 2026-07-08)
+
+Ran a `feature-dev` code-reviewer subagent against the 3-file diff before considering this done.
+**Found one real regression the manual live-check had missed**, plus one consistency nit — both
+fixed and re-verified before this section was marked complete:
+
+- **Critical (confirmed, fixed): Bug A's initial fix (`min-w-[280px]` unconditional) squeezed the
+  filter sentence past its parent's available width at real phone widths (320–390px).** The `(main)`
+  layout's `p-6` padding (`src/app/(main)/layout.tsx:33`) is non-responsive, so at 320px the content
+  column is only 272px wide — narrower than the 280px floor. My own live verification only checked
+  700–1024px (the band where the bug actually presented) and missed re-checking narrow widths after
+  adding a min-width, so this slipped through initially; `pageOverflow` stayed 0 in that narrow
+  range too (the ~8px excess got absorbed as an internal squeeze inside the padding gutter rather
+  than a page-level scrollbar, which is why the scrollWidth-based sweep didn't catch it either —
+  confirmed live via ancestor-chain measurement: the `<p>` and its flex parent both reported
+  `scrollWidth: 280` against a `272px` box at 320px). **Fixed**: gated the floor behind the
+  breakpoint where it's actually needed — `min-w-0 flex-1 ... sm:min-w-[280px]` — so there's no
+  floor at all below `sm:` (640px), where the sibling actions block is still `w-full` and isn't
+  competing for space in the first place. Re-verified live at
+  320/360/375/390/700/768/850/900/1024px: 0px page overflow and 0px internal squeeze at every width,
+  sentence still wraps to its own line in the 640–900px band and shares a line with the actions row
+  above/below that band as intended.
+- **Important (confirmed, fixed): Bug B's `LeaderboardSkeleton` wasn't updated to match the new
+  responsive row layout**, the same skeleton-drift bug class the mobile-responsiveness pass had
+  already fixed once for a different component (`8757b38`, "match loading skeletons to the new
+  responsive stat layout"). The skeleton still rendered an unconditional trailing score-block
+  placeholder and only one stat-line placeholder, both mismatched against the real row's new
+  `hidden sm:block` / `sm:hidden` split. **Fixed**: mirrored the exact convention from
+  `RosterRowSkeleton` (`src/app/(main)/users/page.tsx:144`) — the desktop score-block skeleton is
+  now `hidden sm:block`, and an extra compact stat-line skeleton is `sm:hidden`. Re-verified live by
+  throttling the leaderboard API response and screenshotting the loading state at 320px (one compact
+  stat line, no trailing score skeleton) and 768px (two stat lines + trailing score skeleton) —
+  matches the real post-load content shape at both widths.
+- Everything else in the reviewer's pass came back clean: no regression to the "(you)" suffix,
+  current-user row highlight, or rank-badge medal colors in `game-leaderboard.tsx`; no information
+  loss from folding the score into the mobile compact line; the recommendations/For You page's reuse
+  of `ConversationalFilters` (no search control) confirmed unaffected; the
+  `selected-source-chip.tsx` fix confirmed a faithful mirror of the `notification-item.tsx` pattern
+  with no tailwind-merge conflict; no ESLint/TypeScript issues (pure `className` edits, no new
+  logic).
+
+Re-ran `pnpm typecheck` / `pnpm lint` / `pnpm test` after applying both review fixes — all green,
+**618** tests unchanged.
+
+### Acceptance criteria
+
+- [x] 0px horizontal overflow at 320/375/390/768px re-verified across **all 13 routes** (not a
+      subset), both themes
+- [x] Light mode reviewed on every route, no broken tokens found, no regressions vs. dark mode
+- [x] Console-error-free across all 112 sweep combinations
+- [x] Bug A (Database 768px filter squeeze) fixed and re-verified — `sm:min-w-[280px]` floor on the
+      filter sentence, gated behind `sm:` after the review caught the unconditional version breaking
+      320–390px (`conversational-filters.tsx:171`); verified 0px overflow + 0px internal squeeze at
+      320/360/375/390/700/768/850/900/1024px live
+- [x] Bug B (GameLeaderboard name truncation) fixed and re-verified — stats stacked under the name
+      below `sm:` (`game-leaderboard.tsx`), matching the `/users` roster pattern; verified full
+      names render at 320px, no regression at 768px, live; skeleton updated to match (review nit)
+      and re-verified via a throttled-API loading-state screenshot at both widths
+- [x] `selected-source-chip.tsx` tap-target fix applied and re-verified — `p-2`/`sm:p-0.5`, matching
+      `notification-item.tsx`; verified 28×28px tap target live with a real selection
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` green after fixes (**618** tests, unchanged —
+      pure styling/layout fixes, no new pure logic needed a test)
+- [x] Manual + `feature-dev` code-review pass after fixes — run, found 1 critical regression + 1
+      consistency nit (see "Review outcome" above), both fixed and re-verified live before this box
+      was checked
+- [ ] Owner does a real-browser visual pass — light mode specifically, plus the three fixed items
+      (per the standing Playwright/Geist-in-headless limitation)

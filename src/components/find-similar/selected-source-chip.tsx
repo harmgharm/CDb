@@ -22,7 +22,7 @@ export function SelectedSourceChip({ source, onRemove }: SelectedSourceChipProps
       <button
         type="button"
         onClick={onRemove}
-        className="text-muted-foreground hover:text-foreground ml-0.5 shrink-0 rounded-full p-0.5 transition-colors"
+        className="text-muted-foreground hover:text-foreground ml-0.5 shrink-0 rounded-full p-2 transition-colors sm:p-0.5"
       >
         <XIcon className="size-3" />
         <span className="sr-only">Remove {source.title}</span>
