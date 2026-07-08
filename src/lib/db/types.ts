@@ -24,7 +24,7 @@ export type NotificationType =
 
 export type GameMode = "solo" | "multiplayer";
 export type GameDifficulty = "normal" | "hard";
-export type GameStatus = "lobby" | "active" | "finished";
+export type GameStatus = "lobby" | "active" | "finished" | "abandoned";
 export type GameType = "poster_reveal" | "rating_guess" | "year_guess";
 
 export type QueueProposalStatus = "proposed" | "scheduled" | "watched";

@@ -4,23 +4,14 @@
  * Lists in-progress (lobby or active) multiplayer game sessions across the
  * group, for the Play hub's "Live now" card. Read-only, polled via SWR — no
  * Ably presence involved (see docs/superpowers/specs/2026-06-28-design-system-second-pass.md,
- * "Play hub" judgment calls).
+ * "Play hub" judgment calls). Stale sessions are excluded via `status` alone —
+ * `cleanupAbandonedGameSessions` (`@/lib/games/cleanup`) marks them
+ * `abandoned` before this query ever sees them, so no recency filter is
+ * needed here.
  */
 
 import { db } from "@/lib/db";
 import type { GameStatus, GameType } from "@/lib/db/types";
-
-/**
- * Recency cutoff for "Live now": `game_sessions` has no cleanup/expiry
- * mechanism today, so a lobby/active session an abandoned player never
- * finished lingers in that status forever (confirmed against the dev DB:
- * dozens of multiplayer sessions from months prior still read as "active").
- * This filter is a defensive bandage against that gap, not a fix for it — see
- * docs/superpowers/specs/2026-06-28-design-system-second-pass.md, "Play hub"
- * section, "New finding during implementation" for the real fix (a cleanup
- * job keyed off actual round/guess activity, not just created_at).
- */
-const LIVE_SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
 /**
  * Display names for the "Live now" title line. Kept local rather than
@@ -110,7 +101,6 @@ export async function fetchLiveSessions(): Promise<LiveSession[]> {
     ])
     .where("game_sessions.mode", "=", "multiplayer")
     .where("game_sessions.status", "in", ["lobby", "active"])
-    .where("game_sessions.created_at", ">", new Date(Date.now() - LIVE_SESSION_MAX_AGE_MS))
     .orderBy("game_sessions.created_at", "desc")
     .execute();
 
