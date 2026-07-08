@@ -1420,10 +1420,11 @@ Current files: `src/app/(main)/play/page.tsx` (8-line auth wrapper, unchanged),
 - [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` stay green (608 tests, +9 new: 6 for
       `rankGroupLeaderboardEntries`, 3 for `formatLiveSession`).
 - [x] Manual review + `feature-dev` code-review subagent. One Important finding (a code comment
-      cited the uncommitted `HANDOFF.md` as the follow-up location for the stale-session issue below
-      — fixed to cite this spec doc instead, which is committed) and one minor style note (the
-      ad-hoc SQL interval filter was simplified to the existing `new Date(Date.now() - ms)` pattern
-      from `src/lib/notifications/cleanup.ts`). Both applied before commit.
+      cited the uncommitted session-scratch handoff file as the follow-up location for the
+      stale-session issue below — fixed to cite this spec doc instead, which is committed) and one
+      minor style note (the ad-hoc SQL interval filter was simplified to the existing
+      `new Date(Date.now() - ms)` pattern from `src/lib/notifications/cleanup.ts`). Both applied
+      before commit.
 - [x] Headless verification (1440px, 320/390/768px, light + dark) — 0px horizontal overflow at every
       width, header/cards/leaderboard/live-now all render, empty states correct, a real multiplayer
       lobby created via the API renders correctly in "Live now" (cherry tint, pulse dot, "1 joined",
@@ -1437,19 +1438,19 @@ lobby/active sessions from ~4 months ago (March 2026) that had never been marked
 would have rendered as "51 active" in production for any group whose members abandon a game without
 finishing it. **Owner-confirmed fix (2026-07-06):** added a defensive recency filter to
 `fetchLiveSessions()` (`created_at` within the last 3 hours) so this page ships correctly now, but
-the root cause — no mechanism ever marks an abandoned session non-live — is unresolved and tracked
-as a follow-up in `HANDOFF.md` ("Stale multiplayer session cleanup"), not silently dropped.
+the root cause — no mechanism ever marks an abandoned session non-live — was tracked as a follow-up
+("Stale multiplayer session cleanup"), not silently dropped.
 
-**Root cause fixed 2026-07-08** (separate session from the design-system rollout — see
-`HANDOFF.md`'s "Current status" for the full writeup, not duplicated here since this was backend
-hygiene, not a kit-fidelity page). Migration 0032 added a new `abandoned` status (kept distinct from
-`finished` so leaderboard/stats queries keep meaning "real completed game" with no extra filtering);
-`cleanupAbandonedGameSessions()` (`src/lib/games/cleanup.ts`) marks sessions abandoned on a tiered
-inactivity threshold (45 min for an unstarted lobby, 2.5 hrs of no round/guess activity for an
-active game) and runs lazily off Play hub traffic, same pattern as `cleanupOldNotifications`. The
-defensive 3-hour recency filter above is now removed from `fetchLiveSessions()` — no longer needed
-since stale sessions are actually marked rather than just filtered at read time. Backfilled and
-verified clean on both dev (88 stale sessions) and prod (76).
+**Root cause fixed 2026-07-08** (separate session from the design-system rollout; not duplicated
+here in full since this was backend hygiene, not a kit-fidelity page). Migration 0032 added a new
+`abandoned` status (kept distinct from `finished` so leaderboard/stats queries keep meaning "real
+completed game" with no extra filtering); `cleanupAbandonedGameSessions()`
+(`src/lib/games/cleanup.ts`) marks sessions abandoned on a tiered inactivity threshold (45 min for
+an unstarted lobby, 2.5 hrs of no round/guess activity for an active game) and runs lazily off Play
+hub traffic, same pattern as `cleanupOldNotifications`. The defensive 3-hour recency filter above is
+now removed from `fetchLiveSessions()` — no longer needed since stale sessions are actually marked
+rather than just filtered at read time. Backfilled and verified clean on both dev (88 stale
+sessions) and prod (76).
 
 ---
 
@@ -1564,11 +1565,12 @@ concentrated in a few specific anatomy gaps, not a rebuild.
    avatar + name) up to a cap (start at **8**, tune after a real headless look at how much vertical
    space the sidebar has alongside nav + up-next card at typical viewport heights), then collapse
    the remainder into a trailing "+N more" row in the same list style (not a switch to the
-   avatar-stack pattern — keeps one visual language). The group is small in practice (6 known
-   members: tester, harm, tose, schleado, grewy, ant per `HANDOFF.md`), so the overflow row will
-   rarely if ever trigger today; this is about not regressing if the group grows. Existing
-   `MAX_VISIBLE` overflow-counting logic in `online-users.tsx` is reusable, just needs a different
-   per-row render (list row, not stacked avatar).
+   avatar-stack pattern — keeps one visual language). The group was small in practice at the time (6
+   known members: tester, harm, tose, schleado, grewy, ant — check the current `/users` roster for
+   the live figure, since it may have grown since), so the overflow row will rarely if ever trigger
+   today; this is about not regressing if the group grows. Existing `MAX_VISIBLE` overflow-counting
+   logic in `online-users.tsx` is reusable, just needs a different per-row render (list row, not
+   stacked avatar).
 2. **Footer: keep the `DropdownMenu`.** Owner confirmed — the kit's plain Settings-link chip doesn't
    have anywhere to put the theme toggle or logout, and the dropdown is the natural home for both.
    Ship as: same chip _visual_ styling (avatar + name + subtext matching `cdb-user-chip`
@@ -2176,14 +2178,14 @@ another pass"_), so there's no kit screen to audit against here — this section
 app** at phone widths against itself (no horizontal overflow, no clipped/broken content), not
 against a kit mock.
 
-**Overall: low remaining scope.** Contrary to the standing HANDOFF assumption ("other pages likely
-have similar mobile issues... it's bad everywhere"), a fresh headless sweep (login as `tester`,
-320/375/390/768px, every route) found **overflow is already solved on 11 of 13 routes** — the
-sidebar-drawer collapse (Phase 11) and the incidental fixes picked up during each page's own
-design-system pass (Play hub, Game play surfaces, Admin, Sidebar/Shell were all headless-verified at
-phone widths during their own build) already cover almost everything. Three concrete, isolated bugs
-remain, found via screenshot inspection (scroll-width alone missed all three — they're
-contained-but-broken, not page-breaking):
+**Overall: low remaining scope.** Contrary to the standing assumption carried from the earlier
+mobile-overflow triage ("other pages likely have similar mobile issues... it's bad everywhere"), a
+fresh headless sweep (login as `tester`, 320/375/390/768px, every route) found **overflow is already
+solved on 11 of 13 routes** — the sidebar-drawer collapse (Phase 11) and the incidental fixes picked
+up during each page's own design-system pass (Play hub, Game play surfaces, Admin, Sidebar/Shell
+were all headless-verified at phone widths during their own build) already cover almost everything.
+Three concrete, isolated bugs remain, found via screenshot inspection (scroll-width alone missed all
+three — they're contained-but-broken, not page-breaking):
 
 ### Current state (measured 2026-07-08)
 
@@ -2202,7 +2204,7 @@ contained-but-broken, not page-breaking):
 \*`/admin`'s 320px overflow is the redirect target (`/home`) rendering before the bounce completes,
 same root cause as `/home`'s own row — not a separate bug.
 
-The old HANDOFF figure ("homepage 327px over at 320px") is stale; something in the intervening
+The earlier-recorded figure ("homepage 327px over at 320px") is stale; something in the intervening
 Play-hub/Game-surfaces/Sidebar/Admin passes already narrowed it to 36px without this deferred item
 being closed out. This pass finishes and verifies that, rather than starting from scratch.
 
