@@ -162,7 +162,10 @@ export function AppSidebar() {
                     <Link href="/admin">
                       <ShieldIcon />
                       <span>Admin</span>
-                      <span className="cdb-nav-admin-tag ml-auto rounded-full bg-[var(--bg-elev-3)] px-1.5 py-0.5 font-mono text-[9px] tracking-[0.1em] text-[var(--fg-dim)] uppercase">
+                      <span
+                        aria-hidden="true"
+                        className="cdb-nav-admin-tag ml-auto rounded-full bg-[var(--bg-elev-3)] px-1.5 py-0.5 font-mono text-[9px] tracking-[0.1em] text-[var(--fg-dim)] uppercase"
+                      >
                         admin
                       </span>
                     </Link>
