@@ -270,7 +270,7 @@ export function WatchlistCard({
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
-                Predicted rating: {String(prediction.predictedScore)}/10 — {prediction.verdict} (
+                Predicted rating: {String(prediction.predictedScore)}/10 · {prediction.verdict} (
                 {prediction.confidence} confidence)
               </TooltipContent>
             </Tooltip>

@@ -332,7 +332,7 @@ async function discoverForSharedGenres(
           reasons: [
             {
               tag: "Shared taste",
-              detail: `${String(context.correlationPct)}% match with @${context.displayName} — you both love ${genre}`,
+              detail: `${String(context.correlationPct)}% match with @${context.displayName} · you both love ${genre}`,
             },
           ],
         });
