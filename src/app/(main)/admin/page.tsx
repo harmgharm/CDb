@@ -1,7 +1,6 @@
 "use client";
 
 import { KeyIcon, ScrollTextIcon, UsersIcon } from "lucide-react";
-import * as motion from "motion/react-client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -16,12 +15,19 @@ import { useAdminUsers, useInviteCodes } from "@/hooks/use-admin";
 import { getCodeStatus } from "@/lib/admin/invite-code-status";
 
 // Gold-active soft-chip tabs (kit's cdb-up-tab.active) — same className override
-// pattern as PROFILE_TAB_CLASS on the user profile page.
+// pattern as PROFILE_TAB_CLASS on the user profile page, plus the kit's exact
+// trigger metrics (32px tall, 12px/500 text, 14px side padding, 6px radius).
 const ADMIN_TAB_CLASS = [
   "data-[state=active]:text-cdb-marquee-text dark:data-[state=active]:text-cdb-marquee-text",
   "data-[state=active]:border-transparent dark:data-[state=active]:border-transparent",
   "data-[state=active]:shadow-none",
+  "h-8 gap-2 rounded-sm px-3.5 text-xs",
 ].join(" ");
+
+// Kit's .cdb-up-tabs bar: 40px tall, 1px border, 8px radius, 2px gap. The height
+// must use the primitive's own variant prefix so tailwind-merge replaces its h-9.
+const ADMIN_TABS_LIST_CLASS =
+  "group-data-[orientation=horizontal]/tabs:h-10 gap-0.5 self-start rounded-md border";
 
 function buildIssueCounts(
   memberCount: number | undefined,
@@ -75,11 +81,7 @@ function AdminContent() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: "easeOut" as const }}
-      >
+      <div>
         <header className="flex flex-col gap-2.5 border-b border-[var(--border-strong)] pt-4 pb-6">
           <span className="text-muted-foreground font-mono text-[11px] tracking-[0.16em] uppercase">
             Back office · admin only
@@ -100,20 +102,20 @@ function AdminContent() {
             right={buildIssueCounts(users?.length, activeCodeCount)}
           />
         </div>
-      </motion.div>
+      </div>
 
       <Tabs defaultValue="audit-log">
-        <TabsList className="self-start">
+        <TabsList className={ADMIN_TABS_LIST_CLASS}>
           <TabsTrigger value="audit-log" className={ADMIN_TAB_CLASS}>
-            <ScrollTextIcon className="size-4" />
+            <ScrollTextIcon className="size-[13px]" />
             <span className="hidden sm:inline">Audit log</span>
           </TabsTrigger>
           <TabsTrigger value="members" className={ADMIN_TAB_CLASS}>
-            <UsersIcon className="size-4" />
+            <UsersIcon className="size-[13px]" />
             <span className="hidden sm:inline">Members</span>
           </TabsTrigger>
           <TabsTrigger value="invite-codes" className={ADMIN_TAB_CLASS}>
-            <KeyIcon className="size-4" />
+            <KeyIcon className="size-[13px]" />
             <span className="hidden sm:inline">Invite codes</span>
           </TabsTrigger>
         </TabsList>

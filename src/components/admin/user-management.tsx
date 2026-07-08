@@ -222,7 +222,9 @@ export function UserManagement() {
     <>
       <TooltipProvider>
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
+          {/* min-h-9 matches the other two panes' 36px control rows so all three
+              tables start at the same height below the tab bar (owner call) */}
+          <div className="flex min-h-9 flex-wrap items-center gap-3">
             <p className="text-muted-foreground text-[13px]">
               Manage roles, reset passwords, and remove members.
             </p>
@@ -260,11 +262,11 @@ export function UserManagement() {
                           <p className="text-sm font-medium">
                             {user.display_name ?? user.username}
                           </p>
-                          <p className="text-muted-foreground text-xs">@{user.username}</p>
+                          <p className="text-[11px] text-[var(--fg-dim)]">@{user.username}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{user.email}</TableCell>
+                    <TableCell className="text-sm">{user.email}</TableCell>
                     <TableCell>
                       <Select
                         value={user.role}
@@ -273,7 +275,9 @@ export function UserManagement() {
                         }}
                         disabled={isSelf(user)}
                       >
-                        <SelectTrigger className="w-28">
+                        {/* Kit's role select is 132px, but ours leads with a role icon
+                            the kit doesn't have — 144px keeps "Moderator" unclipped */}
+                        <SelectTrigger className="w-36">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -298,12 +302,12 @@ export function UserManagement() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em]">
+                    <TableCell className="font-mono text-xs tracking-[0.02em]">
                       {formatDate(user.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       {isSelf(user) ? (
-                        <Badge variant="outline" className="text-muted-foreground rounded-full">
+                        <Badge variant="outline" className="rounded-full text-[var(--fg-dim)]">
                           You
                         </Badge>
                       ) : (

@@ -393,16 +393,12 @@ function InviteCodesContent({
               <TableCell>
                 <StatusBadge code={code} />
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {code.created_by_username ?? "\u2014"}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {code.used_by_username ?? "\u2014"}
-              </TableCell>
-              <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em]">
+              <TableCell className="text-sm">{code.created_by_username ?? "\u2014"}</TableCell>
+              <TableCell className="text-sm">{code.used_by_username ?? "\u2014"}</TableCell>
+              <TableCell className="font-mono text-xs tracking-[0.02em]">
                 {formatDate(code.expires_at)}
               </TableCell>
-              <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em]">
+              <TableCell className="font-mono text-xs tracking-[0.02em]">
                 {formatDate(code.created_at)}
               </TableCell>
               <TableCell>

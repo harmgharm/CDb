@@ -93,17 +93,17 @@ function formatMetadata(metadata: Record<string, unknown>): string {
 
 function MetadataCell({ metadata }: Readonly<{ metadata: Record<string, unknown> | null }>) {
   if (metadata === null) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span>—</span>;
   }
   const entries = Object.entries(metadata);
   if (entries.length === 0) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span>—</span>;
   }
   const text = formatMetadata(metadata);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="text-muted-foreground cursor-default text-xs">{text}</span>
+        <span className="cursor-default text-xs">{text}</span>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-sm break-all">
         <p className="text-xs">{text}</p>
@@ -120,7 +120,7 @@ function AuditLogRow({ entry, index }: Readonly<{ entry: AuditLogEntry; index: n
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.2 }}
     >
-      <TableCell className="text-muted-foreground font-mono text-xs tracking-[0.02em] whitespace-nowrap">
+      <TableCell className="font-mono text-xs tracking-[0.02em] whitespace-nowrap">
         {formatAuditTimestamp(entry.created_at)}
       </TableCell>
       <TableCell className="font-medium">{entry.display_name ?? entry.username}</TableCell>
@@ -128,9 +128,9 @@ function AuditLogRow({ entry, index }: Readonly<{ entry: AuditLogEntry; index: n
         <ActionBadge action={entry.action} />
       </TableCell>
       <TableCell className="capitalize">{entry.entity_type.replaceAll("_", " ")}</TableCell>
-      <TableCell className="font-mono text-xs text-[var(--fg-dim)]">
+      <TableCell className="font-mono text-xs">
         {entry.entity_id === null ? (
-          <span className="text-muted-foreground">—</span>
+          <span>—</span>
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>

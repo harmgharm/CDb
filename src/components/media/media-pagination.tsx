@@ -26,7 +26,7 @@ export function MediaPagination({ page, totalPages, onPageChange }: MediaPaginat
         }}
       >
         <ChevronLeftIcon className="size-4" />
-        Previous
+        Prev
       </Button>
       <span className="text-muted-foreground text-sm">
         Page {String(page)} of {String(totalPages)}
