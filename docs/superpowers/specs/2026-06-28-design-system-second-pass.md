@@ -2071,3 +2071,57 @@ that kit-vs-code reading alone doesn't catch everything):
 - **Page-level admin hooks fired for non-admins** during the brief pre-redirect render (the original
   page only fetched after the role gate). Fixed by extracting `AdminContent` so the hooks only mount
   post-gate.
+
+### Owner visual pass, second round (2026-07-07, post-commit `c47c1a2`)
+
+Three more findings from the owner's live pass against the kit, all fixed and headless-verified
+(computed-style measurement against the kit's own `screen-admin.html` render, not just kit.css):
+
+- **Tab bar chrome didn't match `.cdb-up-tabs`.** Kit bar: 40px tall, 1px `--border` outline, 8px
+  radius, 2px gap; triggers 32px, 12px/500 text, 14px side padding, 6px radius, 13px icons. Ours was
+  the shadcn default (36px, borderless, 12px radius, 14px text, 16px icons). Fixed via
+  `ADMIN_TABS_LIST_CLASS` + additions to `ADMIN_TAB_CLASS` in `admin/page.tsx`. Note: the list
+  height override must be written `group-data-[orientation=horizontal]/tabs:h-10` (the primitive's
+  own variant prefix) so tailwind-merge replaces its `h-9` — a plain `h-10` loses the cascade. **The
+  profile page (`users/[id]`) renders the same kit component with the old chrome** — not touched
+  here (out of the owner's ask), flagged as a candidate follow-up for consistency.
+- **Members table started higher than the other two panes.** Audit/Invites lead with 36px control
+  rows; Members' desc line was text-height only. Fixed with `min-h-9` on the Members bar so all
+  three tables start at the same offset (measured 76px below the tab bar on all three). Owner call:
+  the kit itself is _not_ uniform here (its Members/Invites bars are 45.5px from un-reset `<p>`
+  margins, audit 34px) — we standardized instead of copying that artifact.
+- **Table text should be near-white, not muted.** The kit's _rendered_ tables are `--fg` almost
+  everywhere despite kit.css declaring muted colors:
+  `.cdb-admin-table tbody td { color: var(--fg) }` (0,2,2) outranks the single-class
+  `.cdb-admin-muted`/`.cdb-admin-time`/`.cdb-admin-id` rules (0,1,0), so those are dead rules on
+  tds. Only elements with their own rule survive dim: the `@handle` line (11px `--fg-dim`) and the
+  "You" pill (`--fg-dim`). Matched the render: dropped `text-muted-foreground` from all data cells
+  across the three tables, ID cell white (was fg-dim), handle → 11px fg-dim, "You" → fg-dim. Bar
+  text above the tables (desc/counts) stays muted — those rules target the elements directly in the
+  kit, so they really render muted there.
+
+### Owner visual pass, third round (2026-07-07, follow-ups from the second round)
+
+Four owner-directed items, all fixed and verified live (typecheck/lint/612 tests green):
+
+- **Admin header entrance animation removed** (owner call). Admin was the only page animating its
+  masthead in (`motion.div` opacity/y); every other page renders statically. Removed the wrapper
+  rather than animating the other pages — quiet utility surface, consistency wins.
+- **Profile page tabs got the same kit `.cdb-up-tabs` chrome** as Admin (the follow-up flagged in
+  round two): `PROFILE_TABS_LIST_CLASS` + trigger metric additions to `PROFILE_TAB_CLASS` in
+  `users/[id]/page.tsx`, icons 16→13px. Measured live: 40px bordered bar, 8px radius, 2px gap,
+  32px/12px triggers, 6px trigger radius, 13px icons — kit-exact.
+- **Members role select widened `w-28` → `w-36` (144px)** so "Moderator"/"Member" render unclipped.
+  Kit's `.cdb-admin-select-role` is 132px, but our trigger leads with a role icon the kit doesn't
+  have. Owner confirmed 140px unclipped in a real browser; 144px keeps a cushion for font-metric
+  variance (headless fallback font measured ~2px wider — the known Geist-in-headless gotcha).
+- **Shared `MediaPagination` label "Previous" → "Prev"** to match the kit's admin pagination
+  (`< Prev · Page N of M · Next >`). Owner explicitly OK'd the shared-component copy change (it also
+  renders on Database) — this narrows the earlier "keep `MediaPagination` as-is" judgment call to
+  structure/styling only; the label now follows the kit.
+- **Sidebar admin nav tag got its missing chip chrome** (owner question → fix). The right-side
+  "ADMIN" tag is the kit's access-gate marker (`.cdb-nav-admin-tag`), not duplication — ours had the
+  type styles but rendered as bare text. Added the kit's pill (elev-3 bg, 2px/6px padding, full
+  radius) plus its active-state variant (amber 16% bg + marquee text via `NAV_ACTIVE_CLASS`, needed
+  because the resting elev-3 chip would vanish against the active row's elev-3 wash). Verified live
+  in both states.
