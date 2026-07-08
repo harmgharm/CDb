@@ -30,7 +30,7 @@ export function TopRatedRow({ stats }: TopRatedRowProps) {
       >
         Top rated by <em className="text-cdb-marquee italic">the group</em>
       </motion.h2>
-      <div className="flex gap-4 overflow-x-auto pb-2 sm:overflow-x-visible">
+      <div className="flex gap-4 overflow-x-auto pb-2">
         {stats.topMedia.map((media, index) => (
           <motion.div
             key={media.id}

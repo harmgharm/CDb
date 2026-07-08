@@ -89,7 +89,7 @@ function ScheduledCard({
     // kit), stacked (poster on top) below lg where the two queue cards share one
     // narrow column. items-stretch lets the poster fill the card height on
     // desktop so the card never carries blank space.
-    <div className="group bg-card relative flex flex-col gap-3.5 rounded-lg border p-3.5 lg:flex-row lg:items-stretch lg:gap-4">
+    <div className="group bg-card relative flex min-w-0 flex-col gap-3.5 rounded-lg border p-3.5 lg:flex-row lg:items-stretch lg:gap-4">
       <RemoveButton
         title={scheduled.media.title}
         onRequestRemove={() => {
@@ -306,7 +306,7 @@ export function UpNextQueue() {
     body = <EmptyState onPropose={openImport} />;
   } else {
     body = (
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         {scheduled === null ? (
           <EmptyState onPropose={openImport} />
         ) : (

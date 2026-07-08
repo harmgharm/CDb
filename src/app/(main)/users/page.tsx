@@ -119,9 +119,13 @@ function RosterRow({
           <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--fg-dim)]">
             @{user.username} · joined {formatJoinDate(user.created_at)}
           </span>
+          <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--fg-dim)] sm:hidden">
+            {user.stats.picks} picks · {user.stats.watched} watched · Avg{" "}
+            {user.stats.avgScore === null ? "—" : user.stats.avgScore.toFixed(1)}
+          </span>
         </div>
 
-        <div className="flex items-center gap-6 sm:gap-8">
+        <div className="hidden items-center gap-6 sm:flex sm:gap-8">
           <RosterStat label="Picks" value={String(user.stats.picks)} />
           <RosterStat label="Watched" value={String(user.stats.watched)} />
           <RosterStat

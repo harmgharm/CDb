@@ -2163,3 +2163,123 @@ Four owner-directed items, all fixed and verified live (typecheck/lint/612 tests
   radius) plus its active-state variant (amber 16% bg + marquee text via `NAV_ACTIVE_CLASS`, needed
   because the resting elev-3 chip would vanish against the active row's elev-3 wash). Verified live
   in both states.
+
+---
+
+## Page — Mobile-responsiveness pass ✅ implemented 2026-07-08 (pending owner review)
+
+Not a kit-mapped page — a cross-cutting pass over the deferred item first flagged during the
+Database horizontal-overflow fix (see "⚠️ Deferred to a dedicated mobile-responsiveness pass"
+above). The kit itself disclaims phone support (`CDb Design System/README.md`: _"No mobile
+breakpoints exhaustively tuned. The web UI kit responds down to ~900px... Past that, this needs
+another pass"_), so there's no kit screen to audit against here — this section audits the **live
+app** at phone widths against itself (no horizontal overflow, no clipped/broken content), not
+against a kit mock.
+
+**Overall: low remaining scope.** Contrary to the standing HANDOFF assumption ("other pages likely
+have similar mobile issues... it's bad everywhere"), a fresh headless sweep (login as `tester`,
+320/375/390/768px, every route) found **overflow is already solved on 11 of 13 routes** — the
+sidebar-drawer collapse (Phase 11) and the incidental fixes picked up during each page's own
+design-system pass (Play hub, Game play surfaces, Admin, Sidebar/Shell were all headless-verified at
+phone widths during their own build) already cover almost everything. Three concrete, isolated bugs
+remain, found via screenshot inspection (scroll-width alone missed all three — they're
+contained-but-broken, not page-breaking):
+
+### Current state (measured 2026-07-08)
+
+| Route                                                    | 320px  | 375px | 390px | 768px     |
+| -------------------------------------------------------- | ------ | ----- | ----- | --------- |
+| `/home`                                                  | 36px   | 0     | 0     | 0         |
+| `/database`, `/database/[id]`                            | 0      | 0     | 0     | 0         |
+| `/recommendations`                                       | 0      | 0     | 0     | 0         |
+| `/users`, `/users/[id]`                                  | 0      | 0     | 0     | 0         |
+| `/settings`                                              | 0      | 0     | 0     | 0         |
+| `/play`, `/play/{poster-reveal,rating-guess,year-guess}` | 0      | 0     | 0     | 0         |
+| `/admin` (moderator → redirects, correct)                | 36px\* | 0     | 0     | 0         |
+| `/` (landing, logged out)                                | 0      | 0     | 0     | **356px** |
+| `/login`                                                 | 0      | 0     | 0     | 0         |
+
+\*`/admin`'s 320px overflow is the redirect target (`/home`) rendering before the bounce completes,
+same root cause as `/home`'s own row — not a separate bug.
+
+The old HANDOFF figure ("homepage 327px over at 320px") is stale; something in the intervening
+Play-hub/Game-surfaces/Sidebar/Admin passes already narrowed it to 36px without this deferred item
+being closed out. This pass finishes and verifies that, rather than starting from scratch.
+
+### Drift checklist
+
+- [x] **Bug 1 — Landing page poster row, 768px only, 356px overflow.** Fixed: dropped the
+      `sm:overflow-x-visible` swap in `src/app/_landing/top-rated-row.tsx:33`, leaving plain
+      `overflow-x-auto` at every width (matches `recent-ticker.tsx`'s existing behavior on the same
+      page). Verified live: 0px overflow at 768px, row scrolls horizontally, screenshotted.
+- [x] **Bug 2 — `/users` roster, 375px, name truncated to ~2 characters.** Fixed: the desktop
+      `Picks`/`Watched`/`Avg` stat block (`RosterStat` × 3) is now `hidden sm:flex`, and a compact
+      `sm:hidden` mono text line ("26 picks · 89 watched · Avg 6.2") was added under the handle for
+      narrow widths — the `1fr` name track now gets the space back once its `auto`-track neighbor
+      collapses. `src/app/(main)/users/page.tsx`. Verified live: full names render ("harm", "ant",
+      "gingie", "grewy"), screenshotted.
+- [x] **Bug 3 — game config screens, 375px, `Select` value text clips mid-word.** Fixed at the
+      primitive: dropped `whitespace-nowrap` from `SelectTrigger`'s class list
+      (`src/components/ui/select.tsx:34`), letting the existing
+      `*:data-[slot=select-value]:line-clamp-1` rule actually engage (it needs the text able to wrap
+      onto a 2nd line before it can clamp+ellipsis from there). Fixes every `Select` app-wide, not
+      just the 3 game screens. Verified live: "Normal · From your database" now wraps cleanly to 2
+      lines instead of hard-clipping; `getComputedStyle` confirmed `white-space: normal` +
+      `line-clamp: 1`, screenshotted.
+- [x] **`/home` residual 36px at 320px.** Root cause found via a live ancestor-chain diagnostic
+      (bounding-box walk flagging any element wider than the viewport): the queue's `ScheduledCard`/
+      `EmptyState` cards sit in a `grid gap-4 lg:grid-cols-2` (`up-next-queue.tsx`) whose implicit
+      single column below `lg:` defaults to `minmax(auto, 1fr)` — `auto` floors at the card's
+      min-content width (332px), 12px past a 320px viewport. Added `min-w-0 grid-cols-1` to the grid
+      wrapper and `min-w-0` to the card itself (same min-content-trap family as every other overflow
+      fix this project has hit). Verified: `scrollWidth` now exactly `320` (was `356`), 0px
+      overflow, screenshotted full-page at 320px.
+- [x] Re-verified `/admin`'s 320px reading clears once `/home` does — confirmed same root cause (it
+      redirects through `/home` for a non-admin `tester`), no separate fix needed.
+- [x] Sidebar drawer trigger confirmed reachable + functional at 375px during the original mobile
+      audit (fork-run headless sweep) — no regression from these fixes, none of which touch shared
+      shell chrome.
+
+### Keep as-is / explicitly out of scope
+
+- **Touch ergonomics (tap target size, spacing for fat-finger input) — not covered by this pass.**
+  Headless Playwright checks scroll-overflow and rendered layout, not touch usability, and the kit
+  never designed for touch input at all (it's a desktop-mocked kit). If this matters to the owner,
+  it's a separate follow-up pass, not folded into these 3 bugs' scope.
+- **The other 9 routes with 0px overflow at all 4 widths — no changes**, per the "don't fix what
+  isn't broken" default. Re-verified as part of this pass's headless sweep, not re-audited page by
+  page.
+
+### Judgment calls (RESOLVED with the owner 2026-07-08)
+
+1. **`Select` primitive fix — fix `select.tsx` directly.** Same class of exception already granted
+   for the `Textarea` `field-sizing-content` removal (bug fix, not customization). Fixes every
+   `Select` app-wide, not just the 3 routes this sweep found.
+2. **`/users` roster mobile layout — stack stats under the name.** `Picks · Watched · Avg` becomes a
+   second text line under the handle at narrow widths; keeps all data visible, small row-height
+   cost.
+3. **Landing 768px fix — keep horizontal scroll past `sm:`.** Drop the `sm:overflow-x-visible` swap
+   entirely so the row just scrolls at every width below its natural fit, matching
+   `recent-ticker.tsx`'s existing behavior on the same page. Smallest change.
+
+### Acceptance criteria
+
+- [x] 0px horizontal overflow at 320/375/390/768px re-verified on the fixed routes (`/home`,
+      `/users`, `/play/{poster-reveal,rating-guess,year-guess}`, landing) plus a spot-check of
+      `/database` and `/settings` for no regression. **Not yet re-run across all 13 routes from the
+      original sweep or in light mode** — narrower scope than this acceptance box originally asked
+      for, flagged rather than silently claimed.
+- [x] `/users` roster: full username readable at 375px (verified live: "harm", "ant", "gingie",
+      "grewy" all render untruncated)
+- [x] All 3 games' Difficulty `Select` shows full selected-value text at 375px (verified live and
+      via `getComputedStyle`; text now wraps to 2 lines rather than clipping — same primitive fix
+      covers all 3 call sites, only `poster-reveal` was directly screenshotted)
+- [x] `pnpm typecheck` / `pnpm lint` / `pnpm test` green (**618** tests, unchanged — pure
+      styling/layout fixes, no new pure logic needed a test)
+- [ ] Headless re-verification across all 13 routes, light + dark — only dark mode + a subset of
+      routes checked this round (see first box above)
+- [ ] Manual + `feature-dev` code-review pass — not yet run (app-wide primitive touch on judgment
+      call 1 still warrants it before commit)
+- [ ] Owner does a real-device or real-browser-DevTools visual pass on at least the 3 fixed bugs
+      (per the standing Playwright/Geist-in-headless limitation — headless can confirm no-overflow
+      but not real pixel fidelity)
