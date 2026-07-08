@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { GameBackButton } from "@/components/games/game-back-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -170,6 +171,8 @@ export function GameLobby({
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <GameBackButton href={gameBasePath} />
+
       {/* Header */}
       <div className="flex flex-col items-center gap-2 text-center">
         <span className="text-cdb-cherry-hi inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--cdb-cherry)_12%,transparent)] px-2.5 py-0.5 text-xs">

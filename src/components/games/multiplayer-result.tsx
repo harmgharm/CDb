@@ -18,11 +18,11 @@ import {
   TrophyIcon,
 } from "lucide-react";
 import * as motion from "motion/react-client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
+import { GameBackButton } from "@/components/games/game-back-button";
 import { RoundBreakdownRow } from "@/components/games/round-breakdown-row";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -226,11 +226,7 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
           {isCreating && <Loader2Icon className="mr-2 size-4 animate-spin" />}
           <PlayAgainLabel isCreating={isCreating} hasRematch={rematchGameId !== null} />
         </Button>
-        <Link href="/play">
-          <Button variant="outline" size="lg">
-            Back to games
-          </Button>
-        </Link>
+        <GameBackButton />
       </div>
     </motion.div>
   );

@@ -11,6 +11,7 @@ import * as motion from "motion/react-client";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
+import { GameBackButton } from "@/components/games/game-back-button";
 import { GameLeaderboard } from "@/components/games/game-leaderboard";
 import { SoloGame } from "@/components/games/rating-guess/solo-game";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +95,8 @@ export function PlayPageContent() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" as const }}
       >
+        <GameBackButton />
+
         {/* Header */}
         <div className="mb-8 flex flex-col items-center gap-2.5 text-center">
           <span className="text-cdb-marquee flex size-12 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--cdb-marquee)_14%,transparent)]">

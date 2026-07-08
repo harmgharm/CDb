@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import * as motion from "motion/react-client";
 
+import { GameBackButton } from "@/components/games/game-back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -203,6 +204,7 @@ export function GameResult({
         <Button onClick={onPlayAgain} size="lg">
           Play again
         </Button>
+        <GameBackButton />
       </div>
     </motion.div>
   );

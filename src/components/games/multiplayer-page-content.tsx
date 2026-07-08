@@ -9,10 +9,10 @@
 
 import { ChannelProvider, usePresence, usePresenceListener } from "ably/react";
 import { Loader2Icon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { GameBackButton } from "@/components/games/game-back-button";
 import { GameLobby } from "@/components/games/game-lobby";
 import { InvitePlayersDialog } from "@/components/games/invite-players-dialog";
 import { MultiplayerResult } from "@/components/games/multiplayer-result";
@@ -70,7 +70,6 @@ function MultiplayerPageInner({
 }: Readonly<{ gameId: string; gameType: GameType }>) {
   const gameConfig = getClientGameConfig(gameType);
   const { user } = useAuth();
-  const router = useRouter();
   const gameState = useGameState(gameId);
   const { data: game, mutate } = gameState;
   const gameError = gameState.error as unknown;
@@ -237,14 +236,10 @@ function MultiplayerPageInner({
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-muted-foreground">Game not found or you don&apos;t have access.</p>
-        <button
-          onClick={() => {
-            router.push(gameConfig?.basePath ?? "/play");
-          }}
-          className="text-primary text-sm underline"
-        >
-          Back to {gameConfig?.displayName ?? "Games"}
-        </button>
+        <GameBackButton
+          href={gameConfig?.basePath ?? "/play"}
+          label={`Back to ${gameConfig?.displayName ?? "Games"}`}
+        />
       </div>
     );
   }
@@ -305,14 +300,10 @@ function MultiplayerPageInner({
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-muted-foreground">This game was abandoned before anyone finished it.</p>
-        <button
-          onClick={() => {
-            router.push(gameConfig?.basePath ?? "/play");
-          }}
-          className="text-primary text-sm underline"
-        >
-          Back to {gameConfig?.displayName ?? "Games"}
-        </button>
+        <GameBackButton
+          href={gameConfig?.basePath ?? "/play"}
+          label={`Back to ${gameConfig?.displayName ?? "Games"}`}
+        />
       </div>
     );
   }
