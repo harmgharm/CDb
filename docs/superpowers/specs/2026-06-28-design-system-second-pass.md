@@ -1914,6 +1914,33 @@ throughout, same pattern as everywhere else in this pass. A broader app-wide em-
 this page is still worth doing at some point (other already-shipped pages may have the same issue),
 but no longer applies to Game play surfaces.
 
+**Missing kit element found and fixed 2026-07-08 (`436594e`):** the kit's `.cdb-back-btn` had never
+been built anywhere in Play — confirmed zero instances across `src/components/games/`. Not
+scope-creeped into a fresh audit; a small, bounded follow-up on an already-`✅ implemented` page.
+Rather than replicate the kit's actual back-button behavior (`GamePlay.jsx:540-542` — one
+always-present pill whose label _and_ destination both silently change based on session state,
+including mid-multiplayer-game, via `session ? "Game setup" : "Games"` /
+`session ? reset() : onExit()`), which is a kit inconsistency rather than a pattern worth copying,
+added a new `GameBackButton` (`src/components/games/game-back-button.tsx`) formalizing the
+ghost-button + `Link`
+
+- `ArrowLeftIcon` "Back" idiom already used on Database/User detail pages. **Owner-confirmed scope:
+  setup + results screens only** — no back button during solo in-round, MP lobby, or MP live-round,
+  matching the kit's own omission there (`GamePlayMP.jsx`'s `Lobby`/`LiveGame` have none either) and
+  avoiding one-click accidental abandonment of a live round or a lobby others are waiting in. Wired
+  into: solo config (all 3 games), solo results (`game-result.tsx` — also closed a pre-existing gap
+  vs. the kit, which already pairs "Play again" with a back button and ours didn't), the multiplayer
+  lobby, and multiplayer results (replacing an existing unstyled instance); also upgraded
+  `multiplayer-page-content.tsx`'s "not found" and "abandoned" empty states from bare underlined
+  text to the same shared component for consistency (kept deliberately plain/utility-register rather
+  than given the site-wide 404's editorial masthead treatment — these are routine in-app outcomes,
+  not a broken link, and Play is a utility surface per this doc's editorial-vs-utility rule).
+  Verified live: screenshotted solo config, MP lobby, and solo results against real dev-DB sessions,
+  no console errors, typecheck/lint/618 tests green, test data cleaned up after. No code-review
+  subagent pass run for this one — owner-agreed skippable given it's presentational only, wired to
+  already-correct existing nav targets, with no data-mutation risk (unlike the same session's
+  `abandoned`-status migration/backfill work, which did get a full manual + `feature-dev` review).
+
 ---
 
 ## Page — Admin ✅ implemented 2026-07-07 (pending owner review)
