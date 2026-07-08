@@ -61,7 +61,10 @@ const NAV_ITEMS = [
 const NAV_ACTIVE_CLASS =
   "data-[active=true]:bg-[var(--bg-elev-3)] data-[active=true]:text-cdb-marquee-text " +
   "[&[data-active=true]>svg]:text-cdb-marquee-text " +
-  "[&[data-active=true]_.cdb-nav-admin-tag]:text-cdb-marquee-text";
+  "[&[data-active=true]_.cdb-nav-admin-tag]:text-cdb-marquee-text " +
+  // Kit's .cdb-nav-item.active .cdb-nav-admin-tag: the chip tints amber when active
+  // (its resting elev-3 bg would vanish against the active row's elev-3 wash).
+  "[&[data-active=true]_.cdb-nav-admin-tag]:bg-[color-mix(in_oklch,var(--cdb-marquee)_16%,transparent)]";
 
 /** `SidebarMenuItem` (a plain `<li>`, not overflow-clipped) hosts the amber left rail via
  *  `has-data-[active=true]`, since it targets the active button's `data-active` from the child.
@@ -159,7 +162,7 @@ export function AppSidebar() {
                     <Link href="/admin">
                       <ShieldIcon />
                       <span>Admin</span>
-                      <span className="cdb-nav-admin-tag ml-auto font-mono text-[9px] tracking-[0.1em] text-[var(--fg-dim)] uppercase">
+                      <span className="cdb-nav-admin-tag ml-auto rounded-full bg-[var(--bg-elev-3)] px-1.5 py-0.5 font-mono text-[9px] tracking-[0.1em] text-[var(--fg-dim)] uppercase">
                         admin
                       </span>
                     </Link>
