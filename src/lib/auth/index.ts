@@ -12,7 +12,13 @@ export {
 } from "./cookies";
 export { generateInviteCode, markInviteCodeUsed, validateInviteCode } from "./invite";
 export { hashPassword, verifyPassword } from "./passwords";
-export { loginLimiter, RateLimiter, refreshLimiter, signupLimiter } from "./rate-limiter";
+export {
+  changePasswordLimiter,
+  loginLimiter,
+  RateLimiter,
+  refreshLimiter,
+  signupLimiter,
+} from "./rate-limiter";
 export {
   createRefreshToken,
   findRefreshToken,

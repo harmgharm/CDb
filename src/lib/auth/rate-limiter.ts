@@ -65,3 +65,6 @@ export const signupLimiter = new RateLimiter(5, FIFTEEN_MINUTES);
 
 /** 20 refresh attempts per 15 minutes per IP */
 export const refreshLimiter = new RateLimiter(20, FIFTEEN_MINUTES);
+
+/** 10 change-password attempts per 15 minutes per user */
+export const changePasswordLimiter = new RateLimiter(10, FIFTEEN_MINUTES);

@@ -104,7 +104,7 @@ export async function createTokenRequest(userId: string): Promise<Ably.TokenRequ
     capability: {
       [`user:${userId}`]: ["subscribe"],
       "presence:group": ["presence", "subscribe"],
-      "game:*": ["publish", "subscribe", "presence"],
+      "game:*": ["subscribe", "presence"],
       [QUEUE_CHANNEL]: ["subscribe"],
     },
   });

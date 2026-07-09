@@ -23,14 +23,20 @@ export async function validateInviteCode(code: string): Promise<InviteCode | nul
 }
 
 /**
- * Mark an invite code as used by a specific user.
+ * Mark an invite code as used by a specific user, atomically. The
+ * `used_by_user_id is null` predicate makes this the actual claim — not the
+ * earlier `validateInviteCode` read — so concurrent signups racing on the same
+ * code can't both succeed. Returns false if another request already claimed it.
  */
-export async function markInviteCodeUsed(code: string, userId: string): Promise<void> {
-  await db
+export async function markInviteCodeUsed(code: string, userId: string): Promise<boolean> {
+  const result = await db
     .updateTable("invite_codes")
     .set({ used_by_user_id: userId })
     .where("code", "=", code)
-    .execute();
+    .where("used_by_user_id", "is", null)
+    .executeTakeFirst();
+
+  return result.numUpdatedRows > 0n;
 }
 
 interface GeneratedInviteCode {

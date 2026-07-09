@@ -21,6 +21,8 @@ import { withTransaction } from "@/lib/db/transaction";
 import { registerSchema } from "@/lib/validations/auth";
 import type { SafeUser } from "@/types/auth";
 
+class InviteCodeAlreadyUsedError extends Error {}
+
 export async function POST(req: NextRequest) {
   // Rate limit
   const ip = getIp(req);
@@ -85,11 +87,19 @@ export async function POST(req: NextRequest) {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      await trx
+      // Atomic claim: the `used_by_user_id is null` predicate is the actual
+      // check, not the earlier validateInviteCode read — closes the race where
+      // two concurrent signups both pass validation on the same code.
+      const claim = await trx
         .updateTable("invite_codes")
         .set({ used_by_user_id: user.id })
         .where("code", "=", inviteCode)
-        .execute();
+        .where("used_by_user_id", "is", null)
+        .executeTakeFirst();
+
+      if (claim.numUpdatedRows === 0n) {
+        throw new InviteCodeAlreadyUsedError();
+      }
 
       await trx
         .insertInto("audit_log")
@@ -115,6 +125,9 @@ export async function POST(req: NextRequest) {
       return user;
     });
   } catch (error: unknown) {
+    if (error instanceof InviteCodeAlreadyUsedError) {
+      return errorResponse("Invalid or expired invite code", 400);
+    }
     if (isUniqueViolation(error)) {
       return errorResponse("Email, username, or display name already taken", 409);
     }

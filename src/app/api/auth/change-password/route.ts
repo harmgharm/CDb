@@ -9,6 +9,7 @@ import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
 import {
+  changePasswordLimiter,
   createRefreshToken,
   hashPassword,
   logAudit,
@@ -23,6 +24,11 @@ import { changePasswordSchema } from "@/lib/validations/users";
 
 export async function POST(req: NextRequest) {
   const user = await requireAuth();
+
+  const limit = changePasswordLimiter.check(user.id);
+  if (!limit.allowed) {
+    return errorResponse(`Too many attempts. Try again in ${String(limit.retryAfter)}s.`, 429);
+  }
 
   const body: unknown = await req.json();
   const parsed = changePasswordSchema.safeParse(body);
@@ -44,6 +50,8 @@ export async function POST(req: NextRequest) {
   if (!valid) {
     return errorResponse("Current password is incorrect", 401);
   }
+
+  changePasswordLimiter.reset(user.id);
 
   // Hash and update new password
   const newHash = await hashPassword(newPassword);
