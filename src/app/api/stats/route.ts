@@ -4,18 +4,13 @@
 
 import { sql } from "kysely";
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { deriveWeeksSince } from "@/lib/sessions/timeline";
 import { fetchAvgRating, fetchHoursWatched } from "@/lib/stats/queries";
 
-export async function GET() {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async () => {
   // Total counts by media type
   const mediaCounts = await db
     .selectFrom("media")
@@ -201,4 +196,4 @@ export async function GET() {
     lastSessionDate: lastSession?.date_watched ?? null,
     weeksSinceFirstSession,
   });
-}
+});

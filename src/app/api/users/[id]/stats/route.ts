@@ -3,21 +3,12 @@
  */
 
 import { sql } from "kysely";
-import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const GET = withAuth<{ id: string }>(async (_req, _user, { params }) => {
   const { id } = await params;
 
   // Verify user exists
@@ -122,4 +113,4 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       avgScore: Number(p.rating_count) >= 2 ? Math.round(Number(p.avg_score) * 10) / 10 : null,
     })),
   });
-}
+});

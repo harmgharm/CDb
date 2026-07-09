@@ -8,7 +8,7 @@
 import { getAnimeDetails } from "@/lib/api/jikan";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { findTrailerKey, getMovieDetails, getTvDetails } from "@/lib/api/tmdb";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import type { MediaPreviewDetail } from "@/types/media";
 
 function youtubeUrl(key: string | null): string | null {
@@ -76,12 +76,7 @@ async function fetchAnimePreview(malId: number): Promise<MediaPreviewDetail> {
   };
 }
 
-export async function GET(req: Request) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const { searchParams } = new URL(req.url);
   const source = searchParams.get("source");
   const externalId = Number(searchParams.get("externalId"));
@@ -118,4 +113,4 @@ export async function GET(req: Request) {
   }
 
   return errorResponse("Invalid source/type combination", 400);
-}
+});

@@ -5,20 +5,15 @@
  * Votes cascade away with the row.
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import type { DatabaseTransaction } from "@/lib/db/transaction";
 import { withTransaction } from "@/lib/db/transaction";
 import { publishToQueue } from "@/lib/notifications";
 import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
 import { isMediaOrphaned } from "@/lib/queue/orphan";
 import { QUEUE_EVENTS } from "@/lib/queue/realtime";
-
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
 
 /**
  * Delete the media row left behind by a removed proposal IF nothing
@@ -56,11 +51,7 @@ async function cleanupOrphanedMedia(trx: DatabaseTransaction, mediaId: string): 
   return true;
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const result = await withTransaction(async (trx) => {
@@ -126,4 +117,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   publishToQueue(QUEUE_EVENTS.removed, { proposalId: result.deleted.id });
 
   return successResponse({ id: result.deleted.id }, "Proposal removed");
-}
+});

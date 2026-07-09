@@ -2,8 +2,8 @@
  * GET /api/games/hub — Data for the Play hub's leaderboard + live-now sections
  */
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import { cleanupAbandonedGameSessions } from "@/lib/games/cleanup";
 import { fetchGroupLeaderboard } from "@/lib/games/leaderboard";
 import { fetchLiveSessions } from "@/lib/games/live-sessions";
@@ -11,12 +11,7 @@ import type { PlayHubResponse } from "@/types/game-responses";
 
 const LEADERBOARD_LIMIT = 5;
 
-export async function GET() {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async () => {
   // Lazy cleanup — fire-and-forget, never blocks the response
   void cleanupAbandonedGameSessions().catch((error: unknown) => {
     console.error("Failed to cleanup abandoned game sessions:", error);
@@ -42,4 +37,4 @@ export async function GET() {
   };
 
   return successResponse(response);
-}
+});

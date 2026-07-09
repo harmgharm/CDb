@@ -2,21 +2,18 @@
  * GET /api/stats/feed — Recent activity feed
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { paginationSchema } from "@/lib/validations/common";
 
-export async function GET(req: NextRequest) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const params = Object.fromEntries(req.nextUrl.searchParams);
-  const { page, limit } = paginationSchema.parse(params);
+  const parsed = paginationSchema.safeParse(params);
+  if (!parsed.success) {
+    return errorResponse("Invalid query parameters", 400);
+  }
+  const { page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
   // Recent sessions
@@ -83,4 +80,4 @@ export async function GET(req: NextRequest) {
     page,
     limit,
   });
-}
+});

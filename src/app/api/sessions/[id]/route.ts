@@ -4,22 +4,14 @@
  * DELETE /api/sessions/[id] — Delete session (admin only)
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, isModeratorOrAdmin, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { isModeratorOrAdmin, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateSessionSchema } from "@/lib/validations/sessions";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const GET = withAuth<{ id: string }>(async (_req, _user, { params }) => {
   const { id } = await params;
 
   const session = await db
@@ -76,13 +68,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     attendees,
     ratings: ratings.map((r) => ({ ...r, score: Number(r.score) })),
   });
-}
+});
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const PATCH = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id } = await params;
 
   const session = await db
@@ -104,10 +92,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Not authorized", 403);
   }
 
-  const body: unknown = await req.json();
-  const parsed = updateSessionSchema.safeParse(body);
+  const parsed = await parseBody(req, updateSessionSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const data = parsed.data;
@@ -133,13 +120,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(updated);
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const session = await db
@@ -167,4 +150,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(null, "Session deleted");
-}
+});

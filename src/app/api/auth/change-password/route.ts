@@ -5,13 +5,12 @@
  * and re-issues tokens for the current session.
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import {
   changePasswordLimiter,
   createRefreshToken,
-  getAuthUser,
   hashPassword,
   logAudit,
   revokeAllUserTokens,
@@ -22,21 +21,15 @@ import {
 import { db } from "@/lib/db";
 import { changePasswordSchema } from "@/lib/validations/users";
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const POST = withAuth(async (req, user) => {
   const limit = changePasswordLimiter.check(user.id);
   if (!limit.allowed) {
     return errorResponse(`Too many attempts. Try again in ${String(limit.retryAfter)}s.`, 429);
   }
 
-  const body: unknown = await req.json();
-  const parsed = changePasswordSchema.safeParse(body);
+  const parsed = await parseBody(req, changePasswordSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { currentPassword, newPassword } = parsed.data;
@@ -83,4 +76,4 @@ export async function POST(req: NextRequest) {
   setAuthCookies(response.cookies, accessToken, refreshJwt);
 
   return response;
-}
+});

@@ -11,18 +11,11 @@ import {
   metadataToDbFields,
 } from "@/lib/api/metadata";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getModeratorUser, logAudit } from "@/lib/auth";
+import { withModerator } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-interface RouteParameters {
-  params: Promise<{ id: string }>;
-}
-
-export async function POST(_request: Request, { params }: RouteParameters) {
-  const user = await getModeratorUser();
-  if (!user) {
-    return errorResponse("Not authorized", 403);
-  }
+export const POST = withModerator<{ id: string }>(async (_request, user, { params }) => {
   const { id } = await params;
 
   const media = await db
@@ -62,4 +55,4 @@ export async function POST(_request: Request, { params }: RouteParameters) {
   });
 
   return successResponse(updated, "Media refreshed");
-}
+});

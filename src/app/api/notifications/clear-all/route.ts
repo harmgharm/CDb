@@ -2,16 +2,12 @@
  * POST /api/notifications/clear-all — Delete all notifications for the current user
  */
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function POST() {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const POST = withAuth(async (_req, user) => {
   const result = await db.deleteFrom("notifications").where("user_id", "=", user.id).execute();
 
   const deletedCount = Number(result[0]?.numDeletedRows ?? 0);
@@ -29,4 +25,4 @@ export async function POST() {
   }
 
   return successResponse({ success: true, deletedCount });
-}
+});

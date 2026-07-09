@@ -4,21 +4,17 @@
  */
 
 import { sql } from "kysely";
-import type { NextRequest } from "next/server";
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { MediaType } from "@/lib/db/types";
 import { addToWatchlistSchema, watchlistQuerySchema } from "@/lib/validations/watchlist";
 
-export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req, user) => {
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = watchlistQuerySchema.safeParse(params);
   if (!parsed.success) {
@@ -88,18 +84,12 @@ export async function GET(req: NextRequest) {
     limit,
     totalPages: Math.ceil(total / limit),
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = addToWatchlistSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(req, addToWatchlistSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { mediaId, tmdbId, malId, extTitle, extPosterUrl, extMediaType, status, notes } =
@@ -210,4 +200,4 @@ export async function POST(req: NextRequest) {
     }
     throw error;
   }
-}
+});

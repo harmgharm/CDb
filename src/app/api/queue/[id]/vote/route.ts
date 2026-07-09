@@ -7,19 +7,13 @@
  * the intended state regardless of the prior one.
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { publishToQueue } from "@/lib/notifications";
 import { ensureScheduledFilled } from "@/lib/queue/ensure-scheduled";
 import { QUEUE_EVENTS } from "@/lib/queue/realtime";
-
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
 
 async function countVotes(proposalId: string): Promise<number> {
   const row = await db
@@ -39,11 +33,7 @@ async function proposalExists(id: string): Promise<boolean> {
   return row !== undefined;
 }
 
-export async function POST(_req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const POST = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   if (!(await proposalExists(id))) {
@@ -68,13 +58,9 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
   // optimistically). Fire-and-forget: a dropped vote re-syncs on next load.
   publishToQueue(QUEUE_EVENTS.voted, { proposalId: id, voteCount });
   return successResponse({ proposalId: id, voteCount, hasVoted: true });
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   if (!(await proposalExists(id))) {
@@ -94,4 +80,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const voteCount = await countVotes(id);
   publishToQueue(QUEUE_EVENTS.voted, { proposalId: id, voteCount });
   return successResponse({ proposalId: id, voteCount, hasVoted: false });
-}
+});

@@ -5,8 +5,6 @@
  * Fetches full metadata and creates the media entry.
  */
 
-import type { NextRequest } from "next/server";
-
 import type { MediaMetadata } from "@/lib/api/metadata";
 import {
   fetchAnimeMetadata,
@@ -14,8 +12,10 @@ import {
   fetchTvMetadata,
   metadataToDbFields,
 } from "@/lib/api/metadata";
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { NewMedia } from "@/lib/db/types";
 import { importMediaSchema } from "@/lib/validations/media";
@@ -43,16 +43,14 @@ async function fetchMetadata(
   return null;
 }
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = importMediaSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(
+    req,
+    importMediaSchema,
+    "Invalid input. Provide tmdbId or malId with type.",
+  );
   if (!parsed.success) {
-    return errorResponse("Invalid input. Provide tmdbId or malId with type.", 400);
+    return parsed.response;
   }
 
   const { tmdbId, malId, type } = parsed.data;
@@ -123,4 +121,4 @@ export async function POST(req: NextRequest) {
   });
 
   return successResponse({ ...media, alreadyExisted: false }, "Media imported", 201);
-}
+});

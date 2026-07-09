@@ -3,22 +3,14 @@
  * DELETE /api/watchlist/[id] — Remove entry from watchlist
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, isModeratorOrAdmin, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { isModeratorOrAdmin, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateWatchlistEntrySchema } from "@/lib/validations/watchlist";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const PATCH = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id } = await params;
 
   const entry = await db
@@ -35,10 +27,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Not authorized", 403);
   }
 
-  const body: unknown = await req.json();
-  const parsed = updateWatchlistEntrySchema.safeParse(body);
+  const parsed = await parseBody(req, updateWatchlistEntrySchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const updated = await db
@@ -60,13 +51,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(updated, "Watchlist entry updated");
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const entry = await db
@@ -93,4 +80,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(null, "Removed from watchlist");
-}
+});

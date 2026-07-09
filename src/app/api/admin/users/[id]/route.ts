@@ -3,22 +3,14 @@
  * DELETE /api/admin/users/[id] — Remove user (admin only)
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAdminUser, logAudit, revokeAllUserTokens } from "@/lib/auth";
+import { withAdmin } from "@/lib/api/with-auth";
+import { logAudit, revokeAllUserTokens } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateRoleSchema } from "@/lib/validations/users";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const admin = await getAdminUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const PATCH = withAdmin<{ id: string }>(async (req, admin, { params }) => {
   const { id } = await params;
 
   const targetUser = await db
@@ -31,10 +23,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("User not found", 404);
   }
 
-  const body: unknown = await req.json();
-  const parsed = updateRoleSchema.safeParse(body);
+  const parsed = await parseBody(req, updateRoleSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { role } = parsed.data;
@@ -68,13 +59,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(updated);
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await getAdminUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const DELETE = withAdmin<{ id: string }>(async (_req, admin, { params }) => {
   const { id } = await params;
 
   if (admin.id === id) {
@@ -105,4 +92,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(null, "User deleted");
-}
+});

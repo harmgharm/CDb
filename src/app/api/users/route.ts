@@ -2,18 +2,13 @@
  * GET /api/users — List all users (public info only)
  */
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { fetchTaglineInputsBatch } from "@/lib/users/stats";
 import { deriveTagline } from "@/lib/users/tagline";
 
-export async function GET() {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async () => {
   const users = await db
     .selectFrom("users")
     .select(["id", "username", "display_name", "avatar_url", "role", "created_at"])
@@ -38,4 +33,4 @@ export async function GET() {
       };
     }),
   );
-}
+});

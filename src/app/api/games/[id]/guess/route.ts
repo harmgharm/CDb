@@ -6,10 +6,9 @@
  * publishes player-guessed + round-countdown events via Ably.
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import type { GameRound, GameSession } from "@/lib/db/types";
 import type { GameEngine } from "@/lib/games";
@@ -210,17 +209,12 @@ async function computeGuessScoring(options: GuessScoringOptions): Promise<GuessS
   return { roundScore, streakBonus, currentStreak, isFirstCorrect, firstCorrectBonus, totalAward };
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const POST = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id: gameId } = await params;
 
-  const body: unknown = await req.json();
-  const parsed = submitGuessSchema.safeParse(body);
+  const parsed = await parseBody(req, submitGuessSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { roundId, guessText, mediaId, timeFromStartMs, guessData } = parsed.data;
@@ -340,4 +334,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   };
 
   return successResponse(response);
-}
+});

@@ -5,10 +5,9 @@
  * and publishes game-started via Ably.
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { getEngine } from "@/lib/games";
@@ -21,11 +20,7 @@ import type {
 
 const MIN_PLAYERS = 2;
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const POST = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id: gameId } = await params;
 
   const session = await db
@@ -175,4 +170,4 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   };
 
   return successResponse(response, "Game started");
-}
+});

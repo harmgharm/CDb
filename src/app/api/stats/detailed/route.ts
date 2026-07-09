@@ -5,8 +5,8 @@
  * directors, years, and picker leaderboard.
  */
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import {
   fetchAvgRating,
   fetchAvgStartTime,
@@ -30,12 +30,7 @@ import { computeStreaks } from "@/lib/stats/streak";
 import { fetchAvgSessionLength, fetchWeekdayCounts } from "@/lib/stats/viewing-habits";
 import type { GroupDetailedStats } from "@/types/detailed-stats";
 
-export async function GET() {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async () => {
   const [
     streakData,
     hoursWatched,
@@ -152,4 +147,4 @@ export async function GET() {
   };
 
   return successResponse(result);
-}
+});

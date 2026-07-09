@@ -3,22 +3,14 @@
  * DELETE /api/admin/invite-codes/[id] — Delete unused invite code (admin only)
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAdminUser, logAudit } from "@/lib/auth";
+import { withAdmin } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateInviteCodeSchema } from "@/lib/validations/admin";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const admin = await getAdminUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const PATCH = withAdmin<{ id: string }>(async (req, admin, { params }) => {
   const { id } = await params;
 
   const invite = await db
@@ -35,10 +27,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Cannot edit a used invite code", 400);
   }
 
-  const body: unknown = await req.json();
-  const parsed = updateInviteCodeSchema.safeParse(body);
+  const parsed = await parseBody(req, updateInviteCodeSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { expiresInDays } = parsed.data;
@@ -64,13 +55,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse({ id, expiresAt: newExpiresAt });
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await getAdminUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const DELETE = withAdmin<{ id: string }>(async (_req, admin, { params }) => {
   const { id } = await params;
 
   const invite = await db
@@ -98,4 +85,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(null, "Invite code deleted");
-}
+});

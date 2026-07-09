@@ -4,20 +4,16 @@
  */
 
 import { sql } from "kysely";
-import type { NextRequest } from "next/server";
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mapMediaListRow } from "@/lib/media/list-row";
 import { createMediaSchema, mediaQuerySchema } from "@/lib/validations/media";
 
-export async function GET(req: NextRequest) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = mediaQuerySchema.safeParse(params);
   if (!parsed.success) {
@@ -142,18 +138,12 @@ export async function GET(req: NextRequest) {
     limit,
     totalPages: Math.ceil(total / limit),
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = createMediaSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(req, createMediaSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const data = parsed.data;
@@ -207,4 +197,4 @@ export async function POST(req: NextRequest) {
   });
 
   return successResponse(media, "Media created", 201);
-}
+});

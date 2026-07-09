@@ -3,17 +3,14 @@
  * POST /api/recommendations/dismissals — Dismiss a recommendation
  */
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { dismissRecommendationSchema } from "@/lib/validations/recommendations";
 
-export async function GET() {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (_req, user) => {
   const rows = await db
     .selectFrom("recommendation_dismissals")
     .select([
@@ -42,18 +39,12 @@ export async function GET() {
   }));
 
   return successResponse({ items });
-}
+});
 
-export async function POST(req: Request) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = dismissRecommendationSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(req, dismissRecommendationSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { mediaId, tmdbId, malId, extTitle, extPosterUrl, extMediaType } = parsed.data;
@@ -88,4 +79,4 @@ export async function POST(req: Request) {
     }
     throw error;
   }
-}
+});

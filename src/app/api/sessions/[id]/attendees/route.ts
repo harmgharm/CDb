@@ -3,22 +3,14 @@
  * DELETE /api/sessions/[id]/attendees?userId=... — Remove attendee
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, isModeratorOrAdmin } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { isModeratorOrAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { addAttendeesSchema } from "@/lib/validations/sessions";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function POST(req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const POST = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id } = await params;
 
   const session = await db
@@ -35,10 +27,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Not authorized", 403);
   }
 
-  const body: unknown = await req.json();
-  const parsed = addAttendeesSchema.safeParse(body);
+  const parsed = await parseBody(req, addAttendeesSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   // Insert attendees, ignoring duplicates via ON CONFLICT
@@ -51,13 +42,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   return successResponse(null, "Attendees added");
-}
+});
 
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id } = await params;
 
   const userId = req.nextUrl.searchParams.get("userId") ?? "";
@@ -97,4 +84,4 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     .execute();
 
   return successResponse(null, "Attendee removed");
-}
+});

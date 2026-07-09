@@ -3,19 +3,14 @@
  * POST /api/admin/invite-codes — Generate a new invite code (admin only)
  */
 
-import type { NextRequest } from "next/server";
-
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { generateInviteCode, getAdminUser, logAudit } from "@/lib/auth";
+import { parseBody } from "@/lib/api/parse-body";
+import { successResponse } from "@/lib/api/response";
+import { withAdmin } from "@/lib/api/with-auth";
+import { generateInviteCode, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateInviteCodeSchema } from "@/lib/validations/admin";
 
-export async function GET() {
-  const _user = await getAdminUser();
-  if (!_user) {
-    return errorResponse("Not authorized", 403);
-  }
-
+export const GET = withAdmin(async () => {
   const codes = await db
     .selectFrom("invite_codes")
     .leftJoin("users as creator", "creator.id", "invite_codes.created_by_user_id")
@@ -33,18 +28,12 @@ export async function GET() {
     .execute();
 
   return successResponse(codes);
-}
+});
 
-export async function POST(req: NextRequest) {
-  const admin = await getAdminUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
-
-  const body: unknown = await req.json().catch(() => ({}));
-  const parsed = generateInviteCodeSchema.safeParse(body);
+export const POST = withAdmin(async (req, admin) => {
+  const parsed = await parseBody(req, generateInviteCodeSchema, "Invalid request body");
   if (!parsed.success) {
-    return errorResponse("Invalid request body", 400);
+    return parsed.response;
   }
 
   const { expiresInDays } = parsed.data;
@@ -63,4 +52,4 @@ export async function POST(req: NextRequest) {
     "Invite code created",
     201,
   );
-}
+});

@@ -5,22 +5,21 @@
  * Optimized for watchlist use — loads user data once, iterates items.
  */
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { predictBatch } from "@/lib/predictions";
 import { batchPredictionRequestSchema } from "@/lib/validations/predictions";
 
-export async function POST(req: Request) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = batchPredictionRequestSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(
+    req,
+    batchPredictionRequestSchema,
+    (error) => `Invalid request: ${error.message}`,
+  );
 
   if (!parsed.success) {
-    return errorResponse(`Invalid request: ${parsed.error.message}`, 400);
+    return parsed.response;
   }
 
   try {
@@ -42,4 +41,4 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "Failed to compute batch predictions";
     return errorResponse(message, 500);
   }
-}
+});

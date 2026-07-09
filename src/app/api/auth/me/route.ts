@@ -4,17 +4,11 @@
  * Returns the currently authenticated user.
  */
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getCurrentUser } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import type { SafeUser } from "@/types/auth";
 
-export async function GET() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth((_req, user) => {
   const safeUser: SafeUser = {
     id: user.id,
     username: user.username,
@@ -25,5 +19,5 @@ export async function GET() {
     createdAt: user.created_at,
   };
 
-  return successResponse(safeUser);
-}
+  return Promise.resolve(successResponse(safeUser));
+});

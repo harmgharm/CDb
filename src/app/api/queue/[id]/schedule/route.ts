@@ -5,30 +5,20 @@
  * the scheduled pick carries a date, so this rejects non-scheduled proposals.
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { publishToQueue } from "@/lib/notifications";
 import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 import { scheduleSchema } from "@/lib/validations/queue";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const PATCH = withAuth<{ id: string }>(async (req, _user, { params }) => {
   const { id } = await params;
 
-  const body: unknown = await req.json();
-  const parsed = scheduleSchema.safeParse(body);
+  const parsed = await parseBody(req, scheduleSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   // Atomic guarded update: only the scheduled pick can be dated. Filtering on
@@ -62,4 +52,4 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   return exists === undefined
     ? errorResponse("Proposal not found", 404)
     : errorResponse("Only the scheduled pick can be dated", 409);
-}
+});

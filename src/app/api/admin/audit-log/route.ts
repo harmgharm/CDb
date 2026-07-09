@@ -2,22 +2,19 @@
  * GET /api/admin/audit-log — Paginated audit log (admin only)
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAdminUser } from "@/lib/auth";
+import { withAdmin } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import type { AuditAction } from "@/lib/db/types";
 import { paginationSchema } from "@/lib/validations/common";
 
-export async function GET(req: NextRequest) {
-  const _user = await getAdminUser();
-  if (!_user) {
-    return errorResponse("Not authorized", 403);
-  }
-
+export const GET = withAdmin(async (req) => {
   const searchParams = Object.fromEntries(req.nextUrl.searchParams);
-  const { page, limit } = paginationSchema.parse(searchParams);
+  const parsed = paginationSchema.safeParse(searchParams);
+  if (!parsed.success) {
+    return errorResponse("Invalid query parameters", 400);
+  }
+  const { page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
   const userId = req.nextUrl.searchParams.get("userId") ?? undefined;
@@ -74,4 +71,4 @@ export async function GET(req: NextRequest) {
     limit,
     totalPages: Math.ceil(Number(total.count) / limit),
   });
-}
+});

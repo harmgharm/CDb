@@ -4,13 +4,11 @@
  * Unified media search across TMDB (movies/TV) and Jikan (anime).
  */
 
-import type { NextRequest } from "next/server";
-
 import { searchAnime } from "@/lib/api/jikan";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { searchMovies, searchTv, tmdbImageUrl } from "@/lib/api/tmdb";
 import { mapMovieGenreIds, mapTvGenreIds } from "@/lib/api/tmdb-genres";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { collectSearchResults, type SearchSource } from "@/lib/media/search";
 import { searchMediaSchema } from "@/lib/validations/media";
@@ -163,12 +161,7 @@ function buildSearchSources(query: string, type: string | undefined): SearchSour
   return sources;
 }
 
-export async function GET(req: NextRequest) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = searchMediaSchema.safeParse(params);
   if (!parsed.success) {
@@ -197,4 +190,4 @@ export async function GET(req: NextRequest) {
   const failedSources = failures.map((failure) => failure.key);
   const attemptedSources = sources.map((source) => source.key);
   return successResponse({ results: sorted, failedSources, attemptedSources });
-}
+});

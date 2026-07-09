@@ -1,14 +1,15 @@
 /**
  * GET /api/media/[id] — Media detail with sessions and ratings
- * PATCH /api/media/[id] — Update media (admin only)
- * DELETE /api/media/[id] — Delete media (admin only)
+ * PATCH /api/media/[id] — Update media (moderator+ only)
+ * DELETE /api/media/[id] — Delete media (moderator+ only)
  */
 
 import { sql } from "kysely";
-import type { NextRequest } from "next/server";
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, getModeratorUser, logAudit } from "@/lib/auth";
+import { withAuth, withModerator } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { publishToQueue } from "@/lib/notifications";
@@ -17,15 +18,7 @@ import { QUEUE_EVENTS } from "@/lib/queue/realtime";
 import type { UpdateMediaInput } from "@/lib/validations/media";
 import { updateMediaSchema } from "@/lib/validations/media";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const GET = withAuth<{ id: string }>(async (_req, _user, { params }) => {
   const { id } = await params;
 
   const media = await db.selectFrom("media").selectAll().where("id", "=", id).executeTakeFirst();
@@ -128,7 +121,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       avgRating: roundedAvg,
     },
   });
-}
+});
 
 /** Maps camelCase input keys to snake_case DB columns */
 const FIELD_MAP: Record<string, string> = {
@@ -185,11 +178,7 @@ function buildMediaUpdateSet(data: UpdateMediaInput): Record<string, unknown> {
   return fields;
 }
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const admin = await getModeratorUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const PATCH = withModerator<{ id: string }>(async (req, moderator, { params }) => {
   const { id } = await params;
 
   const media = await db.selectFrom("media").select("id").where("id", "=", id).executeTakeFirst();
@@ -197,10 +186,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return errorResponse("Media not found", 404);
   }
 
-  const body: unknown = await req.json();
-  const parsed = updateMediaSchema.safeParse(body);
+  const parsed = await parseBody(req, updateMediaSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const data = parsed.data;
@@ -212,7 +200,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .executeTakeFirstOrThrow();
 
   await logAudit({
-    userId: admin.id,
+    userId: moderator.id,
     action: "media.updated",
     entityType: "media",
     entityId: id,
@@ -220,13 +208,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(updated);
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await getModeratorUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const DELETE = withModerator<{ id: string }>(async (_req, moderator, { params }) => {
   const { id } = await params;
 
   const media = await db
@@ -258,7 +242,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   await logAudit({
-    userId: admin.id,
+    userId: moderator.id,
     action: "media.deleted",
     entityType: "media",
     entityId: id,
@@ -272,4 +256,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   }
 
   return successResponse(null, "Media deleted");
-}
+});

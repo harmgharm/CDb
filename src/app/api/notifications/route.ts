@@ -2,20 +2,13 @@
  * GET /api/notifications — List notifications for the current user (paginated)
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { cleanupOldNotifications } from "@/lib/notifications";
 import { notificationQuerySchema } from "@/lib/validations/notifications";
 
-export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req, user) => {
   // Lazy cleanup — fire-and-forget, never blocks the response
   void cleanupOldNotifications().catch((error: unknown) => {
     console.error("Failed to cleanup old notifications:", error);
@@ -67,4 +60,4 @@ export async function GET(req: NextRequest) {
     limit,
     totalPages: Math.ceil(total / limit),
   });
-}
+});

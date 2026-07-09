@@ -5,18 +5,11 @@
  * Only counts imported media (media_id not null).
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 
-export async function GET(req: NextRequest) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const mediaIds = req.nextUrl.searchParams.getAll("mediaIds[]");
   if (mediaIds.length === 0) {
     return errorResponse("mediaIds[] query parameter is required", 400);
@@ -37,4 +30,4 @@ export async function GET(req: NextRequest) {
   }
 
   return successResponse(counts);
-}
+});

@@ -3,18 +3,14 @@
  * PATCH /api/users/[id] — Update own profile (displayName, avatarUrl, username, email)
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { fetchTaglineInputs } from "@/lib/users/stats";
 import { deriveTagline } from "@/lib/users/tagline";
 import { updateProfileSchema } from "@/lib/validations/users";
-
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
 
 const FIELD_LABELS: Record<string, string> = {
   username: "Username",
@@ -59,11 +55,7 @@ async function validateUniqueness(
   return results.find((r): r is string => r !== null) ?? null;
 }
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const GET = withAuth<{ id: string }>(async (_req, _user, { params }) => {
   const { id } = await params;
 
   const user = await db
@@ -88,23 +80,18 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     },
     tagline: deriveTagline(taglineInputs),
   });
-}
+});
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const PATCH = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id } = await params;
 
   if (user.id !== id) {
     return errorResponse("You can only update your own profile", 403);
   }
 
-  const body: unknown = await req.json();
-  const parsed = updateProfileSchema.safeParse(body);
+  const parsed = await parseBody(req, updateProfileSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const data = parsed.data;
@@ -149,4 +136,4 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(updated);
-}
+});

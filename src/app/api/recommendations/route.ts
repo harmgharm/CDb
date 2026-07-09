@@ -10,10 +10,8 @@
  *   decade?: string — server-side decade filter (e.g., "2020" or "older")
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import type { MediaType, RecommendationType } from "@/lib/db/types";
 import type { RecommendationItem } from "@/lib/recommendations";
 import {
@@ -51,12 +49,7 @@ async function fetchAllTypes(userId: string, refresh: boolean): Promise<Recommen
   return [...fallback, ...group];
 }
 
-export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req, user) => {
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = recommendationQuerySchema.safeParse(params);
   if (!parsed.success) {
@@ -142,4 +135,4 @@ export async function GET(req: NextRequest) {
     const message = error instanceof Error ? error.message : "Failed to compute recommendations";
     return errorResponse(message, 500);
   }
-}
+});

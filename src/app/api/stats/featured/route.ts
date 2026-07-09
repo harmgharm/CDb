@@ -8,8 +8,8 @@
  * rated").
  */
 
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { successResponse } from "@/lib/api/response";
+import { withAuth } from "@/lib/api/with-auth";
 import {
   attachFeaturedLineage,
   fetchFeaturedLineage,
@@ -26,12 +26,7 @@ function startOfCurrentMonth(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
-export async function GET() {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async () => {
   const monthRows = await fetchFeaturedMedia(FEATURED_LIMIT, startOfCurrentMonth());
 
   const rows = monthRows.length > 0 ? monthRows : await fetchFeaturedMedia(FEATURED_LIMIT);
@@ -52,4 +47,4 @@ export async function GET() {
   };
 
   return successResponse(result);
-}
+});

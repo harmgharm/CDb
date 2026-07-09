@@ -5,7 +5,6 @@
  * Processes entries in cursor-based batches of 25.
  */
 
-import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import {
@@ -14,8 +13,10 @@ import {
   fetchTvMetadata,
   metadataToDbFields,
 } from "@/lib/api/metadata";
-import { errorResponse, successResponse } from "@/lib/api/response";
-import { getModeratorUser, logAudit } from "@/lib/auth";
+import { parseBody } from "@/lib/api/parse-body";
+import { successResponse } from "@/lib/api/response";
+import { withModerator } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { MediaType } from "@/lib/db/types";
 
@@ -125,16 +126,10 @@ async function processBatch(entries: MediaEntry[]): Promise<{
   return { refreshed, failed, errors };
 }
 
-export async function POST(request: NextRequest) {
-  const user = await getModeratorUser();
-  if (!user) {
-    return errorResponse("Not authorized", 403);
-  }
-
-  const body: unknown = await request.json();
-  const parsed = refreshQuerySchema.safeParse(body);
+export const POST = withModerator(async (request, user) => {
+  const parsed = await parseBody(request, refreshQuerySchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { cursor } = parsed.data;
@@ -186,4 +181,4 @@ export async function POST(request: NextRequest) {
     total,
     errors: result.errors,
   });
-}
+});

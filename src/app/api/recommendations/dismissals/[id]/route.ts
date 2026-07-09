@@ -2,21 +2,12 @@
  * DELETE /api/recommendations/dismissals/[id] — Restore a dismissed recommendation
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const entry = await db
@@ -43,4 +34,4 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse(null, "Recommendation restored");
-}
+});

@@ -4,26 +4,21 @@
  * Creates a notification for each invited user with a link to the lobby.
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getEngine } from "@/lib/games";
 import { createNotification } from "@/lib/notifications/create";
 import { invitePlayersSchema } from "@/lib/validations/games";
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const POST = withAuth<{ id: string }>(async (req, user, { params }) => {
   const { id: gameId } = await params;
 
-  const body: unknown = await req.json();
-  const parsed = invitePlayersSchema.safeParse(body);
+  const parsed = await parseBody(req, invitePlayersSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { userIds } = parsed.data;
@@ -93,4 +88,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     { invited: newUserIds.length },
     `Invited ${String(newUserIds.length)} player${newUserIds.length === 1 ? "" : "s"}`,
   );
-}
+});

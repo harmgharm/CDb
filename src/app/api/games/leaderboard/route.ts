@@ -2,20 +2,13 @@
  * GET /api/games/leaderboard — Paginated leaderboard sorted by best score per category
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { getLeaderboard } from "@/lib/games/leaderboard";
 import { leaderboardQuerySchema } from "@/lib/validations/games";
 import type { LeaderboardEntryResponse, LeaderboardResponse } from "@/types/game-responses";
 
-export async function GET(req: NextRequest) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const queryParams = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = leaderboardQuerySchema.safeParse(queryParams);
   if (!parsed.success) {
@@ -49,4 +42,4 @@ export async function GET(req: NextRequest) {
   };
 
   return successResponse(response);
-}
+});

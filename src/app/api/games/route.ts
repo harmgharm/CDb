@@ -2,10 +2,10 @@
  * POST /api/games — Create a game (solo auto-starts, multiplayer creates lobby)
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { withTransaction } from "@/lib/db/transaction";
 import { getEngine } from "@/lib/games";
 import type { RoundPoolItem } from "@/lib/games/engine";
@@ -13,16 +13,10 @@ import { isRankedGame } from "@/lib/games/ranked-presets";
 import { createGameSchema } from "@/lib/validations/games";
 import type { GameRoundResponse, GameSessionResponse } from "@/types/game-responses";
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = createGameSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(req, createGameSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { gameType, mode, difficulty, roundCount, timeLimitSeconds } = parsed.data;
@@ -159,4 +153,4 @@ export async function POST(req: NextRequest) {
   };
 
   return successResponse(response, "Game created", 201);
-}
+});

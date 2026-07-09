@@ -5,22 +5,21 @@
  * user's rating history, similar users, and external signals.
  */
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { predictRating } from "@/lib/predictions";
 import { predictionRequestSchema } from "@/lib/validations/predictions";
 
-export async function POST(req: Request) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = predictionRequestSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(
+    req,
+    predictionRequestSchema,
+    (error) => `Invalid request: ${error.message}`,
+  );
 
   if (!parsed.success) {
-    return errorResponse(`Invalid request: ${parsed.error.message}`, 400);
+    return parsed.response;
   }
 
   try {
@@ -30,4 +29,4 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "Failed to compute prediction";
     return errorResponse(message, 500);
   }
-}
+});

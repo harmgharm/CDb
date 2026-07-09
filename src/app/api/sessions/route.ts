@@ -4,10 +4,11 @@
  */
 
 import { sql } from "kysely";
-import type { NextRequest } from "next/server";
 
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, isModeratorOrAdmin, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { isModeratorOrAdmin, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { User, UserRole, WatchSession } from "@/lib/db/types";
@@ -27,12 +28,7 @@ import {
 import { fetchSessionTimeline } from "@/lib/sessions/timeline-query";
 import { createSessionSchema, sessionQuerySchema } from "@/lib/validations/sessions";
 
-export async function GET(req: NextRequest) {
-  const _user = await getAuthUser();
-  if (!_user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (req) => {
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = sessionQuerySchema.safeParse(params);
   if (!parsed.success) {
@@ -108,7 +104,7 @@ export async function GET(req: NextRequest) {
     .execute();
 
   return successResponse({ items: results, page, limit });
-}
+});
 
 interface InlineRating {
   userId: string;
@@ -241,16 +237,10 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
   });
 }
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = createSessionSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(req, createSessionSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
 
   const { mediaId, dateWatched, timeWatchedAt, pickedByUserId, attendeeIds, notes, ratings } =
@@ -351,4 +341,4 @@ export async function POST(req: NextRequest) {
   });
 
   return successResponse(session, "Session created", 201);
-}
+});

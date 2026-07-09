@@ -6,10 +6,10 @@
  * already-proposed); otherwise a new `proposed` row is created and audit-logged.
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { QueueProposal } from "@/lib/db/types";
@@ -27,16 +27,10 @@ function findActiveProposal(mediaId: string): Promise<QueueProposal | undefined>
     .executeTakeFirst();
 }
 
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  const body: unknown = await req.json();
-  const parsed = proposeSchema.safeParse(body);
+export const POST = withAuth(async (req, user) => {
+  const parsed = await parseBody(req, proposeSchema);
   if (!parsed.success) {
-    return errorResponse("Invalid input", 400);
+    return parsed.response;
   }
   const { mediaId } = parsed.data;
 
@@ -108,4 +102,4 @@ export async function POST(req: NextRequest) {
   publishToQueue(QUEUE_EVENTS.proposed, { proposalId: created.id, mediaId });
 
   return successResponse({ ...created, alreadyProposed: false }, "Proposed", 201);
-}
+});

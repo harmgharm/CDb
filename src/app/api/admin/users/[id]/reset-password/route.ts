@@ -7,25 +7,16 @@
 
 import { randomBytes } from "node:crypto";
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAdminUser, hashPassword, logAudit, revokeAllUserTokens } from "@/lib/auth";
+import { withAdmin } from "@/lib/api/with-auth";
+import { hashPassword, logAudit, revokeAllUserTokens } from "@/lib/auth";
 import { db } from "@/lib/db";
-
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
 
 function generateTemporaryPassword(): string {
   return randomBytes(12).toString("base64url");
 }
 
-export async function POST(_req: NextRequest, { params }: RouteParams) {
-  const admin = await getAdminUser();
-  if (!admin) {
-    return errorResponse("Not authorized", 403);
-  }
+export const POST = withAdmin<{ id: string }>(async (_req, admin, { params }) => {
   const { id } = await params;
 
   if (admin.id === id) {
@@ -62,4 +53,4 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
   });
 
   return successResponse({ temporaryPassword }, "Password reset successfully");
-}
+});

@@ -6,10 +6,8 @@
  * Multiplayer: any game_player can view, includes player list + per-player scores.
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { db } from "@/lib/db";
 import { getEngine } from "@/lib/games";
 import type {
@@ -74,11 +72,7 @@ function computePlayerScores(
   return { totalScore, roundsWon, currentStreak };
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const GET = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const session = await db
@@ -233,4 +227,4 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   };
 
   return successResponse(response);
-}
+});

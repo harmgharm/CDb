@@ -3,17 +3,12 @@
  * DELETE /api/notifications/[id] — Delete a single notification
  */
 
-import type { NextRequest } from "next/server";
-
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser, logAudit } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
+import { logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const PATCH = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const updated = await db
@@ -29,13 +24,9 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
   }
 
   return successResponse({ id: updated.id });
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
+export const DELETE = withAuth<{ id: string }>(async (_req, user, { params }) => {
   const { id } = await params;
 
   const deleted = await db
@@ -59,4 +50,4 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   });
 
   return successResponse({ id: deleted.id });
-}
+});

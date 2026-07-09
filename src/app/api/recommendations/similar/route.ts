@@ -6,29 +6,16 @@
  *   limit?: number — max items to return (default 20)
  */
 
-import type { NextRequest } from "next/server";
-
+import { parseBody } from "@/lib/api/parse-body";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { computeSimilarRecommendations, enrichWithWatchlistData } from "@/lib/recommendations";
 import { findSimilarRequestSchema } from "@/lib/validations/recommendations";
 
-export async function POST(request: NextRequest): Promise<Response> {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body", 400);
-  }
-
-  const parsed = findSimilarRequestSchema.safeParse(body);
+export const POST = withAuth(async (request, user) => {
+  const parsed = await parseBody(request, findSimilarRequestSchema, "Invalid request body");
   if (!parsed.success) {
-    return errorResponse("Invalid request body", 400);
+    return parsed.response;
   }
 
   const { sources, limit } = parsed.data;
@@ -53,4 +40,4 @@ export async function POST(request: NextRequest): Promise<Response> {
     const message = error instanceof Error ? error.message : "Failed to find similar titles";
     return errorResponse(message, 500);
   }
-}
+});

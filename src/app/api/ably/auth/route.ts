@@ -3,15 +3,10 @@
  */
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { getAuthUser } from "@/lib/auth";
+import { withAuth } from "@/lib/api/with-auth";
 import { createTokenRequest } from "@/lib/notifications";
 
-export async function GET() {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse("Not authenticated", 401);
-  }
-
+export const GET = withAuth(async (_req, user) => {
   try {
     const tokenRequest = await createTokenRequest(user.id);
     return successResponse(tokenRequest);
@@ -20,4 +15,4 @@ export async function GET() {
     console.error("Ably token request failed:", message);
     return errorResponse(`Ably token request failed: ${message}`, 500);
   }
-}
+});
