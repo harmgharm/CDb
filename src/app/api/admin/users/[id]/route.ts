@@ -6,7 +6,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAdmin, revokeAllUserTokens } from "@/lib/auth";
+import { getAdminUser, logAudit, revokeAllUserTokens } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateRoleSchema } from "@/lib/validations/users";
 
@@ -15,7 +15,10 @@ interface RouteParams {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const admin = await requireAdmin();
+  const admin = await getAdminUser();
+  if (!admin) {
+    return errorResponse("Not authorized", 403);
+  }
   const { id } = await params;
 
   const targetUser = await db
@@ -68,7 +71,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await requireAdmin();
+  const admin = await getAdminUser();
+  if (!admin) {
+    return errorResponse("Not authorized", 403);
+  }
   const { id } = await params;
 
   if (admin.id === id) {

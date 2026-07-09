@@ -13,7 +13,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import type { MediaType, RecommendationType } from "@/lib/db/types";
 import type { RecommendationItem } from "@/lib/recommendations";
 import {
@@ -52,7 +52,10 @@ async function fetchAllTypes(userId: string, refresh: boolean): Promise<Recommen
 }
 
 export async function GET(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = recommendationQuerySchema.safeParse(params);

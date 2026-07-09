@@ -9,7 +9,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { GameType } from "@/lib/db/types";
@@ -85,7 +85,10 @@ async function validateAllPlayersFinished(options: ValidatePlayersOptions): Prom
 }
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id: gameId } = await params;
 
   const session = await db

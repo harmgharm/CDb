@@ -9,7 +9,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { QueueProposal } from "@/lib/db/types";
@@ -28,7 +28,10 @@ function findActiveProposal(mediaId: string): Promise<QueueProposal | undefined>
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = proposeSchema.safeParse(body);

@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, isModeratorOrAdmin, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import type { User, UserRole, WatchSession } from "@/lib/db/types";
@@ -28,7 +28,10 @@ import { fetchSessionTimeline } from "@/lib/sessions/timeline-query";
 import { createSessionSchema, sessionQuerySchema } from "@/lib/validations/sessions";
 
 export async function GET(req: NextRequest) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = sessionQuerySchema.safeParse(params);
@@ -239,7 +242,10 @@ async function handlePostSessionCreation(options: PostSessionCreationOptions): P
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = createSessionSchema.safeParse(body);

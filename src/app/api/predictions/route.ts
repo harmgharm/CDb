@@ -6,12 +6,15 @@
  */
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { predictRating } from "@/lib/predictions";
 import { predictionRequestSchema } from "@/lib/validations/predictions";
 
 export async function POST(req: Request) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = predictionRequestSchema.safeParse(body);

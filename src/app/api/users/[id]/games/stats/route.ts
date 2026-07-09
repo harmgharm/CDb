@@ -8,7 +8,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { GameType } from "@/lib/db/types";
 import type { GameTypeStats, UserGameStatsResponse, UserRecentGame } from "@/types/user-responses";
@@ -100,7 +100,10 @@ async function buildGameTypeStats(
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id: userId } = await params;
 
   // Verify user exists

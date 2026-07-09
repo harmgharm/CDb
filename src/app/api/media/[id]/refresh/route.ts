@@ -11,7 +11,7 @@ import {
   metadataToDbFields,
 } from "@/lib/api/metadata";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireModerator } from "@/lib/auth";
+import { getModeratorUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 interface RouteParameters {
@@ -19,7 +19,10 @@ interface RouteParameters {
 }
 
 export async function POST(_request: Request, { params }: RouteParameters) {
-  const user = await requireModerator();
+  const user = await getModeratorUser();
+  if (!user) {
+    return errorResponse("Not authorized", 403);
+  }
   const { id } = await params;
 
   const media = await db

@@ -8,7 +8,7 @@ import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth, requireModerator } from "@/lib/auth";
+import { getAuthUser, getModeratorUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { publishToQueue } from "@/lib/notifications";
@@ -22,7 +22,10 @@ interface RouteParams {
 }
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const media = await db.selectFrom("media").selectAll().where("id", "=", id).executeTakeFirst();
@@ -183,7 +186,10 @@ function buildMediaUpdateSet(data: UpdateMediaInput): Record<string, unknown> {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const admin = await requireModerator();
+  const admin = await getModeratorUser();
+  if (!admin) {
+    return errorResponse("Not authorized", 403);
+  }
   const { id } = await params;
 
   const media = await db.selectFrom("media").select("id").where("id", "=", id).executeTakeFirst();
@@ -217,7 +223,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const admin = await requireModerator();
+  const admin = await getModeratorUser();
+  if (!admin) {
+    return errorResponse("Not authorized", 403);
+  }
   const { id } = await params;
 
   const media = await db

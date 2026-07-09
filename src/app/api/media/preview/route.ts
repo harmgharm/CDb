@@ -8,7 +8,7 @@
 import { getAnimeDetails } from "@/lib/api/jikan";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { findTrailerKey, getMovieDetails, getTvDetails } from "@/lib/api/tmdb";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import type { MediaPreviewDetail } from "@/types/media";
 
 function youtubeUrl(key: string | null): string | null {
@@ -77,7 +77,10 @@ async function fetchAnimePreview(malId: number): Promise<MediaPreviewDetail> {
 }
 
 export async function GET(req: Request) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const { searchParams } = new URL(req.url);
   const source = searchParams.get("source");

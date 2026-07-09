@@ -7,14 +7,17 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getEngine } from "@/lib/games";
 import { createNotification } from "@/lib/notifications/create";
 import { invitePlayersSchema } from "@/lib/validations/games";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id: gameId } = await params;
 
   const body: unknown = await req.json();

@@ -10,7 +10,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { publishToQueue } from "@/lib/notifications";
@@ -40,7 +40,10 @@ async function proposalExists(id: string): Promise<boolean> {
 }
 
 export async function POST(_req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   if (!(await proposalExists(id))) {
@@ -68,7 +71,10 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   if (!(await proposalExists(id))) {

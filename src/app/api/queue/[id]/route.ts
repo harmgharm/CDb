@@ -8,7 +8,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import type { DatabaseTransaction } from "@/lib/db/transaction";
 import { withTransaction } from "@/lib/db/transaction";
 import { publishToQueue } from "@/lib/notifications";
@@ -57,7 +57,10 @@ async function cleanupOrphanedMedia(trx: DatabaseTransaction, mediaId: string): 
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const result = await withTransaction(async (trx) => {

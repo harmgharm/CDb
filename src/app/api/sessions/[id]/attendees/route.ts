@@ -6,7 +6,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { isModeratorOrAdmin, requireAuth } from "@/lib/auth";
+import { getAuthUser, isModeratorOrAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { addAttendeesSchema } from "@/lib/validations/sessions";
 
@@ -15,7 +15,10 @@ interface RouteParams {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const session = await db
@@ -51,7 +54,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const userId = req.nextUrl.searchParams.get("userId") ?? "";

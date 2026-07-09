@@ -3,11 +3,14 @@
  */
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { createTokenRequest } from "@/lib/notifications";
 
 export async function GET() {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   try {
     const tokenRequest = await createTokenRequest(user.id);

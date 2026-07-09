@@ -4,12 +4,15 @@
  */
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import { db, isUniqueViolation } from "@/lib/db";
 import { dismissRecommendationSchema } from "@/lib/validations/recommendations";
 
 export async function GET() {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const rows = await db
     .selectFrom("recommendation_dismissals")
@@ -42,7 +45,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = dismissRecommendationSchema.safeParse(body);

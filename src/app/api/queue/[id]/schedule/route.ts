@@ -8,7 +8,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { publishToQueue } from "@/lib/notifications";
 import { QUEUE_EVENTS } from "@/lib/queue/realtime";
@@ -19,7 +19,10 @@ interface RouteParams {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const body: unknown = await req.json();

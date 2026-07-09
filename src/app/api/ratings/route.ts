@@ -7,14 +7,17 @@ import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, isModeratorOrAdmin, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createRatingSubmittedNotification } from "@/lib/notifications";
 import { invalidateUserRecommendations } from "@/lib/recommendations";
 import { ratingSchema } from "@/lib/validations/sessions";
 
 export async function GET(req: NextRequest) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const sessionId = req.nextUrl.searchParams.get("sessionId") ?? undefined;
   const userId = req.nextUrl.searchParams.get("userId") ?? undefined;
@@ -47,7 +50,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = ratingSchema.safeParse(body);

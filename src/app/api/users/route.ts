@@ -2,14 +2,17 @@
  * GET /api/users — List all users (public info only)
  */
 
-import { successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fetchTaglineInputsBatch } from "@/lib/users/stats";
 import { deriveTagline } from "@/lib/users/tagline";
 
 export async function GET() {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const users = await db
     .selectFrom("users")

@@ -6,7 +6,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { isModeratorOrAdmin, logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, isModeratorOrAdmin, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { updateWatchlistEntrySchema } from "@/lib/validations/watchlist";
 
@@ -15,7 +15,10 @@ interface RouteParams {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const entry = await db
@@ -60,7 +63,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   const entry = await db

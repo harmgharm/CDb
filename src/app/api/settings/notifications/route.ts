@@ -6,18 +6,24 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { getUserNotificationPreferences, updateNotificationPreferences } from "@/lib/notifications";
 import { updateNotificationPreferencesSchema } from "@/lib/validations/notifications";
 
 export async function GET() {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const preferences = await getUserNotificationPreferences(user.id);
   return successResponse({ preferences });
 }
 
 export async function PUT(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = updateNotificationPreferencesSchema.safeParse(body);

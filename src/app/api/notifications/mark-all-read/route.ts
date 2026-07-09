@@ -2,12 +2,15 @@
  * POST /api/notifications/mark-all-read — Bulk mark all unread notifications as read
  */
 
-import { successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function POST() {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const result = await db
     .updateTable("notifications")

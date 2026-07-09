@@ -8,11 +8,14 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const mediaIds = req.nextUrl.searchParams.getAll("mediaIds[]");
   if (mediaIds.length === 0) {

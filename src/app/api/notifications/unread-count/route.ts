@@ -2,12 +2,15 @@
  * GET /api/notifications/unread-count — Lightweight unread count for the bell badge
  */
 
-import { successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function GET() {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const { count } = await db
     .selectFrom("notifications")

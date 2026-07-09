@@ -6,12 +6,15 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { generateInviteCode, logAudit, requireAdmin } from "@/lib/auth";
+import { generateInviteCode, getAdminUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateInviteCodeSchema } from "@/lib/validations/admin";
 
 export async function GET() {
-  await requireAdmin();
+  const _user = await getAdminUser();
+  if (!_user) {
+    return errorResponse("Not authorized", 403);
+  }
 
   const codes = await db
     .selectFrom("invite_codes")
@@ -33,7 +36,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
+  const admin = await getAdminUser();
+  if (!admin) {
+    return errorResponse("Not authorized", 403);
+  }
 
   const body: unknown = await req.json().catch(() => ({}));
   const parsed = generateInviteCodeSchema.safeParse(body);

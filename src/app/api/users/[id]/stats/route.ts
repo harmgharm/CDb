@@ -6,7 +6,7 @@ import { sql } from "kysely";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 interface RouteParams {
@@ -14,7 +14,10 @@ interface RouteParams {
 }
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id } = await params;
 
   // Verify user exists

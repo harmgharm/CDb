@@ -4,14 +4,17 @@
 
 import type { NextRequest } from "next/server";
 
-import { successResponse } from "@/lib/api/response";
-import { requireAdmin } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAdminUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { AuditAction } from "@/lib/db/types";
 import { paginationSchema } from "@/lib/validations/common";
 
 export async function GET(req: NextRequest) {
-  await requireAdmin();
+  const _user = await getAdminUser();
+  if (!_user) {
+    return errorResponse("Not authorized", 403);
+  }
 
   const searchParams = Object.fromEntries(req.nextUrl.searchParams);
   const { page, limit } = paginationSchema.parse(searchParams);

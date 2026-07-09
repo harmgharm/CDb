@@ -15,7 +15,7 @@ import {
   metadataToDbFields,
 } from "@/lib/api/metadata";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireAuth } from "@/lib/auth";
+import { getAuthUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { NewMedia } from "@/lib/db/types";
 import { importMediaSchema } from "@/lib/validations/media";
@@ -44,7 +44,10 @@ async function fetchMetadata(
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const body: unknown = await req.json();
   const parsed = importMediaSchema.safeParse(body);

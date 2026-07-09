@@ -9,7 +9,7 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { GameRound, GameSession } from "@/lib/db/types";
 import type { GameEngine } from "@/lib/games";
@@ -211,7 +211,10 @@ async function computeGuessScoring(options: GuessScoringOptions): Promise<GuessS
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
   const { id: gameId } = await params;
 
   const body: unknown = await req.json();

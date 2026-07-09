@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { hashPassword, logAudit, requireAdmin, revokeAllUserTokens } from "@/lib/auth";
+import { getAdminUser, hashPassword, logAudit, revokeAllUserTokens } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 interface RouteParams {
@@ -22,7 +22,10 @@ function generateTemporaryPassword(): string {
 }
 
 export async function POST(_req: NextRequest, { params }: RouteParams) {
-  const admin = await requireAdmin();
+  const admin = await getAdminUser();
+  if (!admin) {
+    return errorResponse("Not authorized", 403);
+  }
   const { id } = await params;
 
   if (admin.id === id) {

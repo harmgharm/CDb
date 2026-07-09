@@ -1,7 +1,12 @@
 /**
  * Server-side session helpers
  *
- * Use in server components and API routes to get the current user.
+ * requireAuth/requireAdmin/requireModerator redirect on failure — only safe in
+ * server components and pages. In API routes, `redirect()` produces a 307 that
+ * `fetch()` follows transparently, so callers like fetchWithAuth never see the
+ * 401 they're checking for and the auto-refresh flow silently no-ops. Route
+ * handlers should use getAuthUser/getAdminUser/getModeratorUser instead, which
+ * return null and let the route respond with a proper errorResponse.
  */
 
 import { cookies } from "next/headers";
@@ -41,6 +46,7 @@ export async function getCurrentUser(): Promise<User | null> {
 
 /**
  * Require authentication. Redirects to /login if not authenticated.
+ * Server components / pages only — see module note.
  */
 export async function requireAuth(): Promise<User> {
   const user = await getCurrentUser();
@@ -60,6 +66,7 @@ export function isModeratorOrAdmin(role: UserRole): boolean {
 
 /**
  * Require admin role. Redirects to /home if not admin.
+ * Server components / pages only — see module note.
  */
 export async function requireAdmin(): Promise<User> {
   const user = await requireAuth();
@@ -71,11 +78,44 @@ export async function requireAdmin(): Promise<User> {
 
 /**
  * Require moderator or admin role. Redirects to /home if insufficient permissions.
+ * Server components / pages only — see module note.
  */
 export async function requireModerator(): Promise<User> {
   const user = await requireAuth();
   if (!isModeratorOrAdmin(user.role)) {
     redirect("/home");
+  }
+  return user;
+}
+
+/**
+ * Get the current user, or null if not authenticated. API-route-safe
+ * counterpart to requireAuth — see module note.
+ */
+export async function getAuthUser(): Promise<User | null> {
+  return getCurrentUser();
+}
+
+/**
+ * Get the current user if they're an admin, or null otherwise. API-route-safe
+ * counterpart to requireAdmin — see module note.
+ */
+export async function getAdminUser(): Promise<User | null> {
+  const user = await getCurrentUser();
+  if (user?.role !== "admin") {
+    return null;
+  }
+  return user;
+}
+
+/**
+ * Get the current user if they're a moderator or admin, or null otherwise.
+ * API-route-safe counterpart to requireModerator — see module note.
+ */
+export async function getModeratorUser(): Promise<User | null> {
+  const user = await getCurrentUser();
+  if (!user || !isModeratorOrAdmin(user.role)) {
+    return null;
   }
   return user;
 }

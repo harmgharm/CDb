@@ -5,13 +5,16 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { getLeaderboard } from "@/lib/games/leaderboard";
 import { leaderboardQuerySchema } from "@/lib/validations/games";
 import type { LeaderboardEntryResponse, LeaderboardResponse } from "@/types/game-responses";
 
 export async function GET(req: NextRequest) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const queryParams = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = leaderboardQuerySchema.safeParse(queryParams);

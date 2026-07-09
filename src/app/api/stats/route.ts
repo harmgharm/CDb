@@ -4,14 +4,17 @@
 
 import { sql } from "kysely";
 
-import { successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { deriveWeeksSince } from "@/lib/sessions/timeline";
 import { fetchAvgRating, fetchHoursWatched } from "@/lib/stats/queries";
 
 export async function GET() {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   // Total counts by media type
   const mediaCounts = await db

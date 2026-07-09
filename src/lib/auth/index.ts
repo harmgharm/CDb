@@ -32,7 +32,10 @@ export {
   revokeTokenFamily,
 } from "./refresh-tokens";
 export {
+  getAdminUser,
+  getAuthUser,
   getCurrentUser,
+  getModeratorUser,
   isModeratorOrAdmin,
   requireAdmin,
   requireAuth,

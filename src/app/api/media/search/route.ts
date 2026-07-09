@@ -10,7 +10,7 @@ import { searchAnime } from "@/lib/api/jikan";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { searchMovies, searchTv, tmdbImageUrl } from "@/lib/api/tmdb";
 import { mapMovieGenreIds, mapTvGenreIds } from "@/lib/api/tmdb-genres";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { collectSearchResults, type SearchSource } from "@/lib/media/search";
 import { searchMediaSchema } from "@/lib/validations/media";
@@ -164,7 +164,10 @@ function buildSearchSources(query: string, type: string | undefined): SearchSour
 }
 
 export async function GET(req: NextRequest) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const parsed = searchMediaSchema.safeParse(params);

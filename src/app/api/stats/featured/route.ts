@@ -8,8 +8,8 @@
  * rated").
  */
 
-import { successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser } from "@/lib/auth";
 import {
   attachFeaturedLineage,
   fetchFeaturedLineage,
@@ -27,7 +27,10 @@ function startOfCurrentMonth(): Date {
 }
 
 export async function GET() {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const monthRows = await fetchFeaturedMedia(FEATURED_LIMIT, startOfCurrentMonth());
 

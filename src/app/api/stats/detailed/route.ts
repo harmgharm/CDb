@@ -5,8 +5,8 @@
  * directors, years, and picker leaderboard.
  */
 
-import { successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser } from "@/lib/auth";
 import {
   fetchAvgRating,
   fetchAvgStartTime,
@@ -31,7 +31,10 @@ import { fetchAvgSessionLength, fetchWeekdayCounts } from "@/lib/stats/viewing-h
 import type { GroupDetailedStats } from "@/types/detailed-stats";
 
 export async function GET() {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const [
     streakData,

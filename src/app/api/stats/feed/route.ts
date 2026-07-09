@@ -4,13 +4,16 @@
 
 import type { NextRequest } from "next/server";
 
-import { successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { errorResponse, successResponse } from "@/lib/api/response";
+import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paginationSchema } from "@/lib/validations/common";
 
 export async function GET(req: NextRequest) {
-  await requireAuth();
+  const _user = await getAuthUser();
+  if (!_user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const params = Object.fromEntries(req.nextUrl.searchParams);
   const { page, limit } = paginationSchema.parse(params);

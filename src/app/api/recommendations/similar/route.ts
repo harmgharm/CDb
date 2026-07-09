@@ -9,12 +9,15 @@
 import type { NextRequest } from "next/server";
 
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { computeSimilarRecommendations, enrichWithWatchlistData } from "@/lib/recommendations";
 import { findSimilarRequestSchema } from "@/lib/validations/recommendations";
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   let body: unknown;
   try {

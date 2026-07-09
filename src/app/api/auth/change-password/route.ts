@@ -11,9 +11,9 @@ import { errorResponse, successResponse } from "@/lib/api/response";
 import {
   changePasswordLimiter,
   createRefreshToken,
+  getAuthUser,
   hashPassword,
   logAudit,
-  requireAuth,
   revokeAllUserTokens,
   setAuthCookies,
   signAccessToken,
@@ -23,7 +23,10 @@ import { db } from "@/lib/db";
 import { changePasswordSchema } from "@/lib/validations/users";
 
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse("Not authenticated", 401);
+  }
 
   const limit = changePasswordLimiter.check(user.id);
   if (!limit.allowed) {

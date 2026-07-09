@@ -15,7 +15,7 @@ import {
   metadataToDbFields,
 } from "@/lib/api/metadata";
 import { errorResponse, successResponse } from "@/lib/api/response";
-import { logAudit, requireModerator } from "@/lib/auth";
+import { getModeratorUser, logAudit } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { MediaType } from "@/lib/db/types";
 
@@ -126,7 +126,10 @@ async function processBatch(entries: MediaEntry[]): Promise<{
 }
 
 export async function POST(request: NextRequest) {
-  const user = await requireModerator();
+  const user = await getModeratorUser();
+  if (!user) {
+    return errorResponse("Not authorized", 403);
+  }
 
   const body: unknown = await request.json();
   const parsed = refreshQuerySchema.safeParse(body);
