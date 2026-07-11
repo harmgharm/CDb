@@ -5,7 +5,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -27,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/user-avatar";
 import { useCreateSession } from "@/hooks/use-sessions";
 import { useUserList } from "@/hooks/use-users";
 import type { UserListItem } from "@/types/user-responses";
@@ -45,11 +45,6 @@ interface CreateSessionDialogProps {
   readonly mediaId: string;
   readonly mediaTitle: string;
   readonly onCreated: () => void;
-}
-
-function getInitials(user: UserListItem): string {
-  const name = user.display_name ?? user.username;
-  return name.slice(0, 2).toUpperCase();
 }
 
 export function CreateSessionDialog({ mediaId, mediaTitle, onCreated }: CreateSessionDialogProps) {
@@ -301,13 +296,13 @@ function AttendeeList({
                   onToggle(user.id);
                 }}
               />
-              <Avatar className="size-6 shrink-0">
-                <AvatarImage
-                  src={user.avatar_url ?? undefined}
-                  alt={user.display_name ?? user.username}
-                />
-                <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                displayName={user.display_name}
+                username={user.username}
+                avatarUrl={user.avatar_url}
+                className="size-6 shrink-0"
+                fallbackClassName="text-[10px]"
+              />
               <span className="truncate text-sm">{user.display_name ?? user.username}</span>
             </label>
             {showRating && (

@@ -9,10 +9,10 @@ import * as motion from "motion/react-client";
 import { useState } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserAvatar } from "@/components/user-avatar";
 import { useLeaderboard } from "@/hooks/use-games";
 import type { GameType, LeaderboardCategory } from "@/lib/db/types";
 import type { LeaderboardResponse } from "@/types/game-responses";
@@ -107,15 +107,13 @@ function LeaderboardEntries({
             <RankBadge rank={entry.rank} />
 
             {/* Avatar + Name */}
-            <Avatar className="size-8">
-              <AvatarImage
-                src={entry.avatarUrl ?? undefined}
-                alt={entry.displayName ?? entry.username}
-              />
-              <AvatarFallback className="text-xs">
-                {(entry.displayName ?? entry.username).slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              displayName={entry.displayName}
+              username={entry.username}
+              avatarUrl={entry.avatarUrl}
+              className="size-8"
+              fallbackClassName="text-xs"
+            />
             <div className="min-w-0 flex-1">
               <p className={`truncate text-sm ${isCurrentUser ? "font-bold" : "font-medium"}`}>
                 {entry.displayName ?? entry.username}

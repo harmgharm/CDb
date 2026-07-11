@@ -14,7 +14,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { UserAvatar } from "@/components/user-avatar";
 import { useAdminUsers, useChangeRole, useDeleteUser, useResetPassword } from "@/hooks/use-admin";
 import type { UserRole } from "@/lib/db/types";
 import type { AdminUser } from "@/types/admin-responses";
@@ -55,11 +55,6 @@ function formatDate(dateString: string): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function getInitials(user: AdminUser): string {
-  const name = user.display_name ?? user.username;
-  return name.slice(0, 2).toUpperCase();
 }
 
 interface ConfirmDialogState {
@@ -254,10 +249,13 @@ export function UserManagement() {
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="size-8">
-                          <AvatarImage src={user.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-xs">{getInitials(user)}</AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                          displayName={user.display_name}
+                          username={user.username}
+                          avatarUrl={user.avatar_url}
+                          className="size-8"
+                          fallbackClassName="text-xs"
+                        />
                         <div>
                           <p className="text-sm font-medium">
                             {user.display_name ?? user.username}

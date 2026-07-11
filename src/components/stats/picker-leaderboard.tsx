@@ -6,17 +6,12 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { MediaTypeBadge } from "@/components/media/media-type-badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { UserAvatar } from "@/components/user-avatar";
 import type { PickerLeaderboardEntry } from "@/types/detailed-stats";
 
 interface PickerLeaderboardProps {
   readonly pickers: readonly PickerLeaderboardEntry[];
-}
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name.slice(0, 2).toUpperCase();
 }
 
 const RANK_STYLES: Record<number, string> = {
@@ -60,15 +55,13 @@ function PickerRow({ picker, rank }: Readonly<{ picker: PickerLeaderboardEntry; 
             event.stopPropagation();
           }}
         >
-          <Avatar className="size-8">
-            <AvatarImage
-              src={picker.avatarUrl ?? undefined}
-              alt={picker.displayName ?? picker.username}
-            />
-            <AvatarFallback className="text-xs">
-              {getInitials(picker.displayName, picker.username)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            displayName={picker.displayName}
+            username={picker.username}
+            avatarUrl={picker.avatarUrl}
+            className="size-8"
+            fallbackClassName="text-xs"
+          />
         </Link>
         <div className="min-w-0 flex-1">
           <Link

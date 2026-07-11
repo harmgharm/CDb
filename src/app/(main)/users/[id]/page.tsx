@@ -35,6 +35,7 @@ import { WatchlistSection } from "@/components/watchlist";
 import { useOnlineUsers } from "@/hooks/use-online-users";
 import { useUserList, useUserProfile, useUserStats } from "@/hooks/use-users";
 import { resolveDetailState } from "@/lib/api/detail-state";
+import { getInitials } from "@/lib/users/initials";
 import { type ProfileTab, resolveProfileTab } from "@/lib/users/profile-tabs";
 import type { UserProfile } from "@/types/user-responses";
 
@@ -54,16 +55,6 @@ const PROFILE_TAB_CLASS = [
 // primitive's own variant prefix so tailwind-merge replaces its h-9.
 const PROFILE_TABS_LIST_CLASS =
   "group-data-[orientation=horizontal]/tabs:h-10 gap-0.5 self-start rounded-md border";
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 function formatJoinDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {

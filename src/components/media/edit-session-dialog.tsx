@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -24,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/user-avatar";
 import { useUpdateSession, useUpdateSessionAttendees } from "@/hooks/use-sessions";
 import { useUserList } from "@/hooks/use-users";
 import type { MediaSession } from "@/types/media-responses";
@@ -36,11 +36,6 @@ interface EditSessionDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly session: MediaSession;
   readonly onSaved: () => void;
-}
-
-function getInitials(user: UserListItem): string {
-  const name = user.display_name ?? user.username;
-  return name.slice(0, 2).toUpperCase();
 }
 
 function formatDateForInput(dateString: string): string {
@@ -166,13 +161,13 @@ export function EditSessionDialog({
                 {(users ?? []).map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     <div className="flex items-center gap-2">
-                      <Avatar className="size-5">
-                        <AvatarImage
-                          src={user.avatar_url ?? undefined}
-                          alt={user.display_name ?? user.username}
-                        />
-                        <AvatarFallback className="text-[9px]">{getInitials(user)}</AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        displayName={user.display_name}
+                        username={user.username}
+                        avatarUrl={user.avatar_url}
+                        className="size-5"
+                        fallbackClassName="text-[9px]"
+                      />
                       {user.display_name ?? user.username}
                     </div>
                   </SelectItem>
@@ -251,13 +246,13 @@ function AttendeeList({ users, attendeeIds, onToggle }: AttendeeListProps) {
               onToggle(user.id);
             }}
           />
-          <Avatar className="size-6">
-            <AvatarImage
-              src={user.avatar_url ?? undefined}
-              alt={user.display_name ?? user.username}
-            />
-            <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            displayName={user.display_name}
+            username={user.username}
+            avatarUrl={user.avatar_url}
+            className="size-6"
+            fallbackClassName="text-[10px]"
+          />
           <span className="text-sm">{user.display_name ?? user.username}</span>
         </label>
       ))}

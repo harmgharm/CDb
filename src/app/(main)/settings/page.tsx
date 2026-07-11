@@ -6,13 +6,13 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
@@ -22,11 +22,6 @@ import { cn } from "@/lib/utils";
 import type { SafeUser } from "@/types/auth";
 
 type Section = "profile" | "password" | "notifications";
-
-function getInitials(displayName: string | null, username: string): string {
-  const source = displayName !== null && displayName.length > 0 ? displayName : username;
-  return source.slice(0, 2).toUpperCase();
-}
 
 function SettingsSkeleton() {
   return (
@@ -532,12 +527,13 @@ export default function SettingsPage() {
         </div>
 
         <div className="relative shrink-0">
-          <Avatar className="size-22 border-2 shadow-lg">
-            <AvatarImage src={user.avatarUrl ?? undefined} alt={eyebrowName} />
-            <AvatarFallback className="text-xl">
-              {getInitials(user.displayName, user.username)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            displayName={user.displayName}
+            username={user.username}
+            avatarUrl={user.avatarUrl}
+            className="size-22 border-2 shadow-lg"
+            fallbackClassName="text-xl"
+          />
           <button
             type="button"
             onClick={handleAvatarChange}

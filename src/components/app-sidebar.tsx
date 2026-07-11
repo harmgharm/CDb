@@ -22,7 +22,6 @@ import { Wordmark } from "@/components/branding/wordmark";
 import { OnlineUsersSection } from "@/components/online-users";
 import { useAuth } from "@/components/providers/auth-provider";
 import { UpNextCard } from "@/components/sidebar/up-next-card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +43,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { UserAvatar } from "@/components/user-avatar";
 
 const NAV_ITEMS = [
   { title: "Home", href: "/home", icon: HomeIcon },
@@ -77,16 +77,6 @@ const NAV_ITEM_RAIL_CLASS =
   "has-data-[active=true]:before:absolute has-data-[active=true]:before:-left-2 " +
   "has-data-[active=true]:before:inset-y-2 has-data-[active=true]:before:w-0.5 " +
   "has-data-[active=true]:before:rounded-full has-data-[active=true]:before:bg-cdb-marquee";
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 function ThemeMenuItem() {
   const { theme, setTheme } = useTheme();
@@ -188,15 +178,13 @@ export function AppSidebar() {
                     size="lg"
                     className="border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground border bg-[var(--bg-elev-2)]"
                   >
-                    <Avatar className="size-7">
-                      <AvatarImage
-                        src={user.avatarUrl ?? undefined}
-                        alt={user.displayName ?? user.username}
-                      />
-                      <AvatarFallback className="text-xs">
-                        {getInitials(user.displayName, user.username)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      displayName={user.displayName}
+                      username={user.username}
+                      avatarUrl={user.avatarUrl}
+                      className="size-7"
+                      fallbackClassName="text-xs"
+                    />
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">
                         {user.displayName ?? user.username}

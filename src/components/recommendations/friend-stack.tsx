@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import type { FriendWatch } from "@/types/recommendation-responses";
 
 /**
@@ -10,16 +10,6 @@ import type { FriendWatch } from "@/types/recommendation-responses";
 
 const MAX_AVATARS = 4;
 const MAX_NAMES = 3;
-
-function initials(friend: FriendWatch): string {
-  const name = friend.displayName ?? friend.username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 interface FriendStackProps {
   readonly friends: readonly FriendWatch[];
@@ -40,9 +30,13 @@ export function FriendStack({ friends }: FriendStackProps) {
     <div className="flex items-center gap-2">
       <div className="*:ring-background flex -space-x-2 *:ring-2">
         {shown.map((friend) => (
-          <Avatar key={friend.username} size="sm">
-            <AvatarFallback className="text-[10px]">{initials(friend)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            key={friend.username}
+            displayName={friend.displayName}
+            username={friend.username}
+            size="sm"
+            fallbackClassName="text-[10px]"
+          />
         ))}
         {overflow > 0 && (
           <span className="bg-muted text-muted-foreground ring-background flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] ring-2">

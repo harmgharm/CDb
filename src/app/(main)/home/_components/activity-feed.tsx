@@ -3,10 +3,10 @@
 import { ClapperboardIcon, StarIcon } from "lucide-react";
 import * as motion from "motion/react-client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserAvatar } from "@/components/user-avatar";
 import { useActivityFeed } from "@/hooks/use-stats";
 import { MEDIA_TYPE_LABELS } from "@/lib/media/labels";
 import type { FeedItem } from "@/types/stats";
@@ -25,16 +25,6 @@ function formatRelativeTime(dateString: string): string {
   if (diffDays < 7) return `${String(diffDays)}d ago`;
 
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function getInitials(name: string | null, username: string): string {
-  const display = name ?? username;
-  return display
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function FeedItemCard({ item, index }: Readonly<{ item: FeedItem; index: number }>) {
@@ -79,15 +69,13 @@ function FeedItemCard({ item, index }: Readonly<{ item: FeedItem; index: number 
       transition={{ delay: index * 0.05, duration: 0.3 }}
     >
       <div className="flex items-start gap-3 rounded-lg border p-3">
-        <Avatar className="size-8">
-          <AvatarImage
-            src={data.avatar_url ?? undefined}
-            alt={data.display_name ?? data.username}
-          />
-          <AvatarFallback className="text-xs">
-            {getInitials(data.display_name, data.username)}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          displayName={data.display_name}
+          username={data.username}
+          avatarUrl={data.avatar_url}
+          className="size-8"
+          fallbackClassName="text-xs"
+        />
         <div className="min-w-0 flex-1">
           <p className="text-sm">
             <span className="font-medium">{data.display_name ?? data.username}</span> rated{" "}

@@ -9,24 +9,14 @@
 import { TrophyIcon, WifiOffIcon } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { UserAvatar } from "@/components/user-avatar";
 import type { GamePlayerResponse } from "@/types/game-responses";
 
 interface LiveScoreboardProps {
   readonly players: GamePlayerResponse[];
   readonly onlineUserIds?: Set<string>;
-}
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 const RANK_COLORS: Record<number, string> = {
@@ -72,15 +62,13 @@ export function LiveScoreboard({ players, onlineUserIds }: LiveScoreboardProps) 
 
               {/* Avatar */}
               <div className="relative">
-                <Avatar className="size-6">
-                  <AvatarImage
-                    src={player.avatarUrl ?? undefined}
-                    alt={player.displayName ?? player.username}
-                  />
-                  <AvatarFallback className="text-[9px]">
-                    {getInitials(player.displayName, player.username)}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  displayName={player.displayName}
+                  username={player.username}
+                  avatarUrl={player.avatarUrl}
+                  className="size-6"
+                  fallbackClassName="text-[9px]"
+                />
               </div>
 
               {/* Name + disconnect icon */}

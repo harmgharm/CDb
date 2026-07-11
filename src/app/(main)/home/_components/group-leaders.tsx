@@ -3,7 +3,7 @@
 import { ChevronRightIcon, StarIcon } from "lucide-react";
 import Link from "next/link";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import type { PickerLeaderboardEntry } from "@/types/detailed-stats";
 
 /**
@@ -12,10 +12,6 @@ import type { PickerLeaderboardEntry } from "@/types/detailed-stats";
  * aggregate that powers Deep Cuts, so no extra query. Lives in the left column
  * of the dashboard's leaders / viewing-habits two-column row.
  */
-
-function getInitials(displayName: string | null, username: string): string {
-  return (displayName ?? username).slice(0, 2).toUpperCase();
-}
 
 function LeaderRow({ leader, rank }: Readonly<{ leader: PickerLeaderboardEntry; rank: number }>) {
   const name = leader.displayName ?? leader.username;
@@ -27,12 +23,13 @@ function LeaderRow({ leader, rank }: Readonly<{ leader: PickerLeaderboardEntry; 
       className="hover:bg-accent/40 flex items-center gap-3 rounded-md px-1 py-2 transition-colors"
     >
       <span className="w-4 text-center font-mono text-xs text-[var(--fg-muted)]">{rank + 1}</span>
-      <Avatar className="size-8">
-        <AvatarImage src={leader.avatarUrl ?? undefined} alt={name} />
-        <AvatarFallback className="text-xs">
-          {getInitials(leader.displayName, leader.username)}
-        </AvatarFallback>
-      </Avatar>
+      <UserAvatar
+        displayName={leader.displayName}
+        username={leader.username}
+        avatarUrl={leader.avatarUrl}
+        className="size-8"
+        fallbackClassName="text-xs"
+      />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px]">{name}</div>
         <div className="mt-px text-[11px] text-[var(--fg-muted)]">{meta}</div>

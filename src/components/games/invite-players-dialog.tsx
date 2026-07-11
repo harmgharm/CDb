@@ -9,7 +9,6 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { UserAvatar } from "@/components/user-avatar";
 import { useInvitePlayers } from "@/hooks/use-games";
 import { useUserList } from "@/hooks/use-users";
 import type { GamePlayerResponse } from "@/types/game-responses";
@@ -30,16 +30,6 @@ interface InvitePlayersDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly gameId: string;
   readonly existingPlayers: GamePlayerResponse[];
-}
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 export function InvitePlayersDialog({
@@ -111,15 +101,13 @@ export function InvitePlayersDialog({
                     className="flex items-center gap-3 rounded-lg p-2 opacity-60"
                   >
                     <CheckCircle2Icon className="size-4 shrink-0 text-emerald-500" />
-                    <Avatar className="size-7">
-                      <AvatarImage
-                        src={inviteUser.avatar_url ?? undefined}
-                        alt={inviteUser.display_name ?? inviteUser.username}
-                      />
-                      <AvatarFallback className="text-[9px]">
-                        {getInitials(inviteUser.display_name, inviteUser.username)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      displayName={inviteUser.display_name}
+                      username={inviteUser.username}
+                      avatarUrl={inviteUser.avatar_url}
+                      className="size-7"
+                      fallbackClassName="text-[9px]"
+                    />
                     <div className="flex-1">
                       <p className="text-sm font-medium">
                         {inviteUser.display_name ?? inviteUser.username}
@@ -144,15 +132,13 @@ export function InvitePlayersDialog({
                       handleToggle(inviteUser.id);
                     }}
                   />
-                  <Avatar className="size-7">
-                    <AvatarImage
-                      src={inviteUser.avatar_url ?? undefined}
-                      alt={inviteUser.display_name ?? inviteUser.username}
-                    />
-                    <AvatarFallback className="text-[9px]">
-                      {getInitials(inviteUser.display_name, inviteUser.username)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    displayName={inviteUser.display_name}
+                    username={inviteUser.username}
+                    avatarUrl={inviteUser.avatar_url}
+                    className="size-7"
+                    fallbackClassName="text-[9px]"
+                  />
                   <div className="flex-1">
                     <p className="text-sm font-medium">
                       {inviteUser.display_name ?? inviteUser.username}

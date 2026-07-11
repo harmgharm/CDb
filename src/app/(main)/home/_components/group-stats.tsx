@@ -5,6 +5,7 @@ import { HeartIcon, TrophyIcon, UsersIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardStats } from "@/hooks/use-stats";
+import { getInitials } from "@/lib/users/initials";
 
 /**
  * "The cast this month": three human cards — Top Picker / Highest Rater /
@@ -15,16 +16,6 @@ import { useDashboardStats } from "@/hooks/use-stats";
 
 function displayName(name: string | null, username: string): string {
   return name ?? username;
-}
-
-function getInitials(name: string | null, username: string | null): string {
-  const display = name ?? username ?? "?";
-  return display
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function SectionHeader() {
@@ -122,7 +113,7 @@ export function GroupStats() {
       avatarUrl: stats?.topPicker?.avatarUrl ?? null,
       initials: getInitials(
         stats?.topPicker?.displayName ?? null,
-        stats?.topPicker?.username ?? null,
+        stats?.topPicker?.username ?? "?",
       ),
     },
     {
@@ -133,10 +124,7 @@ export function GroupStats() {
         : null,
       stat: stats?.topRater ? `${String(stats.topRater.avgScore)} avg` : null,
       avatarUrl: stats?.topRater?.avatarUrl ?? null,
-      initials: getInitials(
-        stats?.topRater?.displayName ?? null,
-        stats?.topRater?.username ?? null,
-      ),
+      initials: getInitials(stats?.topRater?.displayName ?? null, stats?.topRater?.username ?? "?"),
     },
     {
       label: "Most active",
@@ -148,7 +136,7 @@ export function GroupStats() {
       avatarUrl: stats?.topAttendee?.avatarUrl ?? null,
       initials: getInitials(
         stats?.topAttendee?.displayName ?? null,
-        stats?.topAttendee?.username ?? null,
+        stats?.topAttendee?.username ?? "?",
       ),
     },
   ];

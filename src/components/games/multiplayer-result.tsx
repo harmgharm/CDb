@@ -25,10 +25,10 @@ import { toast } from "sonner";
 import { GameBackButton } from "@/components/games/game-back-button";
 import { RoundBreakdownRow } from "@/components/games/round-breakdown-row";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user-avatar";
 import { useRematch } from "@/hooks/use-games";
 import { getClientGameConfig } from "@/lib/games/client-config";
 import type {
@@ -39,16 +39,6 @@ import type {
 
 interface MultiplayerResultProps {
   readonly game: GameSessionResponse;
-}
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 const MEDAL_STYLES: Record<number, { bg: string; text: string; label: string }> = {
@@ -170,15 +160,13 @@ export function MultiplayerResult({ game }: MultiplayerResultProps) {
                 </div>
 
                 {/* Avatar */}
-                <Avatar className="size-8">
-                  <AvatarImage
-                    src={player.avatarUrl ?? undefined}
-                    alt={player.displayName ?? player.username}
-                  />
-                  <AvatarFallback className="text-[10px]">
-                    {getInitials(player.displayName, player.username)}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  displayName={player.displayName}
+                  username={player.username}
+                  avatarUrl={player.avatarUrl}
+                  className="size-8"
+                  fallbackClassName="text-[10px]"
+                />
 
                 {/* Name */}
                 <div className="min-w-0 flex-1">

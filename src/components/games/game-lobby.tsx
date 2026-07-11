@@ -23,10 +23,10 @@ import { toast } from "sonner";
 
 import { GameBackButton } from "@/components/games/game-back-button";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user-avatar";
 import { useStartGame } from "@/hooks/use-games";
 import {
   playPlayerDisconnectedSound,
@@ -49,16 +49,6 @@ interface GameLobbyProps {
   readonly onlineUserIds: Set<string>;
   /** True when the host disconnected (detected via presence in parent) */
   readonly hostDisconnected: boolean;
-}
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 const DIFFICULTY_LABELS: Record<string, string> = {
@@ -219,15 +209,13 @@ export function GameLobby({
             {players.map((player) => (
               <div key={player.userId} className="flex items-center gap-3 rounded-lg p-2">
                 <div className="relative">
-                  <Avatar className="size-9">
-                    <AvatarImage
-                      src={player.avatarUrl ?? undefined}
-                      alt={player.displayName ?? player.username}
-                    />
-                    <AvatarFallback className="text-xs">
-                      {getInitials(player.displayName, player.username)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    displayName={player.displayName}
+                    username={player.username}
+                    avatarUrl={player.avatarUrl}
+                    className="size-9"
+                    fallbackClassName="text-xs"
+                  />
                   {onlineUserIds.has(player.userId) && (
                     <div className="bg-cdb-success absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-white dark:border-gray-900" />
                   )}

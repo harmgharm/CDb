@@ -6,23 +6,13 @@ import Link from "next/link";
 
 import { formatIssueDate, IssueLine } from "@/components/editorial/issue-line";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserAvatar } from "@/components/user-avatar";
 import { useOnlineUsers } from "@/hooks/use-online-users";
 import { useDashboardStats } from "@/hooks/use-stats";
 import { useUserList } from "@/hooks/use-users";
 import { buildRosterLede } from "@/lib/users/roster-lede";
 import type { UserListItem } from "@/types/user-responses";
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 function formatJoinDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -95,12 +85,13 @@ function RosterRow({
         </div>
 
         <div className="relative size-[72px] sm:size-22">
-          <Avatar className="size-full">
-            <AvatarImage src={user.avatar_url ?? undefined} alt={name} />
-            <AvatarFallback className="text-lg">
-              {getInitials(user.display_name, user.username)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            displayName={user.display_name}
+            username={user.username}
+            avatarUrl={user.avatar_url}
+            className="size-full"
+            fallbackClassName="text-lg"
+          />
           {isOnline && (
             <span className="bg-cdb-success border-background absolute right-1 bottom-1 size-3.5 rounded-full border-3 shadow-[0_0_0_3px_color-mix(in_oklch,var(--cdb-success)_25%,transparent)]" />
           )}

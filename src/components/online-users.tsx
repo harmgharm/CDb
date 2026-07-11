@@ -1,18 +1,8 @@
 "use client";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import { useOnlineUsers } from "@/hooks/use-online-users";
-
-function getInitials(displayName: string | null, username: string): string {
-  const name = displayName ?? username;
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 const MAX_VISIBLE = 8;
 
@@ -47,15 +37,13 @@ function OnlineUsersList() {
             className="flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-[var(--fg-muted)]"
           >
             <span className="bg-cdb-tv size-1.5 shrink-0 rounded-full shadow-[0_0_0_3px_color-mix(in_oklch,var(--cdb-tv)_25%,transparent)]" />
-            <Avatar className="size-5">
-              <AvatarImage
-                src={user.avatarUrl ?? undefined}
-                alt={user.displayName ?? user.username}
-              />
-              <AvatarFallback className="text-[9px]">
-                {getInitials(user.displayName, user.username)}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              displayName={user.displayName}
+              username={user.username}
+              avatarUrl={user.avatarUrl}
+              className="size-5"
+              fallbackClassName="text-[9px]"
+            />
             <span className="truncate">{user.displayName ?? user.username}</span>
           </div>
         ))}

@@ -14,21 +14,13 @@ import {
 } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeatured } from "@/hooks/use-featured";
+import { getInitials } from "@/lib/users/initials";
 import type { FeaturedMedia, FeaturedPerson } from "@/types/detailed-stats";
 
 const MAX_AVATARS = 4;
 
 function personName(person: FeaturedPerson): string {
   return person.displayName ?? person.username;
-}
-
-function personInitials(person: FeaturedPerson): string {
-  return personName(person)
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 /** Overlapping avatar stack of the canonical session's attendees (kit: feat-stack). */
@@ -47,7 +39,7 @@ function AttendeeStack({ attendees }: Readonly<{ attendees: readonly FeaturedPer
           {person.avatarUrl !== null && (
             <AvatarImage src={person.avatarUrl} alt={personName(person)} />
           )}
-          <AvatarFallback>{personInitials(person)}</AvatarFallback>
+          <AvatarFallback>{getInitials(person.displayName, person.username)}</AvatarFallback>
         </Avatar>
       ))}
       {overflow > 0 && <AvatarGroupCount>+{overflow}</AvatarGroupCount>}

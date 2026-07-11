@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { QueueProposalView, QueueProposer } from "@/hooks/use-queue";
 import { formatScheduledDate, scheduleButtonLabel, useQueue, wonVoteLine } from "@/hooks/use-queue";
+import { getInitials } from "@/lib/users/initials";
 
 import { SetDateDialog } from "./set-date-dialog";
 
@@ -51,19 +52,6 @@ function SectionShell({ children }: Readonly<{ children: React.ReactNode }>) {
       {children}
     </section>
   );
-}
-
-function proposerInitials(proposer: QueueProposer): string {
-  const display =
-    proposer.displayName !== null && proposer.displayName.length > 0
-      ? proposer.displayName
-      : proposer.username;
-  return display
-    .split(" ")
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function proposerName(proposer: QueueProposer | null): string {
@@ -199,7 +187,7 @@ function VoteRow({
                 <Avatar size="sm">
                   <AvatarImage src={proposal.proposer.avatarUrl ?? undefined} alt="" />
                   <AvatarFallback className="text-[9px]">
-                    {proposerInitials(proposal.proposer)}
+                    {getInitials(proposal.proposer.displayName, proposal.proposer.username)}
                   </AvatarFallback>
                 </Avatar>
                 {proposerName(proposal.proposer)}

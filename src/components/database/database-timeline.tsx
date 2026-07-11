@@ -14,21 +14,13 @@ import {
 } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getInitials } from "@/lib/users/initials";
 import type { TimelineAttendee, TimelineEntry } from "@/types/timeline-responses";
 
 const MAX_AVATARS = 5;
 
 function attendeeName(attendee: TimelineAttendee): string {
   return attendee.displayName ?? attendee.username;
-}
-
-function attendeeInitials(attendee: TimelineAttendee): string {
-  return attendeeName(attendee)
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 /** "Jun 7" from a YYYY-MM-DD string, in UTC to avoid an off-by-one day shift. */
@@ -66,7 +58,7 @@ function AttendeeRow({
             {attendee.avatarUrl !== null && (
               <AvatarImage src={attendee.avatarUrl} alt={attendeeName(attendee)} />
             )}
-            <AvatarFallback>{attendeeInitials(attendee)}</AvatarFallback>
+            <AvatarFallback>{getInitials(attendee.displayName, attendee.username)}</AvatarFallback>
           </Avatar>
         ))}
         {overflow > 0 && <AvatarGroupCount>+{overflow}</AvatarGroupCount>}

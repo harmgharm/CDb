@@ -8,7 +8,6 @@ import { ExpandableText } from "@/components/editorial/expandable-text";
 import { ConfirmDeleteDialog } from "@/components/media/confirm-delete-dialog";
 import { EditSessionDialog } from "@/components/media/edit-session-dialog";
 import { ScoreSelector, SubmitRatingDialog } from "@/components/media/submit-rating-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,18 +22,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/user-avatar";
 import { useDeleteRating, useDeleteSession, useUpdateRating } from "@/hooks/use-sessions";
 import type { MediaRating, MediaSession } from "@/types/media-responses";
-
-function getInitials(name: string | null, username: string): string {
-  const display = name ?? username;
-  return display
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -167,15 +157,13 @@ function RatingRow({ rating, currentUserId, isModeratorOrAdmin, onChanged }: Rat
     <>
       <div className="group">
         <div className="flex items-center gap-2">
-          <Avatar className="size-6">
-            <AvatarImage
-              src={rating.avatar_url ?? undefined}
-              alt={rating.display_name ?? rating.username}
-            />
-            <AvatarFallback className="text-[10px]">
-              {getInitials(rating.display_name, rating.username)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            displayName={rating.display_name}
+            username={rating.username}
+            avatarUrl={rating.avatar_url}
+            className="size-6"
+            fallbackClassName="text-[10px]"
+          />
           <span className="text-sm">{rating.display_name ?? rating.username}</span>
           <div className="flex items-center gap-0.5">
             <StarIcon className="size-3 fill-amber-500 text-amber-500" />

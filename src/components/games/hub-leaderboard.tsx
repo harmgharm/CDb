@@ -3,7 +3,7 @@
 import { TrophyIcon } from "lucide-react";
 import Link from "next/link";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import type { GroupLeaderboardEntryResponse } from "@/types/game-responses";
 
 /**
@@ -12,10 +12,6 @@ import type { GroupLeaderboardEntryResponse } from "@/types/game-responses";
  * "Play hub" judgment calls: the kit's "This month" scope isn't backed by
  * any time-windowed data, so this reads "All time" instead).
  */
-
-function getInitials(displayName: string | null, username: string): string {
-  return (displayName ?? username).slice(0, 2).toUpperCase();
-}
 
 function LeaderRow({ entry }: Readonly<{ entry: GroupLeaderboardEntryResponse }>) {
   const name = entry.displayName ?? entry.username;
@@ -32,12 +28,13 @@ function LeaderRow({ entry }: Readonly<{ entry: GroupLeaderboardEntryResponse }>
       >
         {entry.rank}
       </span>
-      <Avatar className="size-8">
-        <AvatarImage src={entry.avatarUrl ?? undefined} alt={name} />
-        <AvatarFallback className="text-xs">
-          {getInitials(entry.displayName, entry.username)}
-        </AvatarFallback>
-      </Avatar>
+      <UserAvatar
+        displayName={entry.displayName}
+        username={entry.username}
+        avatarUrl={entry.avatarUrl}
+        className="size-8"
+        fallbackClassName="text-xs"
+      />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px]">{name}</div>
         <div className="mt-px text-[11px] text-[var(--fg-muted)]">{meta}</div>
