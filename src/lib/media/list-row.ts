@@ -36,7 +36,7 @@ export function coerceAvgRating(raw: RawAvgRating): number | null {
  * fields pass through untouched. Generic so it composes with whatever wide row
  * shape the query produces, without restating every media column here.
  */
-export function mapMediaListRow<T extends { avg_rating?: RawAvgRating }>(
+export function mapMediaListRow<T extends { avg_rating?: Exclude<RawAvgRating, undefined> }>(
   row: T,
 ): Omit<T, "avg_rating"> & { avg_rating: number | null } {
   return { ...row, avg_rating: coerceAvgRating(row.avg_rating) };

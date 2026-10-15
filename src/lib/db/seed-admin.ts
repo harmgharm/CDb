@@ -26,7 +26,6 @@ async function seedAdmin() {
 
   if (password.length === 0) {
     console.error("Error: ADMIN_PASSWORD environment variable is required.");
-    // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- usage example, not a real password
     console.error("Usage: ADMIN_PASSWORD=yourpassword npm run db:seed:admin");
     process.exit(1);
   }

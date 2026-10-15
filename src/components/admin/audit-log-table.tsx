@@ -69,7 +69,6 @@ const ACTION_COLORS: Record<string, string> = {
   updated: "bg-cdb-info/15 text-cdb-info",
   deleted: "bg-cdb-cherry-hi/15 text-cdb-cherry-hi",
   used: "bg-cdb-warning/15 text-cdb-warning",
-  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- key name, not a password
   password_reset: "bg-cdb-warning/15 text-cdb-warning",
   login_failed: "bg-cdb-cherry-hi/15 text-cdb-cherry-hi",
   login_succeeded: "bg-cdb-success/15 text-cdb-success",

@@ -98,28 +98,20 @@ describe("ratingSchema", () => {
     score: 8,
   };
 
-  it("accepts valid rating", () => {
-    const result = ratingSchema.safeParse(validRating);
+  it.each([
+    ["a typical score", 8],
+    ["score at minimum (1)", 1],
+    ["score at maximum (10)", 10],
+  ])("accepts %s", (_label, score) => {
+    const result = ratingSchema.safeParse({ ...validRating, score });
     expect(result.success).toBe(true);
   });
 
-  it("accepts score at minimum (1)", () => {
-    const result = ratingSchema.safeParse({ ...validRating, score: 1 });
-    expect(result.success).toBe(true);
-  });
-
-  it("accepts score at maximum (10)", () => {
-    const result = ratingSchema.safeParse({ ...validRating, score: 10 });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects score below 1", () => {
-    const result = ratingSchema.safeParse({ ...validRating, score: 0 });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects score above 10", () => {
-    const result = ratingSchema.safeParse({ ...validRating, score: 11 });
+  it.each([
+    ["below 1", 0],
+    ["above 10", 11],
+  ])("rejects score %s", (_label, score) => {
+    const result = ratingSchema.safeParse({ ...validRating, score });
     expect(result.success).toBe(false);
   });
 

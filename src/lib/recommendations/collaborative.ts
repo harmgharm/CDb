@@ -320,8 +320,8 @@ async function discoverForSharedGenres(
         if (isAlreadyWatched(watched, { tmdbId: item.id })) continue;
 
         const parsed = isMovie
-          ? parseDiscoverResult(item as TmdbMovieSearchResult, "movie")
-          : parseDiscoverResult(item as TmdbTvSearchResult, "tv");
+          ? parseDiscoverResult(item, "movie")
+          : parseDiscoverResult(item, "tv");
 
         const voteScore = (parsed.voteAverage ?? 0) / 10;
 

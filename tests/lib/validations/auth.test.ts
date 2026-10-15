@@ -67,23 +67,13 @@ describe("registerSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects username shorter than 3 chars", () => {
-    const result = registerSchema.safeParse({ ...validInput, username: "ab" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects username longer than 20 chars", () => {
-    const result = registerSchema.safeParse({ ...validInput, username: "a".repeat(21) });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects username starting with a number", () => {
-    const result = registerSchema.safeParse({ ...validInput, username: "1user" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects username with special characters", () => {
-    const result = registerSchema.safeParse({ ...validInput, username: "user@name" });
+  it.each([
+    ["shorter than 3 chars", "ab"],
+    ["longer than 20 chars", "a".repeat(21)],
+    ["starting with a number", "1user"],
+    ["with special characters", "user@name"],
+  ])("rejects username %s", (_label, username) => {
+    const result = registerSchema.safeParse({ ...validInput, username });
     expect(result.success).toBe(false);
   });
 

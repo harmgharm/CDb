@@ -180,6 +180,13 @@ export default defineConfig([
           skipComments: true,
         },
       ],
+
+      // React Compiler rules new in eslint-config-next 16.4. Existing violations live in the
+      // multiplayer game components and two SWR hooks; downgraded to warn until audit findings
+      // #6 (games) and #3 (hooks) refactor that code. Restore to "error" once cleared.
+      "react-hooks/refs": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/set-state-in-effect": "warn",
     },
   },
 
@@ -235,6 +242,7 @@ export default defineConfig([
       "@typescript-eslint/no-unsafe-member-access": "off",
       "import-x/first": "off", // vi.mock() must precede imports it mocks (Vitest hoists them)
       "sonarjs/cognitive-complexity": ["error", 30],
+      "sonarjs/no-floating-point-equality": "off", // tests assert exact rounded outputs on purpose
       "sonarjs/no-hardcoded-passwords": "off",
       "sonarjs/no-unused-vars": "off", // covered by @typescript-eslint/no-unused-vars
       "unicorn/no-nested-ternary": "off",

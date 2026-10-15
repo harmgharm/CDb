@@ -36,7 +36,7 @@ import { useOnlineUsers } from "@/hooks/use-online-users";
 import { useUserList, useUserProfile, useUserStats } from "@/hooks/use-users";
 import { resolveDetailState } from "@/lib/api/detail-state";
 import { getInitials } from "@/lib/users/initials";
-import { type ProfileTab, resolveProfileTab } from "@/lib/users/profile-tabs";
+import { resolveProfileTab } from "@/lib/users/profile-tabs";
 import type { UserProfile } from "@/types/user-responses";
 
 // Gold-active soft-chip tabs (kit's cdb-up-tab.active). Overrides the shadcn
@@ -246,7 +246,7 @@ function ProfileView({
       // Keep the canonical profile URL clean — the default tab needs no param.
       params.delete("tab");
     } else {
-      params.set("tab", tab as ProfileTab);
+      params.set("tab", tab);
     }
     const query = params.toString();
     router.replace(query.length > 0 ? `${pathname}?${query}` : pathname, { scroll: false });
