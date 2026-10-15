@@ -102,8 +102,7 @@ function MultiplayerPageInner({
   // Track who is online via presence leave/enter events
   const { presenceData } = usePresenceListener({ channelName }, (update) => {
     const data = update.data as
-      | { userId?: string; username?: string; displayName?: string | null }
-      | undefined;
+      { userId?: string; username?: string; displayName?: string | null } | undefined;
 
     // Track when the host first appears in presence
     const isJoinAction =
