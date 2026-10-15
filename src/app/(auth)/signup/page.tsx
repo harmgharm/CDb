@@ -47,6 +47,10 @@ export default function SignupPage() {
         return;
       }
 
+      // Full page load (not client-side nav), same as login: the authenticated
+      // layout must mount fresh with the new cookies, or stale pre-auth SWR
+      // cache can cause a silent redirect loop back to /login.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional hard nav, see above
       globalThis.location.href = "/home";
     } catch {
       setError("Something went wrong. Please try again.");
